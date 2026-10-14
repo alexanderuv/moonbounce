@@ -264,10 +264,11 @@ extension Vec4 {
     /// The arc sine of each lane, in [-π / 2, π / 2].
     ///
     /// Inputs are clamped to [-1, 1], so a value just outside that range from
-    /// rounding error yields ±π / 2 rather than NaN. Exact at 0 and ±1.
+    /// rounding error yields ±π / 2 rather than NaN. A NaN input still yields
+    /// NaN. Exact at 0 and ±1.
     @inline(always)
     public func asin() -> Vec4 {
-        let a = mb_min(absolute(simd), SIMD4(repeating: 1))
+        let a = mb_min_nan(absolute(simd), SIMD4(repeating: 1))
         let p = asinMagnitude(a)
         let outer = halfPiMinus(p.value + p.value)
         return Vec4(copyingSigns(mb_select_float4(p.value, outer, p.nearOne), from: simd))
@@ -275,10 +276,11 @@ extension Vec4 {
 
     /// The arc cosine of each lane, in [0, π].
     ///
-    /// Inputs are clamped to [-1, 1] as in ``asin()``. Exact at 0 and ±1.
+    /// Inputs are clamped to [-1, 1] as in ``asin()``, and NaN stays NaN.
+    /// Exact at 0 and ±1.
     @inline(always)
     public func acos() -> Vec4 {
-        let a = mb_min(absolute(simd), SIMD4(repeating: 1))
+        let a = mb_min_nan(absolute(simd), SIMD4(repeating: 1))
         let p = asinMagnitude(a)
         // |x| <= 0.5: acos(x) = π / 2 - asin(x).
         let central = halfPiMinus(copyingSigns(p.value, from: simd))
@@ -289,14 +291,14 @@ extension Vec4 {
         return Vec4(mb_select_float4(central, outer, p.nearOne))
     }
 
-    /// The arc tangent of each lane, in [-π / 2, π / 2].
+    /// The arc tangent of each lane, in [-π / 2, π / 2]; NaN stays NaN.
     @inline(always)
     public func atan() -> Vec4 {
         // atan(a) = π / 2 - atan(1 / a) maps |x| > 1 into [0, 1].
         let a = absolute(simd)
         let one = SIMD4<Float>(repeating: 1)
         let inverted = mb_greater(a, one)
-        let t = mb_min(a, one) / mb_max(a, one)
+        let t = mb_min_nan(a, one) / mb_max_nan(a, one)
         let p = atanKernel(t)
         return Vec4(copyingSigns(mb_select_float4(p, halfPiMinus(p), inverted), from: simd))
     }
@@ -305,11 +307,11 @@ extension Vec4 {
     /// in [-π, π].
     ///
     /// Exact on the axes and diagonals. At the origin the result is 0 or π,
-    /// signed like `y`, as in C's `atan2`.
+    /// signed like `y`, as in C's `atan2`. A NaN in either input gives NaN.
     @inline(always)
     public static func atan2(_ y: Vec4, _ x: Vec4) -> Vec4 {
         let ax = absolute(x.simd), ay = absolute(y.simd)
-        let smaller = mb_min(ax, ay), larger = mb_max(ax, ay)
+        let smaller = mb_min_nan(ax, ay), larger = mb_max_nan(ax, ay)
 
         // The angle of (|x|, |y|) in [0, π / 2], from the ratio of the smaller
         // magnitude to the larger, so the quotient stays in [0, 1].

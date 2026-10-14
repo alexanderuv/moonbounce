@@ -227,6 +227,21 @@ import Testing
         #expect(worst < 3.0e-7)
     }
 
+    /// A NaN must reach the result rather than become a plausible angle.
+    @Test func inverseFunctionsPropagateNaN() {
+        let nan = Vec4(.nan, -.nan, 0.5, -2)
+        for result in [nan.asin(), nan.acos(), nan.atan(), Vec4.atan2(nan, .one), Vec4.atan2(.one, nan)] {
+            #expect(result.x.isNaN && result.y.isNaN)
+            #expect(!result.z.isNaN && !result.w.isNaN)
+        }
+        #expect(Trigonometry.asin(.nan).isNaN)
+        #expect(Trigonometry.acos(.nan).isNaN)
+        #expect(Trigonometry.atan(.nan).isNaN)
+        #expect(Trigonometry.atan2(.nan, .nan).isNaN)
+        #expect(Trigonometry.atan2(0, .nan).isNaN)
+        #expect(Trigonometry.atan2(.nan, 0).isNaN)
+    }
+
     @Test func acosApproximate() {
         for i in -1000...1000 {
             let x = Float(i) / 1000

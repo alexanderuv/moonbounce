@@ -33,6 +33,13 @@ MB_INLINE mb_float4 mb_min(mb_float4 a, mb_float4 b) { return __builtin_elementw
 /// Lane-wise IEEE 754 maxNum: a NaN operand yields the other operand.
 MB_INLINE mb_float4 mb_max(mb_float4 a, mb_float4 b) { return __builtin_elementwise_max(a, b); }
 
+/// Lane-wise IEEE 754-2019 minimum: a NaN operand yields NaN. One `fmin` on
+/// arm64; for clamps that must not turn a NaN input into a plausible value.
+MB_INLINE mb_float4 mb_min_nan(mb_float4 a, mb_float4 b) { return __builtin_elementwise_minimum(a, b); }
+
+/// Lane-wise IEEE 754-2019 maximum: a NaN operand yields NaN.
+MB_INLINE mb_float4 mb_max_nan(mb_float4 a, mb_float4 b) { return __builtin_elementwise_maximum(a, b); }
+
 // The smallest and largest of the four lanes, with minNum / maxNum semantics.
 //
 // On arm64 both forms compile to one `fminnmv` / `fmaxnmv`, but LLVM's loop
