@@ -13,7 +13,3 @@ Closes #
 ## Verification
 
 <!-- Only what CI doesn't show. For hot-path or benchmark changes, paste the comparison script's rows for the affected benchmarks. Delete otherwise. -->
-
-## Notes
-
-<!-- Decisions, trade-offs, follow-ups, anything deliberately left out. Delete if none. -->

@@ -50,7 +50,8 @@ The description follows the [pull request template](.github/pull_request_templat
 - **Summary:** one or two sentences on what changes and why, then `Closes #<n>`. A reviewer should know what they are looking at before opening the diff.
 - **Changes:** the notable changes, by behaviour rather than by file. Leave this out when the summary already says it all.
 - **Verification:** only what CI doesn't show. When a hot path or a benchmark changes, include the comparison script's rows for the affected benchmarks (benchmark, Moonbounce, Jolt, result). Leave this out otherwise.
-- **Notes:** decisions, trade-offs, follow-ups, and anything deliberately left out. Leave this out when there are none.
+
+There is no catch-all section. A decision that outlives the PR goes in an ADR, and a follow-up goes in an issue.
 
 Keep it short:
 
