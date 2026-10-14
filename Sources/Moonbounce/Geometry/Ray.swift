@@ -4,18 +4,18 @@
 /// multiples of it, so a direction of length 10 makes `t = 1` mean 10 units.
 @frozen
 public struct Ray: Equatable, Sendable, BitwiseCopyable {
-    public var origin: Vec3
-    public var direction: Vec3
+    public var origin: Vector3
+    public var direction: Vector3
 
     @inline(always)
-    public init(origin: Vec3, direction: Vec3) {
+    public init(origin: Vector3, direction: Vector3) {
         self.origin = origin
         self.direction = direction
     }
 
     /// The point at distance `t` along the ray.
     @inline(always)
-    public func point(at t: Float) -> Vec3 {
+    public func point(at t: Float) -> Vector3 {
         origin + direction * t
     }
 }
@@ -33,7 +33,7 @@ public struct RayInverseDirection: Sendable, BitwiseCopyable {
     @usableFromInline var parallelGate: SIMD4<Float>
 
     @inline(always)
-    public init(_ direction: Vec3) {
+    public init(_ direction: Vector3) {
         let d = direction.storage
         let isParallel = absolute(d) .<= SIMD4(repeating: 1.0e-20)
         reciprocal = 1 / d.replacing(with: 1, where: isParallel)
@@ -49,7 +49,7 @@ extension AABB {
     /// `.infinity` rather than an optional keeps the test branch-free and lets
     /// traversal fold results with `min`.
     @inline(always)
-    public func rayDistance(origin: Vec3, inverseDirection: RayInverseDirection) -> Float {
+    public func rayDistance(origin: Vector3, inverseDirection: RayInverseDirection) -> Float {
         let o = origin.storage
         let gate = inverseDirection.parallelGate
 

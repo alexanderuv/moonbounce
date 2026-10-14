@@ -223,16 +223,16 @@ func copyingSigns(_ magnitude: SIMD4<Float>, from sign: SIMD4<Float>) -> SIMD4<F
     mb_float4_from_bits((mb_float4_bits(magnitude) & ~signMask) | (mb_float4_bits(sign) & signMask))
 }
 
-// MARK: - Vec4
+// MARK: - Vector4
 
-extension Vec4 {
+extension Vector4 {
     /// The sine and cosine of each lane, in radians.
     ///
     /// The error is below 1 × 10⁻⁷ for every finite x, and both results are
     /// exact at multiples of π / 2 up to the reduction's rounding. Infinity
     /// and NaN give NaN.
     @inline(always)
-    public func sinCos() -> (sin: Vec4, cos: Vec4) {
+    public func sinCos() -> (sin: Vector4, cos: Vector4) {
         let (r, quadrant) = reduceQuarterTurns(simd)
         let z = r * r
         let sinR = sinKernel(r, z)
@@ -246,7 +246,7 @@ extension Vec4 {
         let cosSign = ((quadrant &+ 1) &<< 30) & signMask
         let s = mb_select_float4(sinR, cosR, swap)
         let c = mb_select_float4(cosR, sinR, swap)
-        return (Vec4(togglingSignBits(s, sinSign)), Vec4(togglingSignBits(c, cosSign)))
+        return (Vector4(togglingSignBits(s, sinSign)), Vector4(togglingSignBits(c, cosSign)))
     }
 
     /// The tangent of each lane, in radians.
@@ -254,11 +254,11 @@ extension Vec4 {
     /// The relative error is below 2 × 10⁻⁷ for every finite x, poles
     /// included. Infinity and NaN give NaN.
     @inline(always)
-    public func tan() -> Vec4 {
+    public func tan() -> Vector4 {
         let (r, quadrant) = reduceQuarterTurns(simd)
         let t = tanKernel(r, r * r)
         // A quarter turn further, tan(r + π / 2) = -1 / tan(r).
-        return Vec4(mb_select_float4(t, -1 / t, quadrant &<< 31))
+        return Vector4(mb_select_float4(t, -1 / t, quadrant &<< 31))
     }
 
     /// The arc sine of each lane, in [-π / 2, π / 2].
@@ -267,11 +267,11 @@ extension Vec4 {
     /// rounding error yields ±π / 2 rather than NaN. A NaN input still yields
     /// NaN. Exact at 0 and ±1.
     @inline(always)
-    public func asin() -> Vec4 {
+    public func asin() -> Vector4 {
         let a = mb_min_nan(absolute(simd), SIMD4(repeating: 1))
         let p = asinMagnitude(a)
         let outer = halfPiMinus(p.value + p.value)
-        return Vec4(copyingSigns(mb_select_float4(p.value, outer, p.nearOne), from: simd))
+        return Vector4(copyingSigns(mb_select_float4(p.value, outer, p.nearOne), from: simd))
     }
 
     /// The arc cosine of each lane, in [0, π].
@@ -279,7 +279,7 @@ extension Vec4 {
     /// Inputs are clamped to [-1, 1] as in ``asin()``, and NaN stays NaN.
     /// Exact at 0 and ±1.
     @inline(always)
-    public func acos() -> Vec4 {
+    public func acos() -> Vector4 {
         let a = mb_min_nan(absolute(simd), SIMD4(repeating: 1))
         let p = asinMagnitude(a)
         // |x| <= 0.5: acos(x) = π / 2 - asin(x).
@@ -288,19 +288,19 @@ extension Vec4 {
         // acos(-|x|) = π - acos(|x|).
         let twice = p.value + p.value
         let outer = mb_select_float4(twice, piMinus(twice), mb_float4_bits(simd))
-        return Vec4(mb_select_float4(central, outer, p.nearOne))
+        return Vector4(mb_select_float4(central, outer, p.nearOne))
     }
 
     /// The arc tangent of each lane, in [-π / 2, π / 2]; NaN stays NaN.
     @inline(always)
-    public func atan() -> Vec4 {
+    public func atan() -> Vector4 {
         // atan(a) = π / 2 - atan(1 / a) maps |x| > 1 into [0, 1].
         let a = absolute(simd)
         let one = SIMD4<Float>(repeating: 1)
         let inverted = mb_greater(a, one)
         let t = mb_min_nan(a, one) / mb_max_nan(a, one)
         let p = atanKernel(t)
-        return Vec4(copyingSigns(mb_select_float4(p, halfPiMinus(p), inverted), from: simd))
+        return Vector4(copyingSigns(mb_select_float4(p, halfPiMinus(p), inverted), from: simd))
     }
 
     /// The angle of the point `(x, y)` from the positive x axis in each lane,
@@ -309,7 +309,7 @@ extension Vec4 {
     /// Exact on the axes and diagonals. At the origin the result is 0 or π,
     /// signed like `y`, as in C's `atan2`. A NaN in either input gives NaN.
     @inline(always)
-    public static func atan2(_ y: Vec4, _ x: Vec4) -> Vec4 {
+    public static func atan2(_ y: Vector4, _ x: Vector4) -> Vector4 {
         let ax = absolute(x.simd), ay = absolute(y.simd)
         let smaller = mb_min_nan(ax, ay), larger = mb_max_nan(ax, ay)
 
@@ -321,7 +321,7 @@ extension Vec4 {
 
         // Mirror into the left half plane, then take the sign of y.
         angle = mb_select_float4(angle, piMinus(angle), mb_float4_bits(x.simd))
-        return Vec4(copyingSigns(angle, from: y.simd))
+        return Vector4(copyingSigns(angle, from: y.simd))
     }
 
     /// asin(a) for a in [0, 1], before any sign. `nearOne` marks lanes above
@@ -341,38 +341,38 @@ extension Vec4 {
 // MARK: - Scalars
 
 /// Deterministic trigonometry on single values: each function computes the
-/// ``Vec4`` form on four copies of its argument and returns one lane.
+/// ``Vector4`` form on four copies of its argument and returns one lane.
 ///
 /// These are namespaced rather than free functions so they don't collide
 /// with `sin`, `cos` and the rest from the platform's C library.
 public enum Trigonometry {
     @inline(always)
-    public static func sin(_ x: Float) -> Float { Vec4(repeating: x).sinCos().sin.x }
+    public static func sin(_ x: Float) -> Float { Vector4(repeating: x).sinCos().sin.x }
 
     @inline(always)
-    public static func cos(_ x: Float) -> Float { Vec4(repeating: x).sinCos().cos.x }
+    public static func cos(_ x: Float) -> Float { Vector4(repeating: x).sinCos().cos.x }
 
     @inline(always)
     public static func sinCos(_ x: Float) -> (sin: Float, cos: Float) {
-        let (s, c) = Vec4(repeating: x).sinCos()
+        let (s, c) = Vector4(repeating: x).sinCos()
         return (s.x, c.x)
     }
 
     @inline(always)
-    public static func tan(_ x: Float) -> Float { Vec4(repeating: x).tan().x }
+    public static func tan(_ x: Float) -> Float { Vector4(repeating: x).tan().x }
 
     @inline(always)
-    public static func asin(_ x: Float) -> Float { Vec4(repeating: x).asin().x }
+    public static func asin(_ x: Float) -> Float { Vector4(repeating: x).asin().x }
 
     @inline(always)
-    public static func acos(_ x: Float) -> Float { Vec4(repeating: x).acos().x }
+    public static func acos(_ x: Float) -> Float { Vector4(repeating: x).acos().x }
 
     @inline(always)
-    public static func atan(_ x: Float) -> Float { Vec4(repeating: x).atan().x }
+    public static func atan(_ x: Float) -> Float { Vector4(repeating: x).atan().x }
 
     @inline(always)
     public static func atan2(_ y: Float, _ x: Float) -> Float {
-        Vec4.atan2(Vec4(repeating: y), Vec4(repeating: x)).x
+        Vector4.atan2(Vector4(repeating: y), Vector4(repeating: x)).x
     }
 
     /// A cheaper arc cosine for when about 3 decimal digits suffice: the

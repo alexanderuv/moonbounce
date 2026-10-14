@@ -2,11 +2,11 @@ public import _MoonbounceShims
 
 /// A 4D vector of `Float`s held in one 128-bit SIMD register.
 ///
-/// Comparisons return a ``UVec4`` mask (all ones where the condition holds),
+/// Comparisons return a ``UInt32Vector4`` mask (all ones where the condition holds),
 /// which ``select(_:_:where:)``, the bitwise operations and the mask queries
-/// on `UVec4` consume.
+/// on `UInt32Vector4` consume.
 @frozen
-public struct Vec4: Equatable, Sendable, BitwiseCopyable {
+public struct Vector4: Equatable, Sendable, BitwiseCopyable {
     public var simd: SIMD4<Float>
 
     @inline(always)
@@ -26,14 +26,14 @@ public struct Vec4: Equatable, Sendable, BitwiseCopyable {
 
     /// `(v.x, v.y, v.z, w)`.
     @inline(always)
-    public init(_ v: Vec3, _ w: Float) {
+    public init(_ v: Vector3, _ w: Float) {
         simd = v.storage
         simd.w = w
     }
 
     /// The floats whose bit patterns are the lanes of `bits`.
     @inline(always)
-    public init(bitPattern bits: UVec4) {
+    public init(bitPattern bits: UInt32Vector4) {
         simd = mb_float4_from_bits(bits.simd)
     }
 
@@ -50,63 +50,63 @@ public struct Vec4: Equatable, Sendable, BitwiseCopyable {
 
     /// The x, y and z lanes.
     @inline(always)
-    public var xyz: Vec3 { Vec3(storage: mb_xyzz(simd)) }
+    public var xyz: Vector3 { Vector3(storage: mb_xyzz(simd)) }
 
-    @inline(always) public static var zero: Vec4 { Vec4(repeating: 0) }
-    @inline(always) public static var one: Vec4 { Vec4(repeating: 1) }
-    @inline(always) public static var nan: Vec4 { Vec4(repeating: .nan) }
+    @inline(always) public static var zero: Vector4 { Vector4(repeating: 0) }
+    @inline(always) public static var one: Vector4 { Vector4(repeating: 1) }
+    @inline(always) public static var nan: Vector4 { Vector4(repeating: .nan) }
 }
 
 // MARK: - Arithmetic
 
-extension Vec4: AdditiveArithmetic {
+extension Vector4: AdditiveArithmetic {
     @inline(always)
-    public static func + (lhs: Vec4, rhs: Vec4) -> Vec4 { Vec4(lhs.simd + rhs.simd) }
+    public static func + (lhs: Vector4, rhs: Vector4) -> Vector4 { Vector4(lhs.simd + rhs.simd) }
 
     @inline(always)
-    public static func - (lhs: Vec4, rhs: Vec4) -> Vec4 { Vec4(lhs.simd - rhs.simd) }
+    public static func - (lhs: Vector4, rhs: Vector4) -> Vector4 { Vector4(lhs.simd - rhs.simd) }
 
     @inline(always)
-    public static func += (lhs: inout Vec4, rhs: Vec4) { lhs.simd += rhs.simd }
+    public static func += (lhs: inout Vector4, rhs: Vector4) { lhs.simd += rhs.simd }
 
     @inline(always)
-    public static func -= (lhs: inout Vec4, rhs: Vec4) { lhs.simd -= rhs.simd }
+    public static func -= (lhs: inout Vector4, rhs: Vector4) { lhs.simd -= rhs.simd }
 }
 
-extension Vec4 {
+extension Vector4 {
     @inline(always)
-    public static prefix func - (v: Vec4) -> Vec4 { Vec4(-v.simd) }
+    public static prefix func - (v: Vector4) -> Vector4 { Vector4(-v.simd) }
 
     /// Component-wise product.
     @inline(always)
-    public static func * (lhs: Vec4, rhs: Vec4) -> Vec4 { Vec4(lhs.simd * rhs.simd) }
+    public static func * (lhs: Vector4, rhs: Vector4) -> Vector4 { Vector4(lhs.simd * rhs.simd) }
 
     /// Component-wise quotient.
     @inline(always)
-    public static func / (lhs: Vec4, rhs: Vec4) -> Vec4 { Vec4(lhs.simd / rhs.simd) }
+    public static func / (lhs: Vector4, rhs: Vector4) -> Vector4 { Vector4(lhs.simd / rhs.simd) }
 
     @inline(always)
-    public static func * (lhs: Vec4, rhs: Float) -> Vec4 { Vec4(lhs.simd * rhs) }
+    public static func * (lhs: Vector4, rhs: Float) -> Vector4 { Vector4(lhs.simd * rhs) }
 
     @inline(always)
-    public static func * (lhs: Float, rhs: Vec4) -> Vec4 { Vec4(lhs * rhs.simd) }
+    public static func * (lhs: Float, rhs: Vector4) -> Vector4 { Vector4(lhs * rhs.simd) }
 
     @inline(always)
-    public static func / (lhs: Vec4, rhs: Float) -> Vec4 { Vec4(lhs.simd / rhs) }
+    public static func / (lhs: Vector4, rhs: Float) -> Vector4 { Vector4(lhs.simd / rhs) }
 
     @inline(always)
-    public static func *= (lhs: inout Vec4, rhs: Vec4) { lhs.simd *= rhs.simd }
+    public static func *= (lhs: inout Vector4, rhs: Vector4) { lhs.simd *= rhs.simd }
 
     @inline(always)
-    public static func *= (lhs: inout Vec4, rhs: Float) { lhs.simd *= rhs }
+    public static func *= (lhs: inout Vector4, rhs: Float) { lhs.simd *= rhs }
 
     @inline(always)
-    public static func /= (lhs: inout Vec4, rhs: Float) { lhs.simd /= rhs }
+    public static func /= (lhs: inout Vector4, rhs: Float) { lhs.simd /= rhs }
 
     /// `self + a * b`, rounded once (a fused multiply-add).
     @inline(always)
-    public func addingProduct(_ a: Vec4, _ b: Vec4) -> Vec4 {
-        Vec4(simd.addingProduct(a.simd, b.simd))
+    public func addingProduct(_ a: Vector4, _ b: Vector4) -> Vector4 {
+        Vector4(simd.addingProduct(a.simd, b.simd))
     }
 
     /// `a * b - c * d` with the error of the second product compensated, so the
@@ -115,35 +115,35 @@ extension Vec4 {
     /// Kahan's algorithm: a fused multiply-add recovers the rounding error of
     /// `c * d` exactly, and the result adds it back.
     @inline(always)
-    public static func differenceOfProducts(_ a: Vec4, _ b: Vec4, _ c: Vec4, _ d: Vec4) -> Vec4 {
+    public static func differenceOfProducts(_ a: Vector4, _ b: Vector4, _ c: Vector4, _ d: Vector4) -> Vector4 {
         let cd = c.simd * d.simd
         let error = cd.addingProduct(-c.simd, d.simd)
         let difference = (-cd).addingProduct(a.simd, b.simd)
-        return Vec4(difference + error)
+        return Vector4(difference + error)
     }
 
     /// `1 / self`, lane by lane.
     @inline(always)
-    public var reciprocal: Vec4 { Vec4(1 / simd) }
+    public var reciprocal: Vector4 { Vector4(1 / simd) }
 
     @inline(always)
-    public var squareRoot: Vec4 { Vec4(simd.squareRoot()) }
+    public var squareRoot: Vector4 { Vector4(simd.squareRoot()) }
 
     @inline(always)
-    public var abs: Vec4 { Vec4(absolute(simd)) }
+    public var abs: Vector4 { Vector4(absolute(simd)) }
 
     /// 1 where the sign bit is clear and -1 where it is set, so -0 maps to -1.
     @inline(always)
-    public var sign: Vec4 {
+    public var sign: Vector4 {
         let signBits = mb_float4_bits(simd) & 0x8000_0000
-        return Vec4(mb_float4_from_bits(signBits | Float(1).bitPattern))
+        return Vector4(mb_float4_from_bits(signBits | Float(1).bitPattern))
     }
 
     /// The vector with the sign of each lane flipped where `flip` is true.
     @inline(always)
-    public func flippingSigns(x: Bool = false, y: Bool = false, z: Bool = false, w: Bool = false) -> Vec4 {
+    public func flippingSigns(x: Bool = false, y: Bool = false, z: Bool = false, w: Bool = false) -> Vector4 {
         let flip = SIMD4<UInt32>(x ? 0x8000_0000 : 0, y ? 0x8000_0000 : 0, z ? 0x8000_0000 : 0, w ? 0x8000_0000 : 0)
-        return Vec4(mb_float4_from_bits(mb_float4_bits(simd) ^ flip))
+        return Vector4(mb_float4_from_bits(mb_float4_bits(simd) ^ flip))
     }
 
     /// The sign bit of lane i in bit i.
@@ -153,12 +153,12 @@ extension Vec4 {
 
 // MARK: - Geometry
 
-extension Vec4 {
+extension Vector4 {
     /// The sum of the products of the four lanes, added as `(x + y) + (z + w)`:
     /// pairwise, which is both the fastest order on NEON and SSE and a fixed
     /// one, so the result is the same on every platform.
     @inline(always)
-    public func dot(_ other: Vec4) -> Float {
+    public func dot(_ other: Vector4) -> Float {
         (self * other).reduceSum()
     }
 
@@ -169,7 +169,7 @@ extension Vec4 {
     public var length: Float { lengthSquared.squareRoot() }
 
     @inline(always)
-    public func normalized() -> Vec4 { self / length }
+    public func normalized() -> Vector4 { self / length }
 
     @inline(always)
     public func isNormalized(tolerance: Float = 1.0e-6) -> Bool {
@@ -178,7 +178,7 @@ extension Vec4 {
 
     /// Whether the distance to `other` is at most `maxDistanceSquared.squareRoot()`.
     @inline(always)
-    public func isClose(to other: Vec4, maxDistanceSquared: Float = 1.0e-12) -> Bool {
+    public func isClose(to other: Vector4, maxDistanceSquared: Float = 1.0e-12) -> Bool {
         (other - self).lengthSquared <= maxDistanceSquared
     }
 
@@ -194,7 +194,7 @@ extension Vec4 {
 
 // MARK: - Reductions
 
-extension Vec4 {
+extension Vector4 {
     @inline(always)
     public func reduceMin() -> Float { mb_reduce_min(simd) }
 
@@ -239,81 +239,81 @@ extension Vec4 {
 
 // MARK: - Comparisons, selection and bitwise operations
 
-extension Vec4 {
+extension Vector4 {
     /// Component-wise minimum. A NaN lane yields the other operand's lane.
     @inline(always)
-    public static func min(_ a: Vec4, _ b: Vec4) -> Vec4 { Vec4(mb_min(a.simd, b.simd)) }
+    public static func min(_ a: Vector4, _ b: Vector4) -> Vector4 { Vector4(mb_min(a.simd, b.simd)) }
 
     /// Component-wise maximum. A NaN lane yields the other operand's lane.
     @inline(always)
-    public static func max(_ a: Vec4, _ b: Vec4) -> Vec4 { Vec4(mb_max(a.simd, b.simd)) }
+    public static func max(_ a: Vector4, _ b: Vector4) -> Vector4 { Vector4(mb_max(a.simd, b.simd)) }
 
     @inline(always)
-    public func clamped(min lower: Vec4, max upper: Vec4) -> Vec4 {
-        Vec4.min(Vec4.max(self, lower), upper)
+    public func clamped(min lower: Vector4, max upper: Vector4) -> Vector4 {
+        Vector4.min(Vector4.max(self, lower), upper)
     }
 
     @inline(always)
-    public static func .== (lhs: Vec4, rhs: Vec4) -> UVec4 { UVec4(mb_equal(lhs.simd, rhs.simd)) }
+    public static func .== (lhs: Vector4, rhs: Vector4) -> UInt32Vector4 { UInt32Vector4(mb_equal(lhs.simd, rhs.simd)) }
 
     @inline(always)
-    public static func .< (lhs: Vec4, rhs: Vec4) -> UVec4 { UVec4(mb_less(lhs.simd, rhs.simd)) }
+    public static func .< (lhs: Vector4, rhs: Vector4) -> UInt32Vector4 { UInt32Vector4(mb_less(lhs.simd, rhs.simd)) }
 
     @inline(always)
-    public static func .<= (lhs: Vec4, rhs: Vec4) -> UVec4 { UVec4(mb_less_equal(lhs.simd, rhs.simd)) }
+    public static func .<= (lhs: Vector4, rhs: Vector4) -> UInt32Vector4 { UInt32Vector4(mb_less_equal(lhs.simd, rhs.simd)) }
 
     @inline(always)
-    public static func .> (lhs: Vec4, rhs: Vec4) -> UVec4 { UVec4(mb_greater(lhs.simd, rhs.simd)) }
+    public static func .> (lhs: Vector4, rhs: Vector4) -> UInt32Vector4 { UInt32Vector4(mb_greater(lhs.simd, rhs.simd)) }
 
     @inline(always)
-    public static func .>= (lhs: Vec4, rhs: Vec4) -> UVec4 { UVec4(mb_greater_equal(lhs.simd, rhs.simd)) }
+    public static func .>= (lhs: Vector4, rhs: Vector4) -> UInt32Vector4 { UInt32Vector4(mb_greater_equal(lhs.simd, rhs.simd)) }
 
     /// Lanes of `set` where the highest bit of `control` is 1, of `notSet` elsewhere.
     @inline(always)
-    public static func select(_ notSet: Vec4, _ set: Vec4, where control: UVec4) -> Vec4 {
-        Vec4(mb_select_float4(notSet.simd, set.simd, control.simd))
+    public static func select(_ notSet: Vector4, _ set: Vector4, where control: UInt32Vector4) -> Vector4 {
+        Vector4(mb_select_float4(notSet.simd, set.simd, control.simd))
     }
 
     /// The lanes' bit patterns.
     @inline(always)
-    public var bitPattern: UVec4 { UVec4(mb_float4_bits(simd)) }
+    public var bitPattern: UInt32Vector4 { UInt32Vector4(mb_float4_bits(simd)) }
 
     @inline(always)
-    public static func | (lhs: Vec4, rhs: Vec4) -> Vec4 { Vec4(bitPattern: lhs.bitPattern | rhs.bitPattern) }
+    public static func | (lhs: Vector4, rhs: Vector4) -> Vector4 { Vector4(bitPattern: lhs.bitPattern | rhs.bitPattern) }
 
     @inline(always)
-    public static func & (lhs: Vec4, rhs: Vec4) -> Vec4 { Vec4(bitPattern: lhs.bitPattern & rhs.bitPattern) }
+    public static func & (lhs: Vector4, rhs: Vector4) -> Vector4 { Vector4(bitPattern: lhs.bitPattern & rhs.bitPattern) }
 
     @inline(always)
-    public static func ^ (lhs: Vec4, rhs: Vec4) -> Vec4 { Vec4(bitPattern: lhs.bitPattern ^ rhs.bitPattern) }
+    public static func ^ (lhs: Vector4, rhs: Vector4) -> Vector4 { Vector4(bitPattern: lhs.bitPattern ^ rhs.bitPattern) }
 
     /// Each lane converted to a signed 32-bit integer, rounding toward zero,
     /// and returned as its bit pattern. Lanes outside the 32-bit signed range
     /// saturate to its nearest end, and NaN becomes 0.
     @inline(always)
-    public func truncatedToInt() -> UVec4 { UVec4(mb_float4_to_int(simd)) }
+    public func truncatedToInt() -> UInt32Vector4 { UInt32Vector4(mb_float4_to_int(simd)) }
 
 }
 
 // MARK: - Swizzles
 
-extension Vec4 {
+extension Vector4 {
     @inline(always)
-    public func swizzled(_ x: Lane, _ y: Lane, _ z: Lane, _ w: Lane) -> Vec4 {
-        Vec4(simd[x.rawValue], simd[y.rawValue], simd[z.rawValue], simd[w.rawValue])
+    public func swizzled(_ x: Lane, _ y: Lane, _ z: Lane, _ w: Lane) -> Vector4 {
+        Vector4(simd[x.rawValue], simd[y.rawValue], simd[z.rawValue], simd[w.rawValue])
     }
 
-    @inline(always) public var splatX: Vec4 { Vec4(mb_splat_x(simd)) }
-    @inline(always) public var splatY: Vec4 { Vec4(mb_splat_y(simd)) }
-    @inline(always) public var splatZ: Vec4 { Vec4(mb_splat_z(simd)) }
-    @inline(always) public var splatW: Vec4 { Vec4(mb_splat_w(simd)) }
+    @inline(always) public var splatX: Vector4 { Vector4(mb_splat_x(simd)) }
+    @inline(always) public var splatY: Vector4 { Vector4(mb_splat_y(simd)) }
+    @inline(always) public var splatZ: Vector4 { Vector4(mb_splat_z(simd)) }
+    @inline(always) public var splatW: Vector4 { Vector4(mb_splat_w(simd)) }
 
-    @inline(always) public var splatX3: Vec3 { Vec3(storage: mb_splat_x(simd)) }
-    @inline(always) public var splatY3: Vec3 { Vec3(storage: mb_splat_y(simd)) }
-    @inline(always) public var splatZ3: Vec3 { Vec3(storage: mb_splat_z(simd)) }
-    @inline(always) public var splatW3: Vec3 { Vec3(storage: mb_splat_w(simd)) }
+    @inline(always) public var splatX3: Vector3 { Vector3(storage: mb_splat_x(simd)) }
+    @inline(always) public var splatY3: Vector3 { Vector3(storage: mb_splat_y(simd)) }
+    @inline(always) public var splatZ3: Vector3 { Vector3(storage: mb_splat_z(simd)) }
+    @inline(always) public var splatW3: Vector3 { Vector3(storage: mb_splat_w(simd)) }
 }
 
-extension Vec4: CustomStringConvertible {
-    public var description: String { "Vec4(\(x), \(y), \(z), \(w))" }
+extension Vector4: CustomStringConvertible {
+    public var description: String { "Vector4(\(x), \(y), \(z), \(w))" }
 }

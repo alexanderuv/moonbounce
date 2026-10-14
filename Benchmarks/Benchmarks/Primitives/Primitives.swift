@@ -28,23 +28,23 @@ let benchmarks: @Sendable () -> Void = {
 
     let fixtures = Fixtures()
 
-    Benchmark("Vec3.normalized") { benchmark in
+    Benchmark("Vector3.normalized") { benchmark in
         sweep(benchmark, fixtures.vectorsA) { $0.normalized() }
     }
 
-    Benchmark("Vec3.dot") { benchmark in
+    Benchmark("Vector3.dot") { benchmark in
         sweep(benchmark, fixtures.vectorsA, fixtures.vectorsB) { $0.dot($1) }
     }
 
-    Benchmark("Vec3.cross") { benchmark in
+    Benchmark("Vector3.cross") { benchmark in
         sweep(benchmark, fixtures.vectorsA, fixtures.vectorsB) { $0.cross($1) }
     }
 
-    Benchmark("Quat.multiply") { benchmark in
+    Benchmark("Quaternion.multiply") { benchmark in
         sweep(benchmark, fixtures.rotationsA, fixtures.rotationsB) { $0 * $1 }
     }
 
-    Benchmark("Quat.rotate") { benchmark in
+    Benchmark("Quaternion.rotate") { benchmark in
         sweep(benchmark, fixtures.rotationsA, fixtures.vectorsA) { $0 * $1 }
     }
 
@@ -76,54 +76,54 @@ let benchmarks: @Sendable () -> Void = {
 
     // MARK: Phase 1
 
-    Benchmark("Vec3.normalizedPerpendicular") { benchmark in
+    Benchmark("Vector3.normalizedPerpendicular") { benchmark in
         sweep(benchmark, fixtures.vectorsA) { $0.normalizedPerpendicular() }
     }
 
-    Benchmark("Vec4.multiplyAdd") { benchmark in
+    Benchmark("Vector4.multiplyAdd") { benchmark in
         sweep(benchmark, fixtures.vectors4A, fixtures.vectors4B, fixtures.vectors4C) { $2.addingProduct($0, $1) }
     }
 
-    Benchmark("Vec4.reduceMin") { benchmark in
+    Benchmark("Vector4.reduceMin") { benchmark in
         sweep(benchmark, fixtures.vectors4A) { $0.reduceMin() }
     }
 
-    Benchmark("UVec4.select") { benchmark in
-        sweep(benchmark, fixtures.integersA, fixtures.integersB, fixtures.masks) { UVec4.select($0, $1, where: $2) }
+    Benchmark("UInt32Vector4.select") { benchmark in
+        sweep(benchmark, fixtures.integersA, fixtures.integersB, fixtures.masks) { UInt32Vector4.select($0, $1, where: $2) }
     }
 
-    Benchmark("UVec4.countTrues") { benchmark in
+    Benchmark("UInt32Vector4.countTrues") { benchmark in
         // Int32, to write the same 4 bytes per result as the C++ `int`.
         sweep(benchmark, fixtures.masks) { Int32(truncatingIfNeeded: $0.countTrues) }
     }
 
-    Benchmark("Vec4.sinCos") { benchmark in
+    Benchmark("Vector4.sinCos") { benchmark in
         sweep(benchmark, fixtures.angles) { $0.sinCos() }
     }
 
-    Benchmark("Vec4.atan2") { benchmark in
+    Benchmark("Vector4.atan2") { benchmark in
         // A direct loop rather than `sweep`: the closure is too large for the
         // optimizer to inline into the sweep loop, so it would rebuild the
         // polynomial's constants on every call. Real callers hoist them.
         let y = fixtures.coordinatesY, x = fixtures.coordinatesX
-        var outputs = zeroedOutputs(Vec4.self, count: y.count)
+        var outputs = zeroedOutputs(Vector4.self, count: y.count)
         startMeasuring(benchmark)
         for _ in benchmark.scaledIterations {
             let lhs = y.span, rhs = x.span
             var output = outputs.mutableSpan
             for i in lhs.indices {
-                output[i] = Vec4.atan2(lhs[i], rhs[i])
+                output[i] = Vector4.atan2(lhs[i], rhs[i])
             }
             blackHole(outputs)
         }
         benchmark.stopMeasurement()
     }
 
-    Benchmark("Quat.swingTwist") { benchmark in
+    Benchmark("Quaternion.swingTwist") { benchmark in
         sweep(benchmark, fixtures.rotationsA) { $0.swingTwist }
     }
 
-    Benchmark("Quat.slerp") { benchmark in
+    Benchmark("Quaternion.slerp") { benchmark in
         sweep(benchmark, fixtures.rotationsA, fixtures.rotationsB) { $0.slerp(to: $1, 0.3) }
     }
 }
