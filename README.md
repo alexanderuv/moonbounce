@@ -8,7 +8,9 @@ Moonbounce is cross-platform. The library depends only on the Swift standard lib
 
 The first slice is the math core: `Vec3`, `Quat`, `AABB` and `Ray` (slab test), all allocation-free.
 
-The [roadmap](docs/roadmap.md) plans the path to parity with Jolt Physics v5.6.0. It maps every Jolt feature to a phase, a benchmark and the Jolt unit tests to port, and sets Jolt's PerformanceTest scenes as the end goals.
+The [roadmap](docs/roadmap.md) plans the path to parity with Jolt Physics v5.6.0. It maps every Jolt feature to a phase, a benchmark and the behavior to test, and sets Jolt's PerformanceTest scenes as the end goals.
+
+Parity means features and speed, not code: Moonbounce supports everything Jolt supports, with its own algorithms and its own Swift API. See [Parity means features, not code](docs/roadmap.md#parity-means-features-not-code).
 
 ## Requirements
 
@@ -20,7 +22,7 @@ The [roadmap](docs/roadmap.md) plans the path to parity with Jolt Physics v5.6.0
 | Path | What |
 |---|---|
 | `Sources/Moonbounce` | The library. |
-| `Sources/_MoonbounceShims` | Header-only C wrappers around clang builtins (vector min/max, reductions, shuffles, libm). Implementation detail. |
+| `Sources/_MoonbounceShims` | Header-only C wrappers around clang builtins (vector min/max, reductions, shuffles, bit casts, conversions, comparison masks). Implementation detail. |
 | `Tests/MoonbounceTests` | Swift Testing suites. |
 | `docs/` | Design documents, including the [roadmap](docs/roadmap.md). |
 | `JoltComparison/` | **Temporary** side-by-side validation against Jolt. Its script fetches and builds Jolt at a pinned tag on each run, into a git-ignored build folder, then runs both benchmark suites. Delete the folder once validation is done. See its [README](JoltComparison/README.md). || `Benchmarks/` | Separate package with [ordo-one/benchmark](https://github.com/ordo-one/benchmark) micro-benchmarks. It is separate so the library's own dependency graph stays empty. |
@@ -54,7 +56,12 @@ These rules come from reading the generated assembly. Each one closes a gap agai
 - **Min/max, reductions and shuffles come from `_MoonbounceShims`.**
   - Swift has no fast-math flags, so it cannot emit a single `fminnm` or `fmaxnmv`. A lane-by-lane shuffle makes LLVM split nearby arithmetic into 2-lane pieces.
   - Clang builtins in `static inline` functions inline into `@inlinable` Swift on every platform. This is the same approach as swift-numerics' `_NumericsShims`.
-- **Public hot-path API is `@inlinable @inline(always)` on `@frozen` types.**
+- **Public hot-path API is `@inline(always)` on `@frozen` types.**
   - `@inlinable` alone lets the optimizer still emit a call. It did for the cross product inside `Quat * Vec3`, which doubled its cost.
-  - `@inline(always)` (SE-0496) is the stable counterpart of Jolt's `JPH_INLINE`.
+  - On a `public` declaration, `@inline(always)` (SE-0496) implies `@inlinable`, so the body is exposed to clients and inlined into them. Don't write both.
+  - Hot path means anything a simulation step can call per body or constraint, trigonometry and quaternion decomposition included. Setup and serialization API (Euler angles, random rotations, compression) stays `@inlinable` and leaves inlining to the optimizer.
+  - An internal helper called from inlined code is the exception: there `@inline(always)` alone keeps it internal, and `@usableFromInline @inline(always)` is rejected, so it is spelled `@inlinable @inline(always)` (see `SIMDPrimitives.swift`).
+- **Vector constants are computed properties, not stored ones.**
+  - A stored `static let` or global of a SIMD type is reached from client code through an addressor call. Inside a hot loop that call also spills every live register, which made `Vec4.atan2` twice Jolt's instruction count.
+  - `@inline(always) static var zero: Vec3 { Vec3(repeating: 0) }` folds to a constant instead. Scalar `Float` constants are already folded, so they stay `let`.
 - **Build mode:** benchmarks use plain `-O`. `-Ounchecked` yields identical instruction counts, because bounds checks are already hoisted out of the inner loops.

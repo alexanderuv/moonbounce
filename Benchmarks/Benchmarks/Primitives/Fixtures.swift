@@ -45,6 +45,28 @@ struct SplitMix64: RandomNumberGenerator {
         let halfExtent = vec3(0.5, 10)
         return AABB(center: center, halfExtent: halfExtent)
     }
+
+    mutating func vec4(_ low: Float, _ high: Float) -> Vec4 {
+        let x = uniform(low, high)
+        let y = uniform(low, high)
+        let z = uniform(low, high)
+        let w = uniform(low, high)
+        return Vec4(x, y, z, w)
+    }
+
+    /// Four lanes of random bits from two draws: the low and high 32 bits of each.
+    mutating func uvec4() -> UVec4 {
+        let a = next(), b = next()
+        return UVec4(UInt32(truncatingIfNeeded: a), UInt32(truncatingIfNeeded: a >> 32), UInt32(truncatingIfNeeded: b), UInt32(truncatingIfNeeded: b >> 32))
+    }
+
+    /// A comparison mask whose lanes are each all ones or all zeros, from the
+    /// low four bits of one draw.
+    mutating func mask() -> UVec4 {
+        let bits = next()
+        func lane(_ i: UInt64) -> UInt32 { (bits >> i) & 1 == 1 ? 0xFFFF_FFFF : 0 }
+        return UVec4(lane(0), lane(1), lane(2), lane(3))
+    }
 }
 
 /// Inputs shared by every benchmark: `count` elements per array, small enough
@@ -59,6 +81,17 @@ struct Fixtures: Sendable {
     let boxesA: [AABB]
     let boxesB: [AABB]
     let ray: Ray
+    let vectors4A: [Vec4]
+    let vectors4B: [Vec4]
+    let vectors4C: [Vec4]
+    let integersA: [UVec4]
+    let integersB: [UVec4]
+    let masks: [UVec4]
+    /// Angles in [-10, 10] radians: a few turns either way.
+    let angles: [Vec4]
+    /// Coordinates in [-5, 5], so `atan2` sees every quadrant.
+    let coordinatesY: [Vec4]
+    let coordinatesX: [Vec4]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -69,5 +102,15 @@ struct Fixtures: Sendable {
         boxesA = (0..<Self.count).map { _ in rng.box() }
         boxesB = (0..<Self.count).map { _ in rng.box() }
         ray = Ray(origin: Vec3(-150, 3, -7), direction: Vec3(1, 0.02, 0.05).normalized())
+        // Phase 1. Drawn after the Phase 0 inputs so those stay unchanged.
+        vectors4A = (0..<Self.count).map { _ in rng.vec4(-100, 100) }
+        vectors4B = (0..<Self.count).map { _ in rng.vec4(-100, 100) }
+        vectors4C = (0..<Self.count).map { _ in rng.vec4(-100, 100) }
+        integersA = (0..<Self.count).map { _ in rng.uvec4() }
+        integersB = (0..<Self.count).map { _ in rng.uvec4() }
+        masks = (0..<Self.count).map { _ in rng.mask() }
+        angles = (0..<Self.count).map { _ in rng.vec4(-10, 10) }
+        coordinatesY = (0..<Self.count).map { _ in rng.vec4(-5, 5) }
+        coordinatesX = (0..<Self.count).map { _ in rng.vec4(-5, 5) }
     }
 }

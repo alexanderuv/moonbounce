@@ -7,14 +7,14 @@ public struct Ray: Equatable, Sendable, BitwiseCopyable {
     public var origin: Vec3
     public var direction: Vec3
 
-    @inlinable @inline(always)
+    @inline(always)
     public init(origin: Vec3, direction: Vec3) {
         self.origin = origin
         self.direction = direction
     }
 
     /// The point at distance `t` along the ray.
-    @inlinable @inline(always)
+    @inline(always)
     public func point(at t: Float) -> Vec3 {
         origin + direction * t
     }
@@ -32,7 +32,7 @@ public struct RayInverseDirection: Sendable, BitwiseCopyable {
     /// selects per axis with one instruction instead of a mask and a blend.
     @usableFromInline var parallelGate: SIMD4<Float>
 
-    @inlinable @inline(always)
+    @inline(always)
     public init(_ direction: Vec3) {
         let d = direction.storage
         let isParallel = absolute(d) .<= SIMD4(repeating: 1.0e-20)
@@ -48,7 +48,7 @@ extension AABB {
     /// The distance is negative when the origin is inside the box. Returning
     /// `.infinity` rather than an optional keeps the test branch-free and lets
     /// traversal fold results with `min`.
-    @inlinable @inline(always)
+    @inline(always)
     public func rayDistance(origin: Vec3, inverseDirection: RayInverseDirection) -> Float {
         let o = origin.storage
         let gate = inverseDirection.parallelGate
@@ -73,7 +73,7 @@ extension AABB {
     }
 
     /// The distance along `ray` to the box, as in ``rayDistance(origin:inverseDirection:)``.
-    @inlinable @inline(always)
+    @inline(always)
     public func rayDistance(_ ray: Ray) -> Float {
         rayDistance(origin: ray.origin, inverseDirection: RayInverseDirection(ray.direction))
     }

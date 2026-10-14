@@ -73,6 +73,71 @@ let benchmarks: @Sendable () -> Void = {
         }
         benchmark.stopMeasurement()
     }
+
+    // MARK: Phase 1
+
+    Benchmark("Vec3.normalizedPerpendicular") { benchmark in
+        sweep(benchmark, fixtures.vectorsA) { $0.normalizedPerpendicular() }
+    }
+
+    Benchmark("Vec4.multiplyAdd") { benchmark in
+        sweep(benchmark, fixtures.vectors4A, fixtures.vectors4B, fixtures.vectors4C) { $2.addingProduct($0, $1) }
+    }
+
+    Benchmark("Vec4.reduceMin") { benchmark in
+        sweep(benchmark, fixtures.vectors4A) { $0.reduceMin() }
+    }
+
+    Benchmark("UVec4.select") { benchmark in
+        sweep(benchmark, fixtures.integersA, fixtures.integersB, fixtures.masks) { UVec4.select($0, $1, where: $2) }
+    }
+
+    Benchmark("UVec4.countTrues") { benchmark in
+        // Int32, to write the same 4 bytes per result as the C++ `int`.
+        sweep(benchmark, fixtures.masks) { Int32(truncatingIfNeeded: $0.countTrues) }
+    }
+
+    Benchmark("Vec4.sinCos") { benchmark in
+        sweep(benchmark, fixtures.angles) { $0.sinCos() }
+    }
+
+    Benchmark("Vec4.atan2") { benchmark in
+        // A direct loop rather than `sweep`: the closure is too large for the
+        // optimizer to inline into the sweep loop, so it would rebuild the
+        // polynomial's constants on every call. Real callers hoist them.
+        let y = fixtures.coordinatesY, x = fixtures.coordinatesX
+        var outputs = zeroedOutputs(Vec4.self, count: y.count)
+        startMeasuring(benchmark)
+        for _ in benchmark.scaledIterations {
+            let lhs = y.span, rhs = x.span
+            var output = outputs.mutableSpan
+            for i in lhs.indices {
+                output[i] = Vec4.atan2(lhs[i], rhs[i])
+            }
+            blackHole(outputs)
+        }
+        benchmark.stopMeasurement()
+    }
+
+    Benchmark("Quat.swingTwist") { benchmark in
+        sweep(benchmark, fixtures.rotationsA) { $0.swingTwist }
+    }
+
+    Benchmark("Quat.slerp") { benchmark in
+        sweep(benchmark, fixtures.rotationsA, fixtures.rotationsB) { $0.slerp(to: $1, 0.3) }
+    }
+}
+
+/// Output storage filled with zero bits. Every output type here is valid when
+/// all its bits are zero. The storage is not filled by `transform`: a second
+/// call site stops the optimizer from inlining a large `transform` into the
+/// measured loop, which then rebuilds its constants on every element.
+@inline(always)
+private func zeroedOutputs<Output: BitwiseCopyable>(_ type: Output.Type, count: Int) -> [Output] {
+    [Output](unsafeUninitializedCapacity: count) { buffer, initialized in
+        UnsafeMutableRawBufferPointer(buffer).initializeMemory(as: UInt8.self, repeating: 0)
+        initialized = count
+    }
 }
 
 /// Measures `transform` applied to every element of `inputs`, once per scaled iteration.
@@ -82,7 +147,7 @@ private func sweep<Input, Output: BitwiseCopyable>(
     _ inputs: [Input],
     _ transform: (Input) -> Output
 ) {
-    var outputs = inputs.map(transform)
+    var outputs = zeroedOutputs(Output.self, count: inputs.count)
     startMeasuring(benchmark)
     for _ in benchmark.scaledIterations {
         let input = inputs.span
@@ -104,13 +169,36 @@ private func sweep<A, B, Output: BitwiseCopyable>(
     _ transform: (A, B) -> Output
 ) {
     precondition(a.count == b.count)
-    var outputs = zip(a, b).map(transform)
+    var outputs = zeroedOutputs(Output.self, count: a.count)
     startMeasuring(benchmark)
     for _ in benchmark.scaledIterations {
         let lhs = a.span, rhs = b.span
         var output = outputs.mutableSpan
         for i in lhs.indices {
             output[i] = transform(lhs[i], rhs[i])
+        }
+        blackHole(outputs)
+    }
+    benchmark.stopMeasurement()
+}
+
+/// Measures `transform` applied to every triple of `a`, `b` and `c`, once per scaled iteration.
+@inline(always)
+private func sweep<A, B, C, Output: BitwiseCopyable>(
+    _ benchmark: Benchmark,
+    _ a: [A],
+    _ b: [B],
+    _ c: [C],
+    _ transform: (A, B, C) -> Output
+) {
+    precondition(a.count == b.count && b.count == c.count)
+    var outputs = zeroedOutputs(Output.self, count: a.count)
+    startMeasuring(benchmark)
+    for _ in benchmark.scaledIterations {
+        let first = a.span, second = b.span, third = c.span
+        var output = outputs.mutableSpan
+        for i in first.indices {
+            output[i] = transform(first[i], second[i], third[i])
         }
         blackHole(outputs)
     }

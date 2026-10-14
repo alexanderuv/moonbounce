@@ -27,14 +27,9 @@ let package = Package(
             dependencies: ["_MoonbounceShims"],
             swiftSettings: swiftSettings
         ),
-        // Clang builtins for the hot paths (vector min/max, reductions, libm);
-        // see the header for why Swift alone cannot express them.
-        .target(
-            name: "_MoonbounceShims",
-            linkerSettings: [
-                .linkedLibrary("m", .when(platforms: [.linux, .android])),
-            ]
-        ),
+        // Clang builtins for the hot paths (vector min/max, reductions, bit casts,
+        // comparison masks); see the header for why Swift alone cannot express them.
+        .target(name: "_MoonbounceShims"),
         .testTarget(
             name: "MoonbounceTests",
             dependencies: ["Moonbounce"],
