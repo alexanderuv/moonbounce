@@ -65,10 +65,26 @@ MB_INLINE mb_uint4 mb_float4_bits(mb_float4 v) { return (mb_uint4)v; }
 MB_INLINE mb_float4 mb_float4_from_bits(mb_uint4 v) { return (mb_float4)v; }
 
 /// Each lane converted to a signed 32-bit integer, rounding toward zero.
+/// Lanes outside the 32-bit signed range saturate to its nearest end, and NaN
+/// becomes 0, the same bits on every target.
 ///
 /// Signed, because that is the conversion both arm64 and x86-64 do in one
-/// instruction. Lanes outside the 32-bit signed range are undefined.
-MB_INLINE mb_uint4 mb_float4_to_int(mb_float4 v) { return (mb_uint4)__builtin_convertvector(v, mb_int4); }
+/// instruction. arm64's `fcvtzs` saturates exactly like this. C leaves
+/// out-of-range lanes undefined and x86-64's `cvttps2dq` returns INT32_MIN
+/// for all of them, so the generic form clamps into range before converting.
+#if defined(__aarch64__)
+MB_INLINE mb_uint4 mb_float4_to_int(mb_float4 v) { return (mb_uint4)vcvtq_s32_f32((float32x4_t)v); }
+#else
+MB_INLINE mb_uint4 mb_float4_to_int(mb_float4 v) {
+    // [-2^31, 0x1.fffffep30], the largest float below 2^31. maxNum sends NaN
+    // to the lower end; the final mask turns it into 0.
+    mb_float4 lowest = -0x1p31f, highest = 0x1.fffffep30f;
+    mb_int4 converted = __builtin_convertvector(mb_min(mb_max(v, lowest), highest), mb_int4);
+    mb_int4 too_large = v >= 0x1p31f;
+    converted = (converted & ~too_large) | (0x7FFFFFFF & too_large);
+    return (mb_uint4)(converted & (v == v));
+}
+#endif
 
 /// Each lane, read as a signed 32-bit integer, converted to the nearest float.
 MB_INLINE mb_float4 mb_int_to_float4(mb_uint4 v) { return __builtin_convertvector((mb_int4)v, mb_float4); }

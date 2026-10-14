@@ -266,8 +266,9 @@ extension Vec3 {
         return Vec3(storage: mb_yzxx(t.simd))
     }
 
-    /// Each component converted to an integer, rounding toward zero.
-    /// Components must lie within the 32-bit signed range.
+    /// Each component converted to a signed 32-bit integer, rounding toward
+    /// zero, and returned as its bit pattern. Components outside the 32-bit
+    /// signed range saturate to its nearest end, and NaN becomes 0.
     @inline(always)
     public func truncatedToInt() -> UVec4 { UVec4(mb_float4_to_int(storage)) }
 

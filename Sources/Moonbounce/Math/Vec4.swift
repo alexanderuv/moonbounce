@@ -275,8 +275,9 @@ extension Vec4 {
     @inline(always)
     public static func ^ (lhs: Vec4, rhs: Vec4) -> Vec4 { Vec4(bitPattern: lhs.bitPattern ^ rhs.bitPattern) }
 
-    /// Each lane converted to an integer, rounding toward zero. Lanes must lie
-    /// in [0, 2^31).
+    /// Each lane converted to a signed 32-bit integer, rounding toward zero,
+    /// and returned as its bit pattern. Lanes outside the 32-bit signed range
+    /// saturate to its nearest end, and NaN becomes 0.
     @inline(always)
     public func truncatedToInt() -> UVec4 { UVec4(mb_float4_to_int(simd)) }
 

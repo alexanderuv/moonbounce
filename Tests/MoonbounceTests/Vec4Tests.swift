@@ -163,6 +163,10 @@ import Testing
     @Test func conversions() {
         #expect(Vec4(1, 2.9, 3, 4.5).truncatedToInt() == UVec4(1, 2, 3, 4))
         #expect(Vec4(-1.5, 0, 0, 0).truncatedToInt().x == UInt32(bitPattern: -1))
+        // Out of range saturates and NaN gives 0, the same on every platform.
+        let (largest, smallest): (UInt32, UInt32) = (0x7FFF_FFFF, 0x8000_0000)
+        #expect(Vec4(3.0e9, -3.0e9, .infinity, -.infinity).truncatedToInt() == UVec4(largest, smallest, largest, smallest))
+        #expect(Vec4(.nan, -.nan, 0x1p31, -0x1p31).truncatedToInt() == UVec4(0, 0, largest, smallest))
     }
 
     @Test func signs() {
