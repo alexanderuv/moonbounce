@@ -208,20 +208,32 @@ extension Vector4 {
         return pairs.x + pairs.z
     }
 
-    /// The index of the smallest lane; the first one when several tie.
+    /// The index of the smallest lane; the first one when several tie. NaN
+    /// lanes are ignored, and the index is 3 when every lane is NaN.
     @inline(always)
-    public var lowestComponentIndex: Int {
+    public var lowestComponentIndex: Int { lowestLane(ifAllNaN: 3) }
+
+    /// The index of the largest lane; the first one when several tie. NaN
+    /// lanes are ignored, and the index is 3 when every lane is NaN.
+    @inline(always)
+    public var highestComponentIndex: Int { highestLane(ifAllNaN: 3) }
+
+    /// ``lowestComponentIndex``, with `fallback` when every lane is NaN: the
+    /// only case where no lane equals the minimum. Setting the fallback's
+    /// mask bit keeps the index valid there, so callers can subscript with it.
+    @inlinable @inline(always)
+    func lowestLane(ifAllNaN fallback: Int) -> Int {
         var smallest = mb_min(simd, mb_yxwz(simd))
         smallest = mb_min(smallest, mb_zwxy(smallest))
-        return mb_mask_bits(mb_equal(simd, smallest)).trailingZeroBitCount
+        return (mb_mask_bits(mb_equal(simd, smallest)) | Int32(1) << fallback).trailingZeroBitCount
     }
 
-    /// The index of the largest lane; the first one when several tie.
-    @inline(always)
-    public var highestComponentIndex: Int {
+    /// ``highestComponentIndex``, with `fallback` when every lane is NaN.
+    @inlinable @inline(always)
+    func highestLane(ifAllNaN fallback: Int) -> Int {
         var largest = mb_max(simd, mb_yxwz(simd))
         largest = mb_max(largest, mb_zwxy(largest))
-        return mb_mask_bits(mb_equal(simd, largest)).trailingZeroBitCount
+        return (mb_mask_bits(mb_equal(simd, largest)) | Int32(1) << fallback).trailingZeroBitCount
     }
 }
 
@@ -275,8 +287,9 @@ extension Vector4 {
     @inline(always)
     public static func ^ (lhs: Vector4, rhs: Vector4) -> Vector4 { Vector4(bitPattern: lhs.bitPattern ^ rhs.bitPattern) }
 
-    /// Each lane converted to an integer, rounding toward zero. Lanes must lie
-    /// in [0, 2^31).
+    /// Each lane converted to a signed 32-bit integer, rounding toward zero,
+    /// and returned as its bit pattern. Lanes outside the 32-bit signed range
+    /// saturate to its nearest end, and NaN becomes 0.
     @inline(always)
     public func truncatedToInt() -> UInt32Vector4 { UInt32Vector4(mb_float4_to_int(simd)) }
 

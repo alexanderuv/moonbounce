@@ -96,7 +96,7 @@ import Testing
         a.isApproximatelyEqual(to: b, tolerance: tolerance) || a.isApproximatelyEqual(to: -b, tolerance: tolerance)
     }
 
-    static func randomRotation(_ rng: inout SplitMix64) -> (axis: Vector3, angle: Float, quat: Quaternion) {
+    static func randomRotation(_ rng: inout SplitMix64) -> (axis: Vector3, angle: Float, quaternion: Quaternion) {
         let axis = Vector3.random(using: &rng)
         let angle = Float.random(in: 0..<(2 * pi), using: &rng)
         return (axis, angle, Quaternion(axis: axis, angle: angle))
@@ -176,7 +176,7 @@ import Testing
     @Test func rotatedAxesMatchRotation() {
         var rng = SplitMix64()
         for _ in 0..<1000 {
-            let q = Self.randomRotation(&rng).quat
+            let q = Self.randomRotation(&rng).quaternion
             #expect(q.rotatedAxisX.isApproximatelyEqual(to: q * .axisX, tolerance: 1.0e-5))
             #expect(q.rotatedAxisY.isApproximatelyEqual(to: q * .axisY, tolerance: 1.0e-5))
             #expect(q.rotatedAxisZ.isApproximatelyEqual(to: q * .axisZ, tolerance: 1.0e-5))
@@ -186,7 +186,7 @@ import Testing
     @Test func inverseOfRandomRotations() {
         var rng = SplitMix64()
         for _ in 0..<1000 {
-            let q = Self.randomRotation(&rng).quat
+            let q = Self.randomRotation(&rng).quaternion
             #expect(Self.sameRotation(q * q.inverse, .identity))
         }
     }
@@ -257,6 +257,30 @@ import Testing
         #expect(abs(q3.rotationAngle(around: .axisZ) - Self.degrees(-95)) <= 1.0e-5)
         #expect(abs((q1 * q2).rotationAngle(around: .axisX) - Self.degrees(-10)) <= 1.0e-5)
         #expect(abs((q3 * q1).rotationAngle(around: .axisX) - Self.degrees(-10)) <= 1.0e-5)
+    }
+
+    @Test func rotationAngleIsTheTwistAngle() {
+        // A half turn about y has no part around x: w = 0 alone means π only
+        // when the rotation is around the axis.
+        let halfTurnY = Quaternion(x: 0, y: 1, z: 0, w: 0)
+        #expect(halfTurnY.twist(around: .axisX) == .identity)
+        #expect(halfTurnY.rotationAngle(around: .axisX) == 0)
+        #expect(halfTurnY.rotationAngle(around: .axisY) == Self.pi)
+        // Both signs of a half turn give π, never -π.
+        #expect(Quaternion(x: 0, y: -1, z: 0, w: 0).rotationAngle(around: .axisY) == Self.pi)
+        #expect((-halfTurnY).rotationAngle(around: .axisY) == Self.pi)
+        // No jump as w leaves 0.
+        let nearHalfTurnY = Quaternion(x: 0, y: 1, z: 0, w: 1.0e-7).normalized()
+        #expect(nearHalfTurnY.rotationAngle(around: .axisX) == 0)
+        #expect(abs(nearHalfTurnY.rotationAngle(around: .axisY) - Self.pi) < 1.0e-6)
+
+        var rng = SplitMix64()
+        for _ in 0..<1000 {
+            let q = Quaternion.random(using: &rng), axis = Vector3.random(using: &rng)
+            let angle = q.rotationAngle(around: axis)
+            #expect(angle > -Self.pi && angle <= Self.pi)
+            #expect(Self.sameRotation(Quaternion(axis: axis, angle: angle), q.twist(around: axis), tolerance: 1.0e-5))
+        }
     }
 
     @Test func swingTwistRecomposes() {
@@ -355,6 +379,14 @@ import Testing
             let q = Quaternion.random(using: &rng)
             let decoded = Quaternion(smallestThreeEncoded: q.smallestThreeEncoded())
             #expect((q * decoded.conjugated).axisAngle.angle < 0.005)
+        }
+    }
+
+    @Test func smallestThreeEncodingOfNaNDoesNotTrap() {
+        let allNaN = Quaternion(x: .nan, y: .nan, z: .nan, w: .nan)
+        let oneNaN = Quaternion(x: .nan, y: 0, z: 0, w: 1)
+        for q in [allNaN, oneNaN, -oneNaN] {
+            #expect(Quaternion(smallestThreeEncoded: q.smallestThreeEncoded()) == .identity)
         }
     }
 
