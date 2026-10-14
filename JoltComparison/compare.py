@@ -89,16 +89,23 @@ def swift_round(name_filters):
     ]
     for name_filter in name_filters or []:
         command += ["--filter", name_filter]
+    # Remove the previous run's results first, so a run that writes nothing
+    # can't pass them off as this one's.
+    results_file = SWIFT_RESULTS / "Current_run.influx.csv"
+    results_file.unlink(missing_ok=True)
     run(command, ROOT / "Benchmarks")
 
+    no_benchmark_ran = "compare.py: no Swift benchmark ran; a --filter must match a whole benchmark name"
+    if not results_file.exists():
+        sys.exit(no_benchmark_ran)
     # Values are raw per-iteration counts (nanoseconds for wall clock); the
     # unit column is only package-benchmark's display unit.
     scale = 1000 / SWIFT_OPERATIONS_PER_ITERATION
     results = {}
-    with open(SWIFT_RESULTS / "Current_run.influx.csv", newline="") as file:
+    with open(results_file, newline="") as file:
         rows = [row for row in csv.reader(file) if row and not row[0].startswith("#")]
     if not rows:
-        sys.exit("compare.py: no Swift benchmark ran; a --filter must match a whole benchmark name")
+        sys.exit(no_benchmark_ran)
     header = rows[0]
     column = {name: header.index(name) for name in ("metric", "test", "percentile", "value")}
     for row in rows[1:]:
@@ -111,6 +118,12 @@ def swift_round(name_filters):
             entry["instructions"] = value * scale
         elif metric == "Malloc(total)" and percentile == 100:
             entry["mallocs"] = int(value)
+    # A header with no data rows means nothing ran, too.
+    if not results:
+        sys.exit(no_benchmark_ran)
+    incomplete = sorted(name for name, entry in results.items() if entry.keys() != {"ns", "instructions", "mallocs"})
+    if incomplete:
+        sys.exit(f"compare.py: missing p50 time, p50 instructions or total mallocs for: {', '.join(incomplete)}")
     return results
 
 

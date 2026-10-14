@@ -65,6 +65,7 @@ Windows matters more than Linux, so it is tier 1 with macOS.
 - **Instruction set.** Jolt's default x86-64 build turns on AVX2, FMA, F16C, LZCNT and TZCNT (`USE_AVX2`, `USE_FMADD`, … in `Build/CMakeLists.txt`). Swift and clang target baseline x86-64 (SSE2) unless told otherwise.
   - Moonbounce on Windows is therefore built and measured at the same level, x86-64-v3, for both the Swift code (`-target-cpu`) and the shim (`-march`). Comparing an SSE2 build against an AVX2 build would measure the compiler flags, not the library.
   - SwiftPM rejects `unsafeFlags` in packages used as dependencies, so the level can't be hard-coded in `Package.swift`. How a client application selects it is an ADR, to be written before Phase 1's Windows benchmarks. The options are build flags passed by the client, a package trait, or runtime dispatch in the shim.
+  - A build below that level, such as Linux x86-64 at the default baseline or Windows before the ADR, is supported for correctness only. Without FMA in the target, every vector fused multiply-add becomes four calls to libm's `fmaf`: the results are the same bits, but the benchmark figures measured with FMA hardware do not apply.
 - **Two Jolt builds.** On Windows, Jolt is measured as built with MSVC (`cmake_vs2022_cl.bat`) and with clang-cl (`cmake_vs2022_clang.bat`), both in Distribution.
   - MSVC is what most Windows users of Jolt ship, and Jolt compiles it with `/fp:fast`. clang-cl uses the same LLVM back end as Swift.
   - Moonbounce must match the faster of the two.

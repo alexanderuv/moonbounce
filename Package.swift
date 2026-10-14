@@ -29,7 +29,15 @@ let package = Package(
         ),
         // Clang builtins for the hot paths (vector min/max, reductions, bit casts,
         // comparison masks); see the header for why Swift alone cannot express them.
-        .target(name: "_MoonbounceShims"),
+        .target(
+            name: "_MoonbounceShims",
+            linkerSettings: [
+                // On a target without FMA, such as baseline x86-64, every fused
+                // multiply-add becomes a call to libm's `fmaf`. Apple platforms
+                // and Windows provide it without a separate library.
+                .linkedLibrary("m", .when(platforms: [.linux, .android])),
+            ]
+        ),
         .testTarget(
             name: "MoonbounceTests",
             dependencies: ["Moonbounce"],

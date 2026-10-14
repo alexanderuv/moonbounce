@@ -28,8 +28,14 @@ typedef int mb_int4 __attribute__((ext_vector_type(4)));
 // MARK: - Fused multiply-add
 
 /// Lane-wise `a * b + c`, rounded once: one `fmla` / `vfmadd` where the target
-/// has it, and a correctly rounded `fmaf` per lane where it does not, so the
-/// result is the same bits everywhere.
+/// has it, so the result is the same bits everywhere.
+///
+/// A target without FMA, such as baseline x86-64, gets the same bits from a
+/// call to libm's correctly rounded `fmaf` per lane: four calls per use, and
+/// about forty per `sinCos`. That keeps such a build correct and
+/// deterministic, but it is not a performance target; Moonbounce is measured
+/// at x86-64-v3 (see the roadmap's Platforms section). `Package.swift` links
+/// libm on Linux and Android for those calls.
 ///
 /// The standard library's `SIMD.addingProduct` computes the same value but is
 /// written as a loop over lanes that LLVM must re-vectorize. When one lane of
