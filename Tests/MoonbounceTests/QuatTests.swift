@@ -252,6 +252,30 @@ import Testing
         #expect(abs((q3 * q1).rotationAngle(around: .axisX) - Self.degrees(-10)) <= 1.0e-5)
     }
 
+    @Test func rotationAngleIsTheTwistAngle() {
+        // A half turn about y has no part around x: w = 0 alone means π only
+        // when the rotation is around the axis.
+        let halfTurnY = Quat(x: 0, y: 1, z: 0, w: 0)
+        #expect(halfTurnY.twist(around: .axisX) == .identity)
+        #expect(halfTurnY.rotationAngle(around: .axisX) == 0)
+        #expect(halfTurnY.rotationAngle(around: .axisY) == Self.pi)
+        // Both signs of a half turn give π, never -π.
+        #expect(Quat(x: 0, y: -1, z: 0, w: 0).rotationAngle(around: .axisY) == Self.pi)
+        #expect((-halfTurnY).rotationAngle(around: .axisY) == Self.pi)
+        // No jump as w leaves 0.
+        let nearHalfTurnY = Quat(x: 0, y: 1, z: 0, w: 1.0e-7).normalized()
+        #expect(nearHalfTurnY.rotationAngle(around: .axisX) == 0)
+        #expect(abs(nearHalfTurnY.rotationAngle(around: .axisY) - Self.pi) < 1.0e-6)
+
+        var rng = SplitMix64()
+        for _ in 0..<1000 {
+            let q = Quat.random(using: &rng), axis = Vec3.random(using: &rng)
+            let angle = q.rotationAngle(around: axis)
+            #expect(angle > -Self.pi && angle <= Self.pi)
+            #expect(Self.sameRotation(Quat(axis: axis, angle: angle), q.twist(around: axis), tolerance: 1.0e-5))
+        }
+    }
+
     @Test func swingTwistRecomposes() {
         var rng = SplitMix64()
         for _ in 0..<1000 {

@@ -291,10 +291,15 @@ extension Quat {
     }
 
     /// The angle of this unit quaternion's rotation around the unit vector
-    /// `axis`, in (-π, π]: the angle of ``twist(around:)``.
+    /// `axis`, in (-π, π]: the angle of ``twist(around:)``, so 0 when the
+    /// rotation has no part around `axis`.
     @inline(always)
     public func rotationAngle(around axis: Vec3) -> Float {
-        w == 0 ? pi : 2 * Trigonometry.atan(xyz.dot(axis) / w)
+        // With w >= 0 the half angle atan2(xyz · axis, w) is in [-π / 2, π / 2];
+        // a half turn has w = 0 and is π only if it is around the axis.
+        let q = withNonNegativeW
+        let angle = 2 * Trigonometry.atan2(q.xyz.dot(axis), q.w)
+        return angle == -pi ? pi : angle
     }
 
     /// This unit quaternion split as `swing * twist`, where `twist` rotates
