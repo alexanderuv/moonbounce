@@ -340,13 +340,22 @@ extension Matrix4x4 {
     ///
     /// Right-handed: the camera looks down its −z axis with +y up. When
     /// `eye` and `target` coincide the camera looks down the world's −z
-    /// axis, and when `up` is parallel to the view direction its right axis
-    /// is the world's x axis.
+    /// axis. When `up` is parallel to the view direction, or within about
+    /// 10⁻⁶ radians of it, nothing fixes the roll, and the camera's up axis
+    /// is the view direction's ``Vector3/normalizedPerpendicular()``.
     @inlinable
     public static func lookAt(eye: Vector3, target: Vector3, up: Vector3) -> Matrix4x4 {
         let forward = (target - eye).normalized(or: -Vector3.axisZ)
-        let right = forward.cross(up).normalized(or: .axisX)
-        let cameraUp = right.cross(forward)
+        // The camera's up is up's part perpendicular to forward,
+        // (forward × up) × forward. Both cross products are perpendicular to
+        // forward whatever rounding did to the first, so the axes stay
+        // orthonormal however close up comes to forward. Near parallel that
+        // part is mostly rounding noise, and any perpendicular is as good.
+        let perpendicularUp = forward.cross(up).cross(forward)
+        let cameraUp = perpendicularUp.lengthSquared > 1.0e-12 * up.lengthSquared
+            ? perpendicularUp.normalized()
+            : forward.normalizedPerpendicular()
+        let right = forward.cross(cameraUp)
         let camera = Matrix4x4(axisX: right, axisY: cameraUp, axisZ: -forward, translation: eye)
         return camera.inversedRotationTranslation()
     }

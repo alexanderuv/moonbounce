@@ -372,6 +372,25 @@ import Testing
         #expect(!Matrix4x4.lookAt(eye: .zero, target: .axisY, up: .axisY).isNaN)
     }
 
+    /// With `up` along the view direction, either way, or within rounding of
+    /// it, the view is still a rigid transform that puts the target on the
+    /// −z axis.
+    @Test(arguments: [Vector3.axisX, -.axisX, .axisY, -.axisY, .axisZ, -.axisZ, Vector3(1, 1, 0), Vector3(1, -2, 3)])
+    func lookAtWithUpAlongTheViewDirection(_ direction: Vector3) {
+        let eye = Vector3(1, 2, 3)
+        let target = eye + direction
+        let nearlyParallel = direction + Vector3(1.0e-7, -1.0e-7, 1.0e-7)
+        for up in [direction, -direction, 3 * direction, nearlyParallel] {
+            let view = Matrix4x4.lookAt(eye: eye, target: target, up: up)
+            let x = view[column: 0].xyz, y = view[column: 1].xyz, z = view[column: 2].xyz
+            #expect(x.isNormalized(tolerance: 1.0e-6) && y.isNormalized(tolerance: 1.0e-6) && z.isNormalized(tolerance: 1.0e-6))
+            #expect(Swift.abs(x.dot(y)) < 1.0e-6 && Swift.abs(y.dot(z)) < 1.0e-6 && Swift.abs(z.dot(x)) < 1.0e-6)
+            #expect(Swift.abs(view.determinant3x3 - 1) < 1.0e-6)
+            #expect((view * eye).isApproximatelyEqual(to: .zero, tolerance: 1.0e-5))
+            #expect((view * target).isApproximatelyEqual(to: Vector3(0, 0, -direction.length), tolerance: 1.0e-5))
+        }
+    }
+
     @Test func perspective() {
         let projection = Matrix4x4.perspective(verticalFieldOfView: 0.5 * Self.pi, aspectRatio: 2, near: 1, far: 100)
         func depth(_ distance: Float) -> Float {
