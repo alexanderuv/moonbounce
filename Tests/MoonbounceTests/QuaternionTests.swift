@@ -89,7 +89,7 @@ import Testing
         a.isApproximatelyEqual(to: b, tolerance: tolerance) || a.isApproximatelyEqual(to: -b, tolerance: tolerance)
     }
 
-    static func randomRotation(_ rng: inout SplitMix64) -> (axis: Vector3, angle: Float, quat: Quaternion) {
+    static func randomRotation(_ rng: inout SplitMix64) -> (axis: Vector3, angle: Float, quaternion: Quaternion) {
         let axis = Vector3.random(using: &rng)
         let angle = Float.random(in: 0..<(2 * pi), using: &rng)
         return (axis, angle, Quaternion(axis: axis, angle: angle))
@@ -169,7 +169,7 @@ import Testing
     @Test func rotatedAxesMatchRotation() {
         var rng = SplitMix64()
         for _ in 0..<1000 {
-            let q = Self.randomRotation(&rng).quat
+            let q = Self.randomRotation(&rng).quaternion
             #expect(q.rotatedAxisX.isApproximatelyEqual(to: q * .axisX, tolerance: 1.0e-5))
             #expect(q.rotatedAxisY.isApproximatelyEqual(to: q * .axisY, tolerance: 1.0e-5))
             #expect(q.rotatedAxisZ.isApproximatelyEqual(to: q * .axisZ, tolerance: 1.0e-5))
@@ -179,7 +179,7 @@ import Testing
     @Test func inverseOfRandomRotations() {
         var rng = SplitMix64()
         for _ in 0..<1000 {
-            let q = Self.randomRotation(&rng).quat
+            let q = Self.randomRotation(&rng).quaternion
             #expect(Self.sameRotation(q * q.inverse, .identity))
         }
     }
