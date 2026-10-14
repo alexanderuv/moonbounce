@@ -264,6 +264,11 @@ import Testing
         let transformedNormal = m.normalMatrix.multiply3x3(normal)
         #expect(Swift.abs(transformedTangent.dot(transformedNormal)) < 1.0e-5)
         #expect(m.normalMatrix[column: 3] == Vector4(0, 0, 0, 1))
+        // The inverse transpose itself, rounded the same way.
+        #expect(m.normalMatrix == m.inversed3x3().transposed3x3())
+        // A singular block still keeps the w lanes of the first three columns 0.
+        let singular = Matrix4x4(scale: Vector3(1, 0, 1)).normalMatrix
+        #expect((0..<3).allSatisfy { singular[column: $0].w == 0 })
     }
 
     // MARK: Rotations

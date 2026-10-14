@@ -616,9 +616,20 @@ extension Matrix4x4 {
     /// transforms points: the inverse transpose of the 3 × 3 block. It
     /// keeps normals perpendicular to transformed surfaces under
     /// non-uniform scale, but not their length.
+    ///
+    /// The inverse's transpose is the cofactor matrix over the determinant,
+    /// whose columns are the cross products of the block's columns, so no
+    /// transpose is needed. Only the x, y and z lanes are read.
     @inline(always)
     public var normalMatrix: Matrix4x4 {
-        rotation.inversed3x3().transposed3x3()
+        let scale = 1 / determinant3x3
+        // Zeroing w after scaling keeps it 0 even for a singular block.
+        return Matrix4x4(
+            withoutW(cross3(c1, c2) * scale),
+            withoutW(cross3(c2, c0) * scale),
+            withoutW(cross3(c0, c1) * scale),
+            SIMD4(0, 0, 0, 1)
+        )
     }
 }
 
