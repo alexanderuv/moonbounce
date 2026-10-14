@@ -60,6 +60,15 @@ struct SplitMix64: RandomNumberGenerator {
         return UInt32Vector4(UInt32(truncatingIfNeeded: a), UInt32(truncatingIfNeeded: a >> 32), UInt32(truncatingIfNeeded: b), UInt32(truncatingIfNeeded: b >> 32))
     }
 
+    /// A matrix of 16 elements in [-1, 1), drawn column by column.
+    mutating func matrix() -> Matrix4x4 {
+        let c0 = vector4(-1, 1)
+        let c1 = vector4(-1, 1)
+        let c2 = vector4(-1, 1)
+        let c3 = vector4(-1, 1)
+        return Matrix4x4(columns: c0, c1, c2, c3)
+    }
+
     /// A comparison mask whose lanes are each all ones or all zeros, from the
     /// low four bits of one draw.
     mutating func mask() -> UInt32Vector4 {
@@ -92,6 +101,12 @@ struct Fixtures: Sendable {
     /// Coordinates in [-5, 5], so `atan2` sees every quadrant.
     let coordinatesY: [Vector4]
     let coordinatesX: [Vector4]
+    /// General matrices with elements in [-1, 1).
+    let matricesA: [Matrix4x4]
+    let matricesB: [Matrix4x4]
+    /// Rotation-translation matrices built from `rotationsA` and `vectorsA`,
+    /// with no further draws.
+    let rigidTransforms: [Matrix4x4]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -112,5 +127,8 @@ struct Fixtures: Sendable {
         angles = (0..<Self.count).map { _ in rng.vector4(-10, 10) }
         coordinatesY = (0..<Self.count).map { _ in rng.vector4(-5, 5) }
         coordinatesX = (0..<Self.count).map { _ in rng.vector4(-5, 5) }
+        matricesA = (0..<Self.count).map { _ in rng.matrix() }
+        matricesB = (0..<Self.count).map { _ in rng.matrix() }
+        rigidTransforms = zip(rotationsA, vectorsA).map { Matrix4x4(rotation: $0, translation: $1) }
     }
 }

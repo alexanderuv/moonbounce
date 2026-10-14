@@ -13,6 +13,7 @@
 #include <Jolt/Core/Memory.h>
 #include <Jolt/Geometry/AABox.h>
 #include <Jolt/Geometry/RayAABox.h>
+#include <Jolt/Math/Mat44.h>
 #include <Jolt/Math/Quat.h>
 
 #include <libproc.h>
@@ -119,6 +120,16 @@ struct SplitMix64
 		return UVec4(uint32(a), uint32(a >> 32), uint32(b), uint32(b >> 32));
 	}
 
+	// Same as matrix() in Fixtures.swift: 16 elements in [-1, 1), column by column.
+	Mat44 Matrix()
+	{
+		Vec4 c0 = Vector4(-1, 1);
+		Vec4 c1 = Vector4(-1, 1);
+		Vec4 c2 = Vector4(-1, 1);
+		Vec4 c3 = Vector4(-1, 1);
+		return Mat44(c0, c1, c2, c3);
+	}
+
 	// Same as mask() in Fixtures.swift: lane i is all ones when bit i is set.
 	UVec4 Mask()
 	{
@@ -139,6 +150,7 @@ struct Fixtures
 	std::vector<Vec4> mVectors4A, mVectors4B, mVectors4C;
 	std::vector<UVec4> mIntegersA, mIntegersB, mMasks;
 	std::vector<Vec4> mAngles, mCoordinatesY, mCoordinatesX;
+	std::vector<Mat44> mMatricesA, mMatricesB, mRigidTransforms;
 
 	Fixtures()
 	{
@@ -161,6 +173,9 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mAngles.push_back(rng.Vector4(-10, 10));
 		for (int i = 0; i < cCount; ++i) mCoordinatesY.push_back(rng.Vector4(-5, 5));
 		for (int i = 0; i < cCount; ++i) mCoordinatesX.push_back(rng.Vector4(-5, 5));
+		for (int i = 0; i < cCount; ++i) mMatricesA.push_back(rng.Matrix());
+		for (int i = 0; i < cCount; ++i) mMatricesB.push_back(rng.Matrix());
+		for (int i = 0; i < cCount; ++i) mRigidTransforms.push_back(Mat44::sRotationTranslation(mRotationsA[i], mVectorsA[i]));
 	}
 };
 
@@ -343,6 +358,10 @@ int main()
 	Sweep<Vec4, SinCos>("Vector4.sinCos", f.mAngles, [](Vec4Arg x) { SinCos r; x.SinCos(r.mSin, r.mCos); return r; });
 	Sweep<Vec4, Vec4, Vec4>("Vector4.atan2", f.mCoordinatesY, f.mCoordinatesX, [](Vec4Arg y, Vec4Arg x) { return Vec4::sATan2(y, x); });
 	Sweep<Quat, SwingTwist>("Quaternion.swingTwist", f.mRotationsA, [](QuatArg q) { SwingTwist r; q.GetSwingTwist(r.mSwing, r.mTwist); return r; });
+	Sweep<Mat44, Mat44, Mat44>("Matrix4x4.multiply", f.mMatricesA, f.mMatricesB, [](Mat44Arg a, Mat44Arg b) { return a * b; });
+	Sweep<Mat44, Mat44>("Matrix4x4.inversed", f.mMatricesA, [](Mat44Arg m) { return m.Inversed(); });
+	Sweep<Mat44, Vec3, Vec3>("Matrix4x4.transformPoint", f.mRigidTransforms, f.mVectorsB, [](Mat44Arg m, Vec3Arg v) { return m * v; });
+	Sweep<Mat44, Mat44>("Matrix4x4.inversedRotationTranslation", f.mRigidTransforms, [](Mat44Arg m) { return m.InversedRotationTranslation(); });
 	Sweep<Quat, Quat, Quat>("Quaternion.slerp", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 
 	std::printf("\n  }\n}\n");
