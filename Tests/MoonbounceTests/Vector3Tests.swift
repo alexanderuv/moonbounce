@@ -110,6 +110,9 @@ import Testing
         #expect(v1.lowestComponentIndex == 0 && v1.highestComponentIndex == 1)
         #expect(v2.lowestComponentIndex == 1 && v2.highestComponentIndex == 2)
         #expect(v3.lowestComponentIndex == 2 && v3.highestComponentIndex == 0)
+        #expect(Vector3(.nan, 4, 2).lowestComponentIndex == 2 && Vector3(.nan, 4, 2).highestComponentIndex == 1)
+        // All NaN: the index stays within x, y and z.
+        #expect(Vector3(repeating: .nan).lowestComponentIndex == 2 && Vector3(repeating: .nan).highestComponentIndex == 2)
         #expect(Vector3(-1, 3, 7).clamped(min: Vector3(1, 2, 3), max: Vector3(4, 5, 6)) == Vector3(1, 3, 6))
     }
 
@@ -240,6 +243,13 @@ import Testing
             let decoded = Vector3(octahedralEncoded: v.octahedralEncoded())
             #expect((decoded - v).length < 7.0e-5)
             #expect(decoded.isNormalized())
+        }
+    }
+
+    @Test func octahedralEncodingOfVectorsWithoutDirection() {
+        let degenerate = [Vector3.zero, Vector3(.infinity, 0, 0), Vector3(0, -.infinity, 1), Vector3(.nan, 0, 1), Vector3(repeating: .nan)]
+        for v in degenerate {
+            #expect(v.octahedralEncoded() == Vector3.axisZ.octahedralEncoded())
         }
     }
 

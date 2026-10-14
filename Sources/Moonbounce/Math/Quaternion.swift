@@ -291,10 +291,15 @@ extension Quaternion {
     }
 
     /// The angle of this unit quaternion's rotation around the unit vector
-    /// `axis`, in (-π, π]: the angle of ``twist(around:)``.
+    /// `axis`, in (-π, π]: the angle of ``twist(around:)``, so 0 when the
+    /// rotation has no part around `axis`.
     @inline(always)
     public func rotationAngle(around axis: Vector3) -> Float {
-        w == 0 ? pi : 2 * Trigonometry.atan(xyz.dot(axis) / w)
+        // With w >= 0 the half angle atan2(xyz · axis, w) is in [-π / 2, π / 2];
+        // a half turn has w = 0 and is π only if it is around the axis.
+        let q = withNonNegativeW
+        let angle = 2 * Trigonometry.atan2(q.xyz.dot(axis), q.w)
+        return angle == -pi ? pi : angle
     }
 
     /// This unit quaternion split as `swing * twist`, where `twist` rotates
@@ -369,6 +374,9 @@ extension Quaternion {
     /// is made positive and needs no sign. Unit length then determines it
     /// from the other three, which all lie in [-1/√2, 1/√2]. The rotation
     /// error is below 0.005 radians (0.3°).
+    ///
+    /// NaN components encode as 0, so a corrupted quaternion still encodes,
+    /// to a valid rotation, rather than trapping.
     @inlinable
     public func smallestThreeEncoded() -> UInt32 {
         let largest = Vector4(simd).abs.highestComponentIndex
@@ -401,6 +409,8 @@ extension Quaternion {
 
     @inlinable @inline(always)
     static func quantize(_ t: Float) -> UInt32 {
+        // A NaN level would trap in the conversion below.
+        let t = t.isNaN ? 0 : t
         let level = ((t + 0.70710678) * quantizationScale).rounded(.toNearestOrEven)
         return UInt32(Swift.min(Swift.max(level, 0), 1022))
     }

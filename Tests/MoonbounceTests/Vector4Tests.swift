@@ -51,6 +51,16 @@ import Testing
         #expect(v.highestComponentIndex == highest)
     }
 
+    @Test func extremeComponentIndicesIgnoreNaN() {
+        #expect(Vector4(.nan, 2, 1, 3).lowestComponentIndex == 2)
+        #expect(Vector4(.nan, 2, 1, 3).highestComponentIndex == 3)
+        #expect(Vector4(4, .nan, .nan, -1).highestComponentIndex == 0)
+        // No lane equals the minimum or maximum; the index must still be valid.
+        #expect(Vector4.nan.lowestComponentIndex == 3)
+        #expect(Vector4.nan.highestComponentIndex == 3)
+        #expect(Vector4.nan.abs.highestComponentIndex == 3)
+    }
+
     @Test func comparisonMasks() {
         let a = Vector4(1, 2, 3, 4), b = Vector4(2, 1, 3, 4)
         let t: UInt32 = 0xFFFF_FFFF
@@ -163,6 +173,10 @@ import Testing
     @Test func conversions() {
         #expect(Vector4(1, 2.9, 3, 4.5).truncatedToInt() == UInt32Vector4(1, 2, 3, 4))
         #expect(Vector4(-1.5, 0, 0, 0).truncatedToInt().x == UInt32(bitPattern: -1))
+        // Out of range saturates and NaN gives 0, the same on every platform.
+        let (largest, smallest): (UInt32, UInt32) = (0x7FFF_FFFF, 0x8000_0000)
+        #expect(Vector4(3.0e9, -3.0e9, .infinity, -.infinity).truncatedToInt() == UInt32Vector4(largest, smallest, largest, smallest))
+        #expect(Vector4(.nan, -.nan, 0x1p31, -0x1p31).truncatedToInt() == UInt32Vector4(0, 0, largest, smallest))
     }
 
     @Test func signs() {
