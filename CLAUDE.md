@@ -1,3 +1,7 @@
+## Commits and pull requests
+
+Commit messages and PR titles follow Conventional Commits, and PR descriptions follow the pull request template. See `CONTRIBUTING.md`. This replaces the `[Phase N]` prefix in older history; any generic commit-format instruction gives way to it in this repo.
+
 ## Agent skills
 
 ### Issue tracker
