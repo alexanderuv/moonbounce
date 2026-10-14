@@ -26,7 +26,7 @@ Parity means features and speed, not code: Moonbounce supports everything Jolt s
 | `Tests/MoonbounceTests` | Swift Testing suites. |
 | `docs/` | Design documents, including the [roadmap](docs/roadmap.md). |
 | `JoltComparison/` | **Temporary** side-by-side validation against Jolt. Its script fetches and builds Jolt at a pinned tag on each run, into a git-ignored build folder, then runs both benchmark suites. Delete the folder once validation is done. See its [README](JoltComparison/README.md). |
-| `Benchmarks/` | Separate package with [ordo-one/benchmark](https://github.com/ordo-one/benchmark) micro-benchmarks. It is separate so the library's own dependency graph stays empty. |
+| `Benchmarks/` | Separate package with the micro-benchmarks. It is separate so the library's own dependency graph stays empty. The bodies and fixtures live in library targets under `Sources/` (`PrimitivesSuite`) that don't depend on any benchmark framework. Runners register them: the [ordo-one/benchmark](https://github.com/ordo-one/benchmark) executables under `Benchmarks/` (`Primitives`) on macOS and Linux. |
 
 ## Test
 
@@ -73,4 +73,5 @@ These rules come from reading the generated assembly. Each one closes a gap agai
   - A stored `static let` or global of a SIMD type is reached from client code through an addressor call. Inside a hot loop that call also spills every live register, which made `Vector4.atan2` twice Jolt's instruction count.
   - `@inline(always) static var zero: Vector3 { Vector3(repeating: 0) }` folds to a constant instead. Scalar `Float` constants are already folded, so they stay `let`.
 - **Benchmark operations are local `@inline(always)` functions, not closure literals.** The optimizer declines to inline a closure above its size threshold, and a matrix product is above it: each element then became a call that spilled both 64-byte matrices to the stack. The C++ harness's lambdas always inline, so the Swift side must too.
+  - The sweep loops and the operations sit together in the suite library, so they inline there, whichever runner registers them. A runner only brackets each measured iteration through `MeasuredIteration`: two calls per 1,000 sweeps, nothing per operation.
 - **Build mode:** benchmarks use plain `-O`. `-Ounchecked` yields identical instruction counts, because bounds checks are already hoisted out of the inner loops.

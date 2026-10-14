@@ -42,12 +42,13 @@ Jolt is measured by `JoltComparison/compare.py`, a temporary utility script. On 
 
 It fetches Jolt at comparison time instead of keeping a copy, so the figures come from the machine that runs it. The script and its harness are committed, so a fresh clone on any supported machine can run the comparison. Jolt's code goes into `JoltComparison/.build/`, which is git-ignored, so the repository never contains it. The `JoltComparison/` folder is deleted once validation is done.
 
-Benchmark conventions (as in `Benchmarks/Benchmarks/Primitives`):
+Benchmark conventions (as in the `Primitives` target):
 
 - Names are `Type.operation`.
 - Each measured iteration runs sweeps of 1,000 operations over inputs from the seeded SplitMix64 fixtures.
 - Metrics are wall clock, retired instructions and malloc count.
 - Each phase gets its own benchmark target, named in the phase.
+- A target's bodies and fixtures live in a library target that does not depend on package-benchmark, such as `PrimitivesSuite` in `Benchmarks/Sources/`. The package-benchmark executable in `Benchmarks/Benchmarks/` only registers them, so every runner measures the same code (see [What Windows changes](#what-windows-changes), Measurement).
 
 ## Platforms
 
@@ -70,8 +71,8 @@ Windows matters more than Linux, so it is tier 1 with macOS.
   - MSVC is what most Windows users of Jolt ship, and Jolt compiles it with `/fp:fast`. clang-cl uses the same LLVM back end as Swift.
   - Moonbounce must match the faster of the two.
 - **Measurement.** package-benchmark supports macOS and Linux only.
-  - The benchmark bodies therefore live in a library target that two runners share: package-benchmark on macOS and Linux, and a small portable runner on Windows.
-  - The portable runner uses the same sweeps, warm-up and iteration rules. It times with `QueryPerformanceCounter` and counts cycles with `QueryThreadCycleTime`. Windows offers no retired-instruction counter without a kernel driver, so cycles stand in for instructions there.
+  - The benchmark bodies therefore live in a library target that two runners share: package-benchmark on macOS and Linux, and a small portable runner on Windows. For the `Primitives` target that library is `PrimitivesSuite`.
+  - The portable runner uses the same sweeps, warm-up and iteration rules, which the library defines once (`MeasurementRules`). It times with `QueryPerformanceCounter` and counts cycles with `QueryThreadCycleTime`. Windows offers no retired-instruction counter without a kernel driver, so cycles stand in for instructions there.
   - It keeps measured threads on performance cores the way user-interactive QoS does on macOS: high thread priority with power throttling turned off (`SetThreadInformation`, `ThreadPowerThrottling`).
   - The allocation rule is checked on macOS and Linux, where malloc can be interposed. On Windows it covers only Windows-specific code paths, through the temp allocator's own counters.
 - **Native APIs.** Threads, waiting and FP control come from the Windows SDK (`WinSDK`): Win32 threads, `WaitOnAddress` or SRW locks, and MXCSR for denormals. The Apple and Linux paths use pthreads, their wait primitives and FPCR or MXCSR. All of it sits behind one internal interface (Phase 2), so nothing above it branches per platform.
