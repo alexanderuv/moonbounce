@@ -7,7 +7,7 @@
 // - Work on `SIMD4<Float>`, never `SIMD3<Float>`. LLVM models `SIMD3` as
 //   `<3 x float>` and patches the unused fourth lane after every operation,
 //   which adds a dependency to every loop and splits divisions in two. 3D
-//   types store a 4-lane vector whose fourth lane repeats z (see `Vec3`), so
+//   types store a 4-lane vector whose fourth lane repeats z (see `Vector3`), so
 //   lane-wise results, 4-lane comparisons and 4-lane reductions stay correct
 //   with no masking.
 //

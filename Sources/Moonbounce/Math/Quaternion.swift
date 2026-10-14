@@ -6,7 +6,7 @@ public import _MoonbounceShims
 /// Rotation operations assume a unit quaternion; normalize after accumulating
 /// many products to keep drift in check. `q` and `-q` encode the same rotation.
 @frozen
-public struct Quat: Equatable, Sendable, BitwiseCopyable {
+public struct Quaternion: Equatable, Sendable, BitwiseCopyable {
     public var simd: SIMD4<Float>
 
     @inline(always)
@@ -21,14 +21,14 @@ public struct Quat: Equatable, Sendable, BitwiseCopyable {
 
     /// The quaternion with vector part `xyz` and scalar part `w`.
     @inline(always)
-    public init(xyz: Vec3, w: Float) {
+    public init(xyz: Vector3, w: Float) {
         simd = xyz.storage
         simd.w = w
     }
 
     /// A rotation of `angle` radians around the unit vector `axis`.
     @inline(always)
-    public init(axis: Vec3, angle: Float) {
+    public init(axis: Vector3, angle: Float) {
         let (s, c) = Trigonometry.sinCos(0.5 * angle)
         self.init(xyz: axis * s, w: c)
     }
@@ -40,124 +40,124 @@ public struct Quat: Equatable, Sendable, BitwiseCopyable {
 
     /// The vector part `(x, y, z)`.
     @inline(always)
-    public var xyz: Vec3 { Vec3(storage: mb_xyzz(simd)) }
+    public var xyz: Vector3 { Vector3(storage: mb_xyzz(simd)) }
 
-    @inline(always) public static var identity: Quat { Quat(x: 0, y: 0, z: 0, w: 1) }
-    @inline(always) public static var zero: Quat { Quat(x: 0, y: 0, z: 0, w: 0) }
+    @inline(always) public static var identity: Quaternion { Quaternion(x: 0, y: 0, z: 0, w: 1) }
+    @inline(always) public static var zero: Quaternion { Quaternion(x: 0, y: 0, z: 0, w: 0) }
 }
 
 // MARK: - Products and rotation
 
-extension Quat {
+extension Quaternion {
     /// The Hamilton product: applying the result rotates by `rhs` first, then `lhs`.
     @inline(always)
-    public static func * (lhs: Quat, rhs: Quat) -> Quat {
-        Quat(hamiltonProduct(lhs.simd, rhs.simd))
+    public static func * (lhs: Quaternion, rhs: Quaternion) -> Quaternion {
+        Quaternion(hamiltonProduct(lhs.simd, rhs.simd))
     }
 
     @inline(always)
-    public static func *= (lhs: inout Quat, rhs: Quat) { lhs = lhs * rhs }
+    public static func *= (lhs: inout Quaternion, rhs: Quaternion) { lhs = lhs * rhs }
 
     /// The product `(v, 0) * q` of a pure quaternion with vector part `v` and
     /// `q`, which skips the terms of the zero scalar part. Integrating an
     /// orientation, dq/dt = ½ (ω, 0) q, is the typical use.
     @inline(always)
-    public static func product(imaginary v: Vec3, _ q: Quat) -> Quat {
+    public static func product(imaginary v: Vector3, _ q: Quaternion) -> Quaternion {
         let b = q.simd, n = -q.simd
         var r = v.storage.x * SIMD4(b.w, n.z, b.y, n.x)
         r = r.addingProduct(v.storage.y, SIMD4(b.z, b.w, n.x, n.y))
         r = r.addingProduct(v.storage.z, SIMD4(n.y, b.x, b.w, n.z))
-        return Quat(r)
+        return Quaternion(r)
     }
 
     /// Rotates `v` by this unit quaternion.
     @inline(always)
-    public static func * (q: Quat, v: Vec3) -> Vec3 {
+    public static func * (q: Quaternion, v: Vector3) -> Vector3 {
         // The expansion of q (v, 0) q*, which skips the two full quaternion
         // products; see `mb_rotate` for the formula and its shuffle layout.
-        Vec3(storage: mb_rotate(q.simd, v.storage))
+        Vector3(storage: mb_rotate(q.simd, v.storage))
     }
 
     /// Rotates `v` by the inverse of this unit quaternion.
     @inline(always)
-    public func inverseRotate(_ v: Vec3) -> Vec3 {
+    public func inverseRotate(_ v: Vector3) -> Vector3 {
         conjugated * v
     }
 
     /// This unit quaternion's rotation of the x axis: the first column of its
     /// rotation matrix, without a general rotation.
     @inline(always)
-    public var rotatedAxisX: Vec3 {
-        Vec3(1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y))
+    public var rotatedAxisX: Vector3 {
+        Vector3(1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y))
     }
 
     /// This unit quaternion's rotation of the y axis.
     @inline(always)
-    public var rotatedAxisY: Vec3 {
-        Vec3(2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x))
+    public var rotatedAxisY: Vector3 {
+        Vector3(2 * (x * y - w * z), 1 - 2 * (x * x + z * z), 2 * (y * z + w * x))
     }
 
     /// This unit quaternion's rotation of the z axis.
     @inline(always)
-    public var rotatedAxisZ: Vec3 {
-        Vec3(2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y))
+    public var rotatedAxisZ: Vector3 {
+        Vector3(2 * (x * z + w * y), 2 * (y * z - w * x), 1 - 2 * (x * x + y * y))
     }
 
     /// The inverse rotation of a unit quaternion.
     @inline(always)
-    public var conjugated: Quat { Quat(simd * SIMD4(-1, -1, -1, 1)) }
+    public var conjugated: Quaternion { Quaternion(simd * SIMD4(-1, -1, -1, 1)) }
 
     /// The multiplicative inverse, valid for quaternions of any non-zero length.
     @inline(always)
-    public var inverse: Quat { Quat(conjugated.simd / lengthSquared) }
+    public var inverse: Quaternion { Quaternion(conjugated.simd / lengthSquared) }
 
     /// The same rotation with a scalar part whose sign bit is clear.
     @inline(always)
-    public var withNonNegativeW: Quat {
-        Quat(togglingSignBits(simd, mb_usplat_w(mb_float4_bits(simd)) & signMask))
+    public var withNonNegativeW: Quaternion {
+        Quaternion(togglingSignBits(simd, mb_usplat_w(mb_float4_bits(simd)) & signMask))
     }
 
     /// A quaternion orthogonal to this one in 4D (their dot product is 0).
     @inline(always)
-    public var perpendicular: Quat { Quat(x: z, y: w, z: -x, w: -y) }
+    public var perpendicular: Quaternion { Quaternion(x: z, y: w, z: -x, w: -y) }
 }
 
 // MARK: - Vector-space operations
 
-extension Quat {
+extension Quaternion {
     @inline(always)
-    public static prefix func - (q: Quat) -> Quat { Quat(-q.simd) }
+    public static prefix func - (q: Quaternion) -> Quaternion { Quaternion(-q.simd) }
 
     @inline(always)
-    public static func + (lhs: Quat, rhs: Quat) -> Quat { Quat(lhs.simd + rhs.simd) }
+    public static func + (lhs: Quaternion, rhs: Quaternion) -> Quaternion { Quaternion(lhs.simd + rhs.simd) }
 
     @inline(always)
-    public static func - (lhs: Quat, rhs: Quat) -> Quat { Quat(lhs.simd - rhs.simd) }
+    public static func - (lhs: Quaternion, rhs: Quaternion) -> Quaternion { Quaternion(lhs.simd - rhs.simd) }
 
     @inline(always)
-    public static func * (lhs: Quat, rhs: Float) -> Quat { Quat(lhs.simd * rhs) }
+    public static func * (lhs: Quaternion, rhs: Float) -> Quaternion { Quaternion(lhs.simd * rhs) }
 
     @inline(always)
-    public static func * (lhs: Float, rhs: Quat) -> Quat { Quat(lhs * rhs.simd) }
+    public static func * (lhs: Float, rhs: Quaternion) -> Quaternion { Quaternion(lhs * rhs.simd) }
 
     @inline(always)
-    public static func / (lhs: Quat, rhs: Float) -> Quat { Quat(lhs.simd / rhs) }
+    public static func / (lhs: Quaternion, rhs: Float) -> Quaternion { Quaternion(lhs.simd / rhs) }
 
     @inline(always)
-    public static func += (lhs: inout Quat, rhs: Quat) { lhs.simd += rhs.simd }
+    public static func += (lhs: inout Quaternion, rhs: Quaternion) { lhs.simd += rhs.simd }
 
     @inline(always)
-    public static func -= (lhs: inout Quat, rhs: Quat) { lhs.simd -= rhs.simd }
+    public static func -= (lhs: inout Quaternion, rhs: Quaternion) { lhs.simd -= rhs.simd }
 
     @inline(always)
-    public static func *= (lhs: inout Quat, rhs: Float) { lhs.simd *= rhs }
+    public static func *= (lhs: inout Quaternion, rhs: Float) { lhs.simd *= rhs }
 
     @inline(always)
-    public static func /= (lhs: inout Quat, rhs: Float) { lhs.simd /= rhs }
+    public static func /= (lhs: inout Quaternion, rhs: Float) { lhs.simd /= rhs }
 
     /// The 4D dot product, added pairwise as `(x + y) + (z + w)`.
     @inline(always)
-    public func dot(_ other: Quat) -> Float { Vec4(simd).dot(Vec4(other.simd)) }
+    public func dot(_ other: Quaternion) -> Float { Vector4(simd).dot(Vector4(other.simd)) }
 
     @inline(always)
     public var lengthSquared: Float { dot(self) }
@@ -166,7 +166,7 @@ extension Quat {
     public var length: Float { lengthSquared.squareRoot() }
 
     @inline(always)
-    public func normalized() -> Quat { Quat(simd / length) }
+    public func normalized() -> Quaternion { Quaternion(simd / length) }
 
     @inline(always)
     public func isNormalized(tolerance: Float = 1.0e-5) -> Bool {
@@ -177,18 +177,18 @@ extension Quat {
     ///
     /// `q` and `-q` encode the same rotation but compare unequal here.
     @inline(always)
-    public func isApproximatelyEqual(to other: Quat, tolerance: Float = 1.0e-6) -> Bool {
+    public func isApproximatelyEqual(to other: Quaternion, tolerance: Float = 1.0e-6) -> Bool {
         all(absolute(simd - other.simd) .<= SIMD4(repeating: tolerance))
     }
 
     /// Whether any component is NaN.
     @inline(always)
-    public var isNaN: Bool { Vec4(simd).isNaN }
+    public var isNaN: Bool { Vector4(simd).isNaN }
 }
 
 // MARK: - Construction
 
-extension Quat {
+extension Quaternion {
     /// The shortest rotation that turns the direction of `from` into the
     /// direction of `to`. Neither needs unit length.
     ///
@@ -200,13 +200,13 @@ extension Quat {
     /// result is then a half turn around a perpendicular axis. A zero vector
     /// gives the identity.
     @inline(always)
-    public init(from: Vec3, to: Vec3) {
+    public init(from: Vector3, to: Vector3) {
         let lengths = (from.lengthSquared * to.lengthSquared).squareRoot()
         let w = lengths + from.dot(to)
         if w == 0 {
-            self = lengths == 0 ? .identity : Quat(xyz: from.normalizedPerpendicular(), w: 0)
+            self = lengths == 0 ? .identity : Quaternion(xyz: from.normalizedPerpendicular(), w: 0)
         } else {
-            self = Quat(xyz: from.cross(to), w: w).normalized()
+            self = Quaternion(xyz: from.cross(to), w: w).normalized()
         }
     }
 
@@ -214,8 +214,8 @@ extension Quat {
     /// the y axis, then `angles.z` around the z axis (all in radians, axes
     /// fixed in space): the product z · y · x of the three axis rotations.
     @inlinable
-    public init(eulerAngles angles: Vec3) {
-        let (s, c) = Vec4(0.5 * angles.x, 0.5 * angles.y, 0.5 * angles.z, 0).sinCos()
+    public init(eulerAngles angles: Vector3) {
+        let (s, c) = Vector4(0.5 * angles.x, 0.5 * angles.y, 0.5 * angles.z, 0).sinCos()
         let (sx, sy, sz) = (s.x, s.y, s.z)
         let (cx, cy, cz) = (c.x, c.y, c.z)
         self.init(
@@ -226,14 +226,14 @@ extension Quat {
         )
     }
 
-    /// The angles `a` such that `Quat(eulerAngles: a)` is this unit
+    /// The angles `a` such that `Quaternion(eulerAngles: a)` is this unit
     /// quaternion's rotation: x and z in [-π, π], y in [-π / 2, π / 2].
     @inlinable
-    public var eulerAngles: Vec3 {
+    public var eulerAngles: Vector3 {
         let xAngle = Trigonometry.atan2(2 * (w * x + y * z), 1 - 2 * (x * x + y * y))
         let sinY = Swift.min(Swift.max(2 * (w * y - z * x), -1), 1)
         let zAngle = Trigonometry.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
-        return Vec3(xAngle, Trigonometry.asin(sinY), zAngle)
+        return Vector3(xAngle, Trigonometry.asin(sinY), zAngle)
     }
 
     /// A rotation drawn uniformly from all rotations.
@@ -243,23 +243,23 @@ extension Quat {
     /// (√(1 − u₁) sin 2πu₂, √(1 − u₁) cos 2πu₂, √u₁ sin 2πu₃, √u₁ cos 2πu₃)
     /// is uniform on the unit 3-sphere.
     @inlinable
-    public static func random<Generator: RandomNumberGenerator>(using generator: inout Generator) -> Quat {
+    public static func random<Generator: RandomNumberGenerator>(using generator: inout Generator) -> Quaternion {
         let u1 = Float.random(in: 0..<1, using: &generator)
         let u2 = Float.random(in: 0..<1, using: &generator)
         let u3 = Float.random(in: 0..<1, using: &generator)
-        let (s, c) = Vec4(2 * pi * u2, 2 * pi * u3, 0, 0).sinCos()
+        let (s, c) = Vector4(2 * pi * u2, 2 * pi * u3, 0, 0).sinCos()
         let r1 = (1 - u1).squareRoot(), r2 = u1.squareRoot()
-        return Quat(x: r1 * s.x, y: r1 * c.x, z: r2 * s.y, w: r2 * c.y)
+        return Quaternion(x: r1 * s.x, y: r1 * c.x, z: r2 * s.y, w: r2 * c.y)
     }
 }
 
 // MARK: - Decomposition
 
-extension Quat {
+extension Quaternion {
     /// The rotation axis and angle of this unit quaternion, with the angle in
     /// [0, π]. The identity has a zero axis and angle.
     @inline(always)
-    public var axisAngle: (axis: Vec3, angle: Float) {
+    public var axisAngle: (axis: Vector3, angle: Float) {
         // With w >= 0, (xyz, w) = (axis sin(θ/2), cos(θ/2)) for θ in [0, π].
         // atan2 recovers θ/2 accurately at every angle, where acos(w) loses
         // precision near the identity.
@@ -272,7 +272,7 @@ extension Quat {
     /// The angular velocity that turns the identity into this unit
     /// quaternion's rotation in `deltaTime`: the axis scaled by angle ÷ time.
     @inline(always)
-    public func angularVelocity(deltaTime: Float) -> Vec3 {
+    public func angularVelocity(deltaTime: Float) -> Vector3 {
         let q = withNonNegativeW
         let sinHalf = q.xyz.length
         // angle / sin(θ/2) = 2 atan2(s, w) / s tends to 2 / w as s → 0.
@@ -284,8 +284,8 @@ extension Quat {
     /// `axis`: its vector part projected onto the axis, renormalized. The
     /// identity when the rotation has no such part.
     @inline(always)
-    public func twist(around axis: Vec3) -> Quat {
-        let twist = Quat(xyz: axis * xyz.dot(axis), w: w)
+    public func twist(around axis: Vector3) -> Quaternion {
+        let twist = Quaternion(xyz: axis * xyz.dot(axis), w: w)
         let lengthSquared = twist.lengthSquared
         return lengthSquared == 0 ? .identity : twist / lengthSquared.squareRoot()
     }
@@ -293,7 +293,7 @@ extension Quat {
     /// The angle of this unit quaternion's rotation around the unit vector
     /// `axis`, in (-π, π]: the angle of ``twist(around:)``.
     @inline(always)
-    public func rotationAngle(around axis: Vec3) -> Float {
+    public func rotationAngle(around axis: Vector3) -> Float {
         w == 0 ? pi : 2 * Trigonometry.atan(xyz.dot(axis) / w)
     }
 
@@ -308,23 +308,23 @@ extension Quat {
     /// Gino van den Bergen, "Rotational Joint Limits in Quaternion Space",
     /// GDC 2016.
     @inline(always)
-    public var swingTwist: (swing: Quat, twist: Quat) {
+    public var swingTwist: (swing: Quaternion, twist: Quaternion) {
         let s = (w * w + x * x).squareRoot()
         guard s != 0 else { return (self, .identity) }
-        let twist = Quat(x: x / s, y: 0, z: 0, w: w / s)
-        let swing = Quat(x: 0, y: (w * y - x * z) / s, z: (w * z + x * y) / s, w: s)
+        let twist = Quaternion(x: x / s, y: 0, z: 0, w: w / s)
+        let swing = Quaternion(x: 0, y: (w * y - x * z) / s, z: (w * z + x * y) / s, w: s)
         return (swing, twist)
     }
 }
 
 // MARK: - Interpolation
 
-extension Quat {
+extension Quaternion {
     /// `self` at `t = 0` to `other` at `t = 1` along a straight line in 4D;
     /// not normalized.
     @inline(always)
-    public func lerp(to other: Quat, _ t: Float) -> Quat {
-        Quat(simd * (1 - t)).addingScaled(other, t)
+    public func lerp(to other: Quaternion, _ t: Float) -> Quaternion {
+        Quaternion(simd * (1 - t)).addingScaled(other, t)
     }
 
     /// The rotation a fraction `t` of the way from `self` to `other` along
@@ -335,7 +335,7 @@ extension Quat {
     /// one vectorized `sinCos`. Nearly equal rotations, where sin Ω loses
     /// precision, fall back to normalized `lerp`.
     @inline(always)
-    public func slerp(to other: Quat, _ t: Float) -> Quat {
+    public func slerp(to other: Quaternion, _ t: Float) -> Quaternion {
         var cosOmega = dot(other)
         // q and -q are the same rotation; take the nearer one for the short arc.
         let target = cosOmega < 0 ? -other : other
@@ -344,23 +344,23 @@ extension Quat {
         let weights: (Float, Float)
         if 1 - cosOmega > 1.0e-4 {
             let omega = Trigonometry.acos(cosOmega)
-            let sines = Vec4(omega, (1 - t) * omega, t * omega, 0).sinCos().sin
+            let sines = Vector4(omega, (1 - t) * omega, t * omega, 0).sinCos().sin
             weights = (sines.y / sines.x, sines.z / sines.x)
         } else {
             weights = (1 - t, t)
         }
-        return Quat(simd * weights.0).addingScaled(target, weights.1).normalized()
+        return Quaternion(simd * weights.0).addingScaled(target, weights.1).normalized()
     }
 
     @inlinable @inline(always)
-    func addingScaled(_ other: Quat, _ scale: Float) -> Quat {
-        Quat(simd.addingProduct(scale, other.simd))
+    func addingScaled(_ other: Quaternion, _ scale: Float) -> Quaternion {
+        Quaternion(simd.addingProduct(scale, other.simd))
     }
 }
 
 // MARK: - Compression
 
-extension Quat {
+extension Quaternion {
     /// This unit quaternion packed into 32 bits with the "smallest three"
     /// encoding: the index of the largest component in 2 bits, and the other
     /// three in 10 bits each.
@@ -371,12 +371,12 @@ extension Quat {
     /// error is below 0.005 radians (0.3°).
     @inlinable
     public func smallestThreeEncoded() -> UInt32 {
-        let largest = Vec4(simd).abs.highestComponentIndex
+        let largest = Vector4(simd).abs.highestComponentIndex
         let q = simd[largest] < 0 ? -simd : simd
         var value = UInt32(largest) << 30
         var shift: UInt32 = 0
         for i in 0..<4 where i != largest {
-            value |= Quat.quantize(q[i]) << shift
+            value |= Quaternion.quantize(q[i]) << shift
             shift += 10
         }
         return value
@@ -389,7 +389,7 @@ extension Quat {
         var q = SIMD4<Float>(repeating: 0)
         var shift: UInt32 = 0
         for i in 0..<4 where i != largest {
-            q[i] = Quat.dequantize((value >> shift) & 0x3FF)
+            q[i] = Quaternion.dequantize((value >> shift) & 0x3FF)
             shift += 10
         }
         q[largest] = Swift.max(1 - (q * q).sum(), 0).squareRoot()
@@ -411,6 +411,6 @@ extension Quat {
     }
 }
 
-extension Quat: CustomStringConvertible {
-    public var description: String { "Quat(\(x), \(y), \(z), \(w))" }
+extension Quaternion: CustomStringConvertible {
+    public var description: String { "Quaternion(\(x), \(y), \(z), \(w))" }
 }

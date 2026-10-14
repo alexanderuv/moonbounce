@@ -116,7 +116,7 @@ MB_INLINE int mb_mask_count(mb_uint4 v) { return (int)__builtin_reduce_add(v >> 
 /// surrounding arithmetic into 2-lane pieces instead.
 MB_INLINE mb_float4 mb_yzxx(mb_float4 v) { return __builtin_shufflevector(v, v, 1, 2, 0, 0); }
 
-/// `(x, y, z, z)`: restores the `Vec3` storage invariant.
+/// `(x, y, z, z)`: restores the `Vector3` storage invariant.
 MB_INLINE mb_float4 mb_xyzz(mb_float4 v) { return __builtin_shufflevector(v, v, 0, 1, 2, 2); }
 
 /// `(y, x, w, z)`: swaps the lanes within each pair.
@@ -126,7 +126,7 @@ MB_INLINE mb_float4 mb_yxwz(mb_float4 v) { return __builtin_shufflevector(v, v, 
 MB_INLINE mb_float4 mb_zwxy(mb_float4 v) { return __builtin_shufflevector(v, v, 2, 3, 0, 1); }
 
 /// `(z, 0, x, x)` and `(0, z, y, y)`: the two perpendicular candidates of
-/// `Vec3.normalizedPerpendicular`, before their x and y lanes are negated.
+/// `Vector3.normalizedPerpendicular`, before their x and y lanes are negated.
 MB_INLINE mb_float4 mb_z0xx(mb_float4 v) { return __builtin_shufflevector(v, (mb_float4){0}, 2, 4, 0, 0); }
 MB_INLINE mb_float4 mb_0zyy(mb_float4 v) { return __builtin_shufflevector(v, (mb_float4){0}, 4, 2, 1, 1); }
 

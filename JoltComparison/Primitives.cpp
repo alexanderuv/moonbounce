@@ -111,7 +111,7 @@ struct SplitMix64
 		return Vec4(x, y, z, w);
 	}
 
-	// Same as uvec4() in Fixtures.swift: the low and high halves of two draws.
+	// Same as uint32Vector4() in Fixtures.swift: the low and high halves of two draws.
 	UVec4 Integers()
 	{
 		uint64_t a = Next();
@@ -311,11 +311,11 @@ int main()
 
 	std::printf("{\n  \"jolt\": \"%s\",\n  \"operationsPerIteration\": %d,\n  \"benchmarks\": {\n", JOLT_VERSION, cCount * cSweepsPerIteration);
 
-	Sweep<Vec3, Vec3>("Vec3.normalized", f.mVectorsA, [](Vec3Arg v) { return v.Normalized(); });
-	Sweep<Vec3, Vec3, float>("Vec3.dot", f.mVectorsA, f.mVectorsB, [](Vec3Arg a, Vec3Arg b) { return a.Dot(b); });
-	Sweep<Vec3, Vec3, Vec3>("Vec3.cross", f.mVectorsA, f.mVectorsB, [](Vec3Arg a, Vec3Arg b) { return a.Cross(b); });
-	Sweep<Quat, Quat, Quat>("Quat.multiply", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a * b; });
-	Sweep<Quat, Vec3, Vec3>("Quat.rotate", f.mRotationsA, f.mVectorsA, [](QuatArg q, Vec3Arg v) { return q * v; });
+	Sweep<Vec3, Vec3>("Vector3.normalized", f.mVectorsA, [](Vec3Arg v) { return v.Normalized(); });
+	Sweep<Vec3, Vec3, float>("Vector3.dot", f.mVectorsA, f.mVectorsB, [](Vec3Arg a, Vec3Arg b) { return a.Dot(b); });
+	Sweep<Vec3, Vec3, Vec3>("Vector3.cross", f.mVectorsA, f.mVectorsB, [](Vec3Arg a, Vec3Arg b) { return a.Cross(b); });
+	Sweep<Quat, Quat, Quat>("Quaternion.multiply", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a * b; });
+	Sweep<Quat, Vec3, Vec3>("Quaternion.rotate", f.mRotationsA, f.mVectorsA, [](QuatArg q, Vec3Arg v) { return q * v; });
 	// uint8_t, not bool: std::vector<bool> is bit-packed, Swift's [Bool] is not.
 	Sweep<AABox, AABox, uint8_t>("AABB.overlaps", f.mBoxesA, f.mBoxesB, [](const AABox &a, const AABox &b) { return a.Overlaps(b); });
 
@@ -335,15 +335,15 @@ int main()
 	});
 
 	// Phase 1
-	Sweep<Vec3, Vec3>("Vec3.normalizedPerpendicular", f.mVectorsA, [](Vec3Arg v) { return v.GetNormalizedPerpendicular(); });
-	Sweep<Vec4, Vec4, Vec4, Vec4>("Vec4.multiplyAdd", f.mVectors4A, f.mVectors4B, f.mVectors4C, [](Vec4Arg a, Vec4Arg b, Vec4Arg c) { return Vec4::sFusedMultiplyAdd(a, b, c); });
-	Sweep<Vec4, float>("Vec4.reduceMin", f.mVectors4A, [](Vec4Arg v) { return v.ReduceMin(); });
-	Sweep<UVec4, UVec4, UVec4, UVec4>("UVec4.select", f.mIntegersA, f.mIntegersB, f.mMasks, [](UVec4Arg a, UVec4Arg b, UVec4Arg m) { return UVec4::sSelect(a, b, m); });
-	Sweep<UVec4, int>("UVec4.countTrues", f.mMasks, [](UVec4Arg m) { return m.CountTrues(); });
-	Sweep<Vec4, SinCos>("Vec4.sinCos", f.mAngles, [](Vec4Arg x) { SinCos r; x.SinCos(r.mSin, r.mCos); return r; });
-	Sweep<Vec4, Vec4, Vec4>("Vec4.atan2", f.mCoordinatesY, f.mCoordinatesX, [](Vec4Arg y, Vec4Arg x) { return Vec4::sATan2(y, x); });
-	Sweep<Quat, SwingTwist>("Quat.swingTwist", f.mRotationsA, [](QuatArg q) { SwingTwist r; q.GetSwingTwist(r.mSwing, r.mTwist); return r; });
-	Sweep<Quat, Quat, Quat>("Quat.slerp", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
+	Sweep<Vec3, Vec3>("Vector3.normalizedPerpendicular", f.mVectorsA, [](Vec3Arg v) { return v.GetNormalizedPerpendicular(); });
+	Sweep<Vec4, Vec4, Vec4, Vec4>("Vector4.multiplyAdd", f.mVectors4A, f.mVectors4B, f.mVectors4C, [](Vec4Arg a, Vec4Arg b, Vec4Arg c) { return Vec4::sFusedMultiplyAdd(a, b, c); });
+	Sweep<Vec4, float>("Vector4.reduceMin", f.mVectors4A, [](Vec4Arg v) { return v.ReduceMin(); });
+	Sweep<UVec4, UVec4, UVec4, UVec4>("UInt32Vector4.select", f.mIntegersA, f.mIntegersB, f.mMasks, [](UVec4Arg a, UVec4Arg b, UVec4Arg m) { return UVec4::sSelect(a, b, m); });
+	Sweep<UVec4, int>("UInt32Vector4.countTrues", f.mMasks, [](UVec4Arg m) { return m.CountTrues(); });
+	Sweep<Vec4, SinCos>("Vector4.sinCos", f.mAngles, [](Vec4Arg x) { SinCos r; x.SinCos(r.mSin, r.mCos); return r; });
+	Sweep<Vec4, Vec4, Vec4>("Vector4.atan2", f.mCoordinatesY, f.mCoordinatesX, [](Vec4Arg y, Vec4Arg x) { return Vec4::sATan2(y, x); });
+	Sweep<Quat, SwingTwist>("Quaternion.swingTwist", f.mRotationsA, [](QuatArg q) { SwingTwist r; q.GetSwingTwist(r.mSwing, r.mTwist); return r; });
+	Sweep<Quat, Quat, Quat>("Quaternion.slerp", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 
 	std::printf("\n  }\n}\n");
 	return 0;

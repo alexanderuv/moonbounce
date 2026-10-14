@@ -10,17 +10,17 @@ import Testing
     static let pi = Float(Double.pi)
 
     /// Offsets that give each lane of a sweep a different input.
-    static let laneOffsets = Vec4(0, 2.5e-4, 5.0e-4, 7.5e-4)
+    static let laneOffsets = Vector4(0, 2.5e-4, 5.0e-4, 7.5e-4)
 
     /// The largest `error(input, result)` over `count` steps of `step` from
     /// `start`, four lanes at a time.
     static func maxError(
-        from start: Float, step: Float, count: Int, offsets: Vec4 = laneOffsets,
-        _ evaluate: (Vec4) -> Vec4, error: (Double, Double) -> Double
+        from start: Float, step: Float, count: Int, offsets: Vector4 = laneOffsets,
+        _ evaluate: (Vector4) -> Vector4, error: (Double, Double) -> Double
     ) -> Double {
         var worst = 0.0
         for i in 0..<count {
-            let input = Vec4(repeating: start + Float(i) * step) + offsets
+            let input = Vector4(repeating: start + Float(i) * step) + offsets
             let result = evaluate(input)
             for lane in 0..<4 {
                 worst = max(worst, error(Double(input[lane]), Double(result[lane])))
@@ -32,11 +32,11 @@ import Testing
     // MARK: - Sine and cosine
 
     @Test func sinCosAtQuarterTurns() {
-        let (s, c) = Vec4(0, 0.5 * Self.pi, Self.pi, -0.5 * Self.pi).sinCos()
-        #expect(s.isClose(to: Vec4(0, 1, 0, -1), maxDistanceSquared: 1.0e-14))
-        #expect(c.isClose(to: Vec4(1, 0, -1, 0), maxDistanceSquared: 1.0e-14))
-        #expect(Vec4.zero.sinCos().sin == .zero)
-        #expect(Vec4.zero.sinCos().cos == .one)
+        let (s, c) = Vector4(0, 0.5 * Self.pi, Self.pi, -0.5 * Self.pi).sinCos()
+        #expect(s.isClose(to: Vector4(0, 1, 0, -1), maxDistanceSquared: 1.0e-14))
+        #expect(c.isClose(to: Vector4(1, 0, -1, 0), maxDistanceSquared: 1.0e-14))
+        #expect(Vector4.zero.sinCos().sin == .zero)
+        #expect(Vector4.zero.sinCos().cos == .one)
     }
 
     @Test func sinCosAccuracyWithin100Pi() {
@@ -49,22 +49,22 @@ import Testing
 
     @Test func scalarFormsMatchLaneZero() {
         for x: Float in [-3, -0.5, 0, 0.25, 1, 2.5] {
-            #expect(Trigonometry.sin(x) == Vec4(repeating: x).sinCos().sin.x)
-            #expect(Trigonometry.cos(x) == Vec4(repeating: x).sinCos().cos.x)
+            #expect(Trigonometry.sin(x) == Vector4(repeating: x).sinCos().sin.x)
+            #expect(Trigonometry.cos(x) == Vector4(repeating: x).sinCos().cos.x)
             #expect(Trigonometry.sinCos(x) == (Trigonometry.sin(x), Trigonometry.cos(x)))
-            #expect(Trigonometry.tan(x) == Vec4(repeating: x).tan().x)
-            #expect(Trigonometry.atan(x) == Vec4(repeating: x).atan().x)
-            #expect(Trigonometry.atan2(x, 0.75) == Vec4.atan2(Vec4(repeating: x), Vec4(repeating: 0.75)).x)
+            #expect(Trigonometry.tan(x) == Vector4(repeating: x).tan().x)
+            #expect(Trigonometry.atan(x) == Vector4(repeating: x).atan().x)
+            #expect(Trigonometry.atan2(x, 0.75) == Vector4.atan2(Vector4(repeating: x), Vector4(repeating: 0.75)).x)
             let unit = x / 3
-            #expect(Trigonometry.asin(unit) == Vec4(repeating: unit).asin().x)
-            #expect(Trigonometry.acos(unit) == Vec4(repeating: unit).acos().x)
+            #expect(Trigonometry.asin(unit) == Vector4(repeating: unit).asin().x)
+            #expect(Trigonometry.acos(unit) == Vector4(repeating: unit).acos().x)
         }
     }
 
     // MARK: - Tangent
 
     @Test func tanEdgeCases() {
-        #expect(Vec4.zero.tan() == .zero)
+        #expect(Vector4.zero.tan() == .zero)
         #expect(Trigonometry.tan(0.5 * Self.pi - 1.0e-6) > 1.0e6)
         #expect(Trigonometry.tan(0.5 * Self.pi + 1.0e-6) < -1.0e6)
     }
@@ -84,23 +84,23 @@ import Testing
     // MARK: - Inverse functions
 
     @Test func asinAndAcosEdgeCasesAreExact() {
-        #expect(Vec4.zero.asin() == .zero)
-        #expect(Vec4.one.asin() == Vec4(repeating: 0.5 * Self.pi))
-        #expect(Vec4(repeating: -1).asin() == Vec4(repeating: -0.5 * Self.pi))
-        #expect(Vec4.zero.acos() == Vec4(repeating: 0.5 * Self.pi))
-        #expect(Vec4.one.acos() == .zero)
-        #expect(Vec4(repeating: -1).acos() == Vec4(repeating: Self.pi))
+        #expect(Vector4.zero.asin() == .zero)
+        #expect(Vector4.one.asin() == Vector4(repeating: 0.5 * Self.pi))
+        #expect(Vector4(repeating: -1).asin() == Vector4(repeating: -0.5 * Self.pi))
+        #expect(Vector4.zero.acos() == Vector4(repeating: 0.5 * Self.pi))
+        #expect(Vector4.one.acos() == .zero)
+        #expect(Vector4(repeating: -1).acos() == Vector4(repeating: Self.pi))
     }
 
     @Test func asinAndAcosClampTheirInputs() {
-        #expect(Vec4(repeating: -1.1).asin() == Vec4(repeating: -0.5 * Self.pi))
-        #expect(Vec4(repeating: 1.1).asin() == Vec4(repeating: 0.5 * Self.pi))
-        #expect(Vec4(repeating: -1.1).acos() == Vec4(repeating: Self.pi))
-        #expect(Vec4(repeating: 1.1).acos() == .zero)
+        #expect(Vector4(repeating: -1.1).asin() == Vector4(repeating: -0.5 * Self.pi))
+        #expect(Vector4(repeating: 1.1).asin() == Vector4(repeating: 0.5 * Self.pi))
+        #expect(Vector4(repeating: -1.1).acos() == Vector4(repeating: Self.pi))
+        #expect(Vector4(repeating: 1.1).acos() == .zero)
     }
 
     @Test func asinAndAcosAccuracy() {
-        let unitRange: (Vec4) -> Vec4 = { Vec4.min($0, .one) }
+        let unitRange: (Vector4) -> Vector4 = { Vector4.min($0, .one) }
         let asinError = Self.maxError(from: -1, step: 1.0e-3, count: 2001, { unitRange($0).asin() }) { x, result in
             abs(result - Foundation.asin(min(x, 1)))
         }
@@ -112,10 +112,10 @@ import Testing
     }
 
     @Test func atanEdgeCases() {
-        #expect(Vec4.zero.atan() == .zero)
-        #expect(Vec4(repeating: .greatestFiniteMagnitude).atan() == Vec4(repeating: 0.5 * Self.pi))
-        #expect(Vec4(repeating: -.greatestFiniteMagnitude).atan() == Vec4(repeating: -0.5 * Self.pi))
-        #expect(Vec4(repeating: .infinity).atan() == Vec4(repeating: 0.5 * Self.pi))
+        #expect(Vector4.zero.atan() == .zero)
+        #expect(Vector4(repeating: .greatestFiniteMagnitude).atan() == Vector4(repeating: 0.5 * Self.pi))
+        #expect(Vector4(repeating: -.greatestFiniteMagnitude).atan() == Vector4(repeating: -0.5 * Self.pi))
+        #expect(Vector4(repeating: .infinity).atan() == Vector4(repeating: 0.5 * Self.pi))
     }
 
     @Test func atanAccuracy() {
@@ -124,15 +124,15 @@ import Testing
     }
 
     @Test func atan2IsExactOnAxesAndDiagonals() {
-        func atan2(_ y: Float, _ x: Float) -> Vec4 { Vec4.atan2(Vec4(repeating: y), Vec4(repeating: x)) }
+        func atan2(_ y: Float, _ x: Float) -> Vector4 { Vector4.atan2(Vector4(repeating: y), Vector4(repeating: x)) }
         #expect(atan2(0, 10) == .zero)
-        #expect(atan2(0, -10) == Vec4(repeating: Self.pi))
-        #expect(atan2(10, 0) == Vec4(repeating: 0.5 * Self.pi))
-        #expect(atan2(-10, 0) == Vec4(repeating: -0.5 * Self.pi))
-        #expect(atan2(10, 10) == Vec4(repeating: Float(Double.pi / 4)))
-        #expect(atan2(10, -10) == Vec4(repeating: Float(3 * Double.pi / 4)))
-        #expect(atan2(-10, -10) == Vec4(repeating: -Float(3 * Double.pi / 4)))
-        #expect(atan2(-10, 10) == Vec4(repeating: -Float(Double.pi / 4)))
+        #expect(atan2(0, -10) == Vector4(repeating: Self.pi))
+        #expect(atan2(10, 0) == Vector4(repeating: 0.5 * Self.pi))
+        #expect(atan2(-10, 0) == Vector4(repeating: -0.5 * Self.pi))
+        #expect(atan2(10, 10) == Vector4(repeating: Float(Double.pi / 4)))
+        #expect(atan2(10, -10) == Vector4(repeating: Float(3 * Double.pi / 4)))
+        #expect(atan2(-10, -10) == Vector4(repeating: -Float(3 * Double.pi / 4)))
+        #expect(atan2(-10, 10) == Vector4(repeating: -Float(Double.pi / 4)))
     }
 
     @Test func atan2AtTheOriginFollowsC() {
@@ -143,13 +143,13 @@ import Testing
     }
 
     @Test func atan2Accuracy() {
-        let offsets = Vec4(0, 2.5e-3, 5.0e-3, 7.5e-3)
+        let offsets = Vector4(0, 2.5e-3, 5.0e-3, 7.5e-3)
         var worst = 0.0
         for i in 0..<1000 {
-            let y = Vec4(repeating: -5 + Float(i) * 1.0e-2) + offsets
+            let y = Vector4(repeating: -5 + Float(i) * 1.0e-2) + offsets
             for j in 0..<1000 {
-                let x = Vec4(repeating: -5 + Float(j) * 1.0e-2) + offsets
-                let result = Vec4.atan2(y, x)
+                let x = Vector4(repeating: -5 + Float(j) * 1.0e-2) + offsets
+                let result = Vector4.atan2(y, x)
                 for lane in 0..<4 {
                     worst = max(worst, abs(Double(result[lane]) - Foundation.atan2(Double(y[lane]), Double(x[lane]))))
                 }
@@ -176,14 +176,14 @@ import Testing
     /// somewhere, which breaks cross-platform determinism.
     @Test func resultsAreBitForBitStable() {
         var hash: UInt64 = 0xCBF2_9CE4_8422_2325 // FNV-1a
-        func mix(_ v: Vec4) {
+        func mix(_ v: Vector4) {
             for lane in 0..<4 {
                 hash = (hash ^ UInt64(v[lane].bitPattern)) &* 0x0000_0100_0000_01B3
             }
         }
         for i in 0..<10_000 {
-            let x = Vec4(repeating: Float(i - 5000) * 0.0123) + Self.laneOffsets
-            let unit = Vec4(repeating: Float(i - 5000) / 5000) + Self.laneOffsets
+            let x = Vector4(repeating: Float(i - 5000) * 0.0123) + Self.laneOffsets
+            let unit = Vector4(repeating: Float(i - 5000) / 5000) + Self.laneOffsets
             let (s, c) = x.sinCos()
             mix(s)
             mix(c)
@@ -191,7 +191,7 @@ import Testing
             mix(unit.asin())
             mix(unit.acos())
             mix(x.atan())
-            mix(Vec4.atan2(x, unit))
+            mix(Vector4.atan2(x, unit))
         }
         #expect(hash == 0x522D_3B9C_A0AE_9265)
     }

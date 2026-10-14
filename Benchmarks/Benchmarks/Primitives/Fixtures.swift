@@ -25,47 +25,47 @@ struct SplitMix64: RandomNumberGenerator {
         return low + (high - low) * unit
     }
 
-    mutating func vec3(_ low: Float, _ high: Float) -> Vec3 {
+    mutating func vector3(_ low: Float, _ high: Float) -> Vector3 {
         let x = uniform(low, high)
         let y = uniform(low, high)
         let z = uniform(low, high)
-        return Vec3(x, y, z)
+        return Vector3(x, y, z)
     }
 
-    mutating func unitQuat() -> Quat {
+    mutating func unitQuaternion() -> Quaternion {
         let x = uniform(-1, 1)
         let y = uniform(-1, 1)
         let z = uniform(-1, 1)
         let w = uniform(-1, 1)
-        return Quat(x: x, y: y, z: z, w: w).normalized()
+        return Quaternion(x: x, y: y, z: z, w: w).normalized()
     }
 
     mutating func box() -> AABB {
-        let center = vec3(-100, 100)
-        let halfExtent = vec3(0.5, 10)
+        let center = vector3(-100, 100)
+        let halfExtent = vector3(0.5, 10)
         return AABB(center: center, halfExtent: halfExtent)
     }
 
-    mutating func vec4(_ low: Float, _ high: Float) -> Vec4 {
+    mutating func vector4(_ low: Float, _ high: Float) -> Vector4 {
         let x = uniform(low, high)
         let y = uniform(low, high)
         let z = uniform(low, high)
         let w = uniform(low, high)
-        return Vec4(x, y, z, w)
+        return Vector4(x, y, z, w)
     }
 
     /// Four lanes of random bits from two draws: the low and high 32 bits of each.
-    mutating func uvec4() -> UVec4 {
+    mutating func uint32Vector4() -> UInt32Vector4 {
         let a = next(), b = next()
-        return UVec4(UInt32(truncatingIfNeeded: a), UInt32(truncatingIfNeeded: a >> 32), UInt32(truncatingIfNeeded: b), UInt32(truncatingIfNeeded: b >> 32))
+        return UInt32Vector4(UInt32(truncatingIfNeeded: a), UInt32(truncatingIfNeeded: a >> 32), UInt32(truncatingIfNeeded: b), UInt32(truncatingIfNeeded: b >> 32))
     }
 
     /// A comparison mask whose lanes are each all ones or all zeros, from the
     /// low four bits of one draw.
-    mutating func mask() -> UVec4 {
+    mutating func mask() -> UInt32Vector4 {
         let bits = next()
         func lane(_ i: UInt64) -> UInt32 { (bits >> i) & 1 == 1 ? 0xFFFF_FFFF : 0 }
-        return UVec4(lane(0), lane(1), lane(2), lane(3))
+        return UInt32Vector4(lane(0), lane(1), lane(2), lane(3))
     }
 }
 
@@ -74,43 +74,43 @@ struct SplitMix64: RandomNumberGenerator {
 struct Fixtures: Sendable {
     static let count = 1000
 
-    let vectorsA: [Vec3]
-    let vectorsB: [Vec3]
-    let rotationsA: [Quat]
-    let rotationsB: [Quat]
+    let vectorsA: [Vector3]
+    let vectorsB: [Vector3]
+    let rotationsA: [Quaternion]
+    let rotationsB: [Quaternion]
     let boxesA: [AABB]
     let boxesB: [AABB]
     let ray: Ray
-    let vectors4A: [Vec4]
-    let vectors4B: [Vec4]
-    let vectors4C: [Vec4]
-    let integersA: [UVec4]
-    let integersB: [UVec4]
-    let masks: [UVec4]
+    let vectors4A: [Vector4]
+    let vectors4B: [Vector4]
+    let vectors4C: [Vector4]
+    let integersA: [UInt32Vector4]
+    let integersB: [UInt32Vector4]
+    let masks: [UInt32Vector4]
     /// Angles in [-10, 10] radians: a few turns either way.
-    let angles: [Vec4]
+    let angles: [Vector4]
     /// Coordinates in [-5, 5], so `atan2` sees every quadrant.
-    let coordinatesY: [Vec4]
-    let coordinatesX: [Vec4]
+    let coordinatesY: [Vector4]
+    let coordinatesX: [Vector4]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
-        vectorsA = (0..<Self.count).map { _ in rng.vec3(-100, 100) }
-        vectorsB = (0..<Self.count).map { _ in rng.vec3(-100, 100) }
-        rotationsA = (0..<Self.count).map { _ in rng.unitQuat() }
-        rotationsB = (0..<Self.count).map { _ in rng.unitQuat() }
+        vectorsA = (0..<Self.count).map { _ in rng.vector3(-100, 100) }
+        vectorsB = (0..<Self.count).map { _ in rng.vector3(-100, 100) }
+        rotationsA = (0..<Self.count).map { _ in rng.unitQuaternion() }
+        rotationsB = (0..<Self.count).map { _ in rng.unitQuaternion() }
         boxesA = (0..<Self.count).map { _ in rng.box() }
         boxesB = (0..<Self.count).map { _ in rng.box() }
-        ray = Ray(origin: Vec3(-150, 3, -7), direction: Vec3(1, 0.02, 0.05).normalized())
+        ray = Ray(origin: Vector3(-150, 3, -7), direction: Vector3(1, 0.02, 0.05).normalized())
         // Phase 1. Drawn after the Phase 0 inputs so those stay unchanged.
-        vectors4A = (0..<Self.count).map { _ in rng.vec4(-100, 100) }
-        vectors4B = (0..<Self.count).map { _ in rng.vec4(-100, 100) }
-        vectors4C = (0..<Self.count).map { _ in rng.vec4(-100, 100) }
-        integersA = (0..<Self.count).map { _ in rng.uvec4() }
-        integersB = (0..<Self.count).map { _ in rng.uvec4() }
+        vectors4A = (0..<Self.count).map { _ in rng.vector4(-100, 100) }
+        vectors4B = (0..<Self.count).map { _ in rng.vector4(-100, 100) }
+        vectors4C = (0..<Self.count).map { _ in rng.vector4(-100, 100) }
+        integersA = (0..<Self.count).map { _ in rng.uint32Vector4() }
+        integersB = (0..<Self.count).map { _ in rng.uint32Vector4() }
         masks = (0..<Self.count).map { _ in rng.mask() }
-        angles = (0..<Self.count).map { _ in rng.vec4(-10, 10) }
-        coordinatesY = (0..<Self.count).map { _ in rng.vec4(-5, 5) }
-        coordinatesX = (0..<Self.count).map { _ in rng.vec4(-5, 5) }
+        angles = (0..<Self.count).map { _ in rng.vector4(-10, 10) }
+        coordinatesY = (0..<Self.count).map { _ in rng.vector4(-5, 5) }
+        coordinatesX = (0..<Self.count).map { _ in rng.vector4(-5, 5) }
     }
 }

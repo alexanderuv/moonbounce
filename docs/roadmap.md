@@ -192,12 +192,12 @@ The order brings an end-to-end comparison online as early as possible: Pyramid a
 
 ### Phase 0: Math core (done)
 
-`Vec3`, `Quat`, `AABB` and `Ray` with the slab test. All 8 benchmarks are even or faster, with 0 allocations. The figures are under [Reference results](#reference-results).
+`Vector3`, `Quaternion`, `AABB` and `Ray` with the slab test. All 8 benchmarks are even or faster, with 0 allocations. The figures are under [Reference results](#reference-results).
 
 | Feature | Jolt source | Benchmark | Status |
 |---|---|---|---|
-| `Vec3`: arithmetic, dot, cross, length, normalize, min/max, abs | `Math/Vec3` | `Vec3.normalized`, `Vec3.dot`, `Vec3.cross` | Done |
-| `Quat`: product, rotate vector, conjugate, inverse, normalize | `Math/Quat` | `Quat.multiply`, `Quat.rotate` | Done |
+| `Vector3` (Jolt `Vec3`): arithmetic, dot, cross, length, normalize, min/max, abs | `Math/Vec3` | `Vector3.normalized`, `Vector3.dot`, `Vector3.cross` | Done |
+| `Quaternion` (Jolt `Quat`): product, rotate vector, conjugate, inverse, normalize | `Math/Quat` | `Quaternion.multiply`, `Quaternion.rotate` | Done |
 | `AABB`: overlap, containment, encapsulate, union | `Geometry/AABox` | `AABB.overlaps`, `AABB.encapsulate` | Done |
 | Ray vs box slab test | `Geometry/RayAABox` (`RayAABox`) | `AABB.rayDistance` | Done |
 
@@ -207,11 +207,11 @@ Benchmark target: `Primitives` (extended). Port the tests in `UnitTests/Math/*` 
 
 | Feature | Jolt source | Benchmark |
 |---|---|---|
-| The rest of `Vec3` and `Quat`: perpendicular, swizzles, swing-twist decomposition, slerp, Euler angles, from-to rotation, random rotation, unit-vector and unit-quaternion compression | `Math/Vec3`, `Math/Quat`, `Math/Swizzle` | `Quat.swingTwist`, `Quat.slerp`, `Vec3.normalizedPerpendicular` |
-| `Vec4`: full 4-lane float math | `Math/Vec4` | `Vec4.multiplyAdd`, `Vec4.reduceMin` |
-| `UVec4`: 32-bit integer lanes, comparison masks, shifts, select | `Math/UVec4` | `UVec4.select`, `UVec4.countTrues` |
+| The rest of `Vector3` and `Quaternion`: perpendicular, swizzles, swing-twist decomposition, slerp, Euler angles, from-to rotation, random rotation, unit-vector and unit-quaternion compression | `Math/Vec3`, `Math/Quat`, `Math/Swizzle` | `Quaternion.swingTwist`, `Quaternion.slerp`, `Vector3.normalizedPerpendicular` |
+| `Vector4` (Jolt `Vec4`): full 4-lane float math | `Math/Vec4` | `Vector4.multiplyAdd`, `Vector4.reduceMin` |
+| `UInt32Vector4` (Jolt `UVec4`): 32-bit integer lanes, comparison masks, shifts, select | `Math/UVec4` | `UInt32Vector4.select`, `UInt32Vector4.countTrues` |
 | `BVec16`: 16 byte lanes. Jolt needs them for its triangle codec flags; Moonbounce adds them only if its own mesh codec does (Phase 3) | `Math/BVec16` | `BVec16.compare` |
-| Deterministic trigonometry: vectorized sin/cos, tan, asin, acos, atan, atan2. Moonbounce's own minimax polynomials, evaluated with fused multiply-adds so every platform computes the same bits. They replace libm, whose results differ between platforms. | `Math/Trigonometry`, `Vec4::SinCos` | `Vec4.sinCos`, `Vec4.atan2` |
+| Deterministic trigonometry: vectorized sin/cos, tan, asin, acos, atan, atan2. Moonbounce's own minimax polynomials, evaluated with fused multiply-adds so every platform computes the same bits. They replace libm, whose results differ between platforms. | `Math/Trigonometry`, `Vec4::SinCos` | `Vector4.sinCos`, `Vector4.atan2` |
 | `Mat44`: transforms, products, inverse, rotation/translation inverse, 3 × 3 ops | `Math/Mat44` | `Mat44.multiply`, `Mat44.inversed`, `Mat44.transformPoint`, `Mat44.inversedRotationTranslation` |
 | Double precision (`RVec3`, `RMat44`): `DVec3`, `DMat44`, `Double3`. Jolt's `JPH_DOUBLE_PRECISION` becomes a SwiftPM package trait, `DoublePrecision`. | `Math/DVec3`, `Math/DMat44`, `Math/Double3`, `Math/Real` | `DMat44.transformPoint`, `DVec3.add` |
 | Packed storage types for meshes and serialization | `Math/Float2`, `Float3`, `Float4` | covered by mesh benchmarks (Phase 3) |
@@ -492,8 +492,8 @@ Each figure covers 1,000 operations and is the median of interleaved rounds' p50
 | `AABB.encapsulate` | 499 | 548 | 10% faster | 6.0 | 9.0 |
 | `AABB.overlaps` | 490 | 503 | even | 14.0 | 15.0 |
 | `AABB.rayDistance` | 1,346 | 2,379 | 77% faster | 38.1 | 38.0 |
-| `Quat.multiply` | 762 | 1,362 | 79% faster | 16.1 | 25.0 |
-| `Quat.rotate` | 1,337 | 1,453 | 9% faster | 24.1 | 25.0 |
-| `Vec3.cross` | 629 | 615 | even | 14.0 | 14.0 |
-| `Vec3.dot` | 292 | 281 | even | 9.1 | 9.0 |
-| `Vec3.normalized` | 825 | 826 | even | 11.1 | 11.0 |
+| `Quaternion.multiply` | 762 | 1,362 | 79% faster | 16.1 | 25.0 |
+| `Quaternion.rotate` | 1,337 | 1,453 | 9% faster | 24.1 | 25.0 |
+| `Vector3.cross` | 629 | 615 | even | 14.0 | 14.0 |
+| `Vector3.dot` | 292 | 281 | even | 9.1 | 9.0 |
+| `Vector3.normalized` | 825 | 826 | even | 11.1 | 11.0 |

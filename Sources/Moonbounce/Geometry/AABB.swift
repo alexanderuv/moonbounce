@@ -1,17 +1,17 @@
 /// An axis-aligned bounding box spanning `min` to `max`, inclusive.
 @frozen
 public struct AABB: Equatable, Sendable, BitwiseCopyable {
-    public var min: Vec3
-    public var max: Vec3
+    public var min: Vector3
+    public var max: Vector3
 
     @inline(always)
-    public init(min: Vec3, max: Vec3) {
+    public init(min: Vector3, max: Vector3) {
         self.min = min
         self.max = max
     }
 
     @inline(always)
-    public init(center: Vec3, halfExtent: Vec3) {
+    public init(center: Vector3, halfExtent: Vector3) {
         self.init(min: center - halfExtent, max: center + halfExtent)
     }
 
@@ -19,7 +19,7 @@ public struct AABB: Equatable, Sendable, BitwiseCopyable {
     /// into it yields exactly that point or box.
     @inline(always)
     public static var empty: AABB {
-        AABB(min: Vec3(repeating: .greatestFiniteMagnitude), max: Vec3(repeating: -.greatestFiniteMagnitude))
+        AABB(min: Vector3(repeating: .greatestFiniteMagnitude), max: Vector3(repeating: -.greatestFiniteMagnitude))
     }
 
     /// Whether `min <= max` on every axis.
@@ -27,13 +27,13 @@ public struct AABB: Equatable, Sendable, BitwiseCopyable {
     public var isValid: Bool { all(min.storage .<= max.storage) }
 
     @inline(always)
-    public var center: Vec3 { (min + max) * 0.5 }
+    public var center: Vector3 { (min + max) * 0.5 }
 
     @inline(always)
-    public var halfExtent: Vec3 { (max - min) * 0.5 }
+    public var halfExtent: Vector3 { (max - min) * 0.5 }
 
     @inline(always)
-    public var size: Vec3 { max - min }
+    public var size: Vector3 { max - min }
 
     @inline(always)
     public var surfaceArea: Float {
@@ -56,7 +56,7 @@ extension AABB {
     }
 
     @inline(always)
-    public func contains(_ point: Vec3) -> Bool {
+    public func contains(_ point: Vector3) -> Bool {
         all((point.storage .>= min.storage) .& (point.storage .<= max.storage))
     }
 
@@ -67,27 +67,27 @@ extension AABB {
 
     /// Grows the box to include `point`.
     @inline(always)
-    public mutating func encapsulate(_ point: Vec3) {
-        min = Vec3.min(min, point)
-        max = Vec3.max(max, point)
+    public mutating func encapsulate(_ point: Vector3) {
+        min = Vector3.min(min, point)
+        max = Vector3.max(max, point)
     }
 
     /// Grows the box to include `other`.
     @inline(always)
     public mutating func encapsulate(_ other: AABB) {
-        min = Vec3.min(min, other.min)
-        max = Vec3.max(max, other.max)
+        min = Vector3.min(min, other.min)
+        max = Vector3.max(max, other.max)
     }
 
     /// The smallest box containing both boxes.
     @inline(always)
     public func union(_ other: AABB) -> AABB {
-        AABB(min: Vec3.min(min, other.min), max: Vec3.max(max, other.max))
+        AABB(min: Vector3.min(min, other.min), max: Vector3.max(max, other.max))
     }
 
     /// The box grown by `margin` on every side.
     @inline(always)
-    public func expanded(by margin: Vec3) -> AABB {
+    public func expanded(by margin: Vector3) -> AABB {
         AABB(min: min - margin, max: max + margin)
     }
 }
