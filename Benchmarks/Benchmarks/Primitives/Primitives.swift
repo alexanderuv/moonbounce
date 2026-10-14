@@ -30,9 +30,9 @@ let benchmarks: @Sendable () -> Void = {
 
     // Each operation is a local `@inline(always)` function rather than a
     // closure literal. The optimizer declines to inline a closure above its
-    // size threshold, and `sinCos` or `slerp` is above it, which leaves a
-    // function call per element. A closure literal cannot be marked
-    // `@inline(always)`; a local function can, which matches the C++
+    // size threshold, and a matrix product, `sinCos` or `slerp` is above it,
+    // which leaves a function call per element. A closure literal cannot be
+    // marked `@inline(always)`; a local function can, which matches the C++
     // harness, where every lambda inlines.
 
     Benchmark("Vector3.normalized") { benchmark in
@@ -133,6 +133,26 @@ let benchmarks: @Sendable () -> Void = {
     Benchmark("Quaternion.swingTwist") { benchmark in
         @inline(always) func operation(_ q: Quaternion) -> (swing: Quaternion, twist: Quaternion) { q.swingTwist }
         sweep(benchmark, fixtures.rotationsA, operation)
+    }
+
+    Benchmark("Matrix4x4.multiply") { benchmark in
+        @inline(always) func operation(_ a: Matrix4x4, _ b: Matrix4x4) -> Matrix4x4 { a * b }
+        sweep(benchmark, fixtures.matricesA, fixtures.matricesB, operation)
+    }
+
+    Benchmark("Matrix4x4.inversed") { benchmark in
+        @inline(always) func operation(_ m: Matrix4x4) -> Matrix4x4 { m.inversed() }
+        sweep(benchmark, fixtures.matricesA, operation)
+    }
+
+    Benchmark("Matrix4x4.transformPoint") { benchmark in
+        @inline(always) func operation(_ m: Matrix4x4, _ v: Vector3) -> Vector3 { m * v }
+        sweep(benchmark, fixtures.rigidTransforms, fixtures.vectorsB, operation)
+    }
+
+    Benchmark("Matrix4x4.inversedRotationTranslation") { benchmark in
+        @inline(always) func operation(_ m: Matrix4x4) -> Matrix4x4 { m.inversedRotationTranslation() }
+        sweep(benchmark, fixtures.rigidTransforms, operation)
     }
 
     Benchmark("Quaternion.slerp") { benchmark in

@@ -179,6 +179,35 @@ MB_INLINE mb_float4 mb_yxwz(mb_float4 v) { return __builtin_shufflevector(v, v, 
 /// `(z, w, x, y)`: swaps the two halves.
 MB_INLINE mb_float4 mb_zwxy(mb_float4 v) { return __builtin_shufflevector(v, v, 2, 3, 0, 1); }
 
+/// `(w, z, y, x)`: reverses the lanes.
+MB_INLINE mb_float4 mb_wzyx(mb_float4 v) { return __builtin_shufflevector(v, v, 3, 2, 1, 0); }
+
+/// `(y, z, w, x)` and `(w, x, y, z)`: rotate the lanes by one, down and up.
+/// With `mb_zwxy`, lane i of the result is lane i + 1, i + 2 or i + 3 of `v`,
+/// mod 4: one `ext` each on arm64.
+MB_INLINE mb_float4 mb_yzwx(mb_float4 v) { return __builtin_shufflevector(v, v, 1, 2, 3, 0); }
+MB_INLINE mb_float4 mb_wxyz(mb_float4 v) { return __builtin_shufflevector(v, v, 3, 0, 1, 2); }
+
+/// `(a.x + a.y, a.z + a.w, b.x + b.y, b.z + b.w)`: one `faddp` on arm64, and
+/// the same sums in the same order everywhere, which `__builtin_reduce_add`
+/// does not promise for floats.
+MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) {
+    return __builtin_shufflevector(a, b, 0, 2, 4, 6) + __builtin_shufflevector(a, b, 1, 3, 5, 7);
+}
+
+/// `(a.x - a.y, a.z - a.w, b.x - b.y, b.z - b.w)`.
+MB_INLINE mb_float4 mb_pairwise_subtract(mb_float4 a, mb_float4 b) {
+    return __builtin_shufflevector(a, b, 0, 2, 4, 6) - __builtin_shufflevector(a, b, 1, 3, 5, 7);
+}
+
+/// Two-vector shuffles; two rounds of them transpose a 4 × 4 matrix.
+/// `(a.x, b.x, a.y, b.y)` and `(a.z, b.z, a.w, b.w)`: interleave a half each.
+MB_INLINE mb_float4 mb_zip_low(mb_float4 a, mb_float4 b) { return __builtin_shufflevector(a, b, 0, 4, 1, 5); }
+MB_INLINE mb_float4 mb_zip_high(mb_float4 a, mb_float4 b) { return __builtin_shufflevector(a, b, 2, 6, 3, 7); }
+/// `(a.x, a.y, b.x, b.y)` and `(a.z, a.w, b.z, b.w)`: join the matching halves.
+MB_INLINE mb_float4 mb_low_halves(mb_float4 a, mb_float4 b) { return __builtin_shufflevector(a, b, 0, 1, 4, 5); }
+MB_INLINE mb_float4 mb_high_halves(mb_float4 a, mb_float4 b) { return __builtin_shufflevector(a, b, 2, 3, 6, 7); }
+
 /// `(z, 0, x, x)` and `(0, z, y, y)`: the two perpendicular candidates of
 /// `Vector3.normalizedPerpendicular`, before their x and y lanes are negated.
 MB_INLINE mb_float4 mb_z0xx(mb_float4 v) { return __builtin_shufflevector(v, (mb_float4){0}, 2, 4, 0, 0); }

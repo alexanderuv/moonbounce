@@ -213,7 +213,7 @@ Benchmark target: `Primitives` (extended). Port the tests in `UnitTests/Math/*` 
 | `UInt32Vector4` (Jolt `UVec4`): 32-bit integer lanes, comparison masks, shifts, select | `Math/UVec4` | `UInt32Vector4.select`, `UInt32Vector4.countTrues` |
 | `BVec16`: 16 byte lanes. Jolt needs them for its triangle codec flags; Moonbounce adds them only if its own mesh codec does (Phase 3) | `Math/BVec16` | `BVec16.compare` |
 | Deterministic trigonometry: vectorized sin/cos, tan, asin, acos, atan, atan2. Moonbounce's own minimax polynomials, evaluated with fused multiply-adds so every platform computes the same bits. They replace libm, whose results differ between platforms. | `Math/Trigonometry`, `Vec4::SinCos` | `Vector4.sinCos`, `Vector4.atan2` |
-| `Mat44`: transforms, products, inverse, rotation/translation inverse, 3 × 3 ops | `Math/Mat44` | `Mat44.multiply`, `Mat44.inversed`, `Mat44.transformPoint`, `Mat44.inversedRotationTranslation` |
+| `Matrix4x4` (Jolt `Mat44`): transforms, products, inverse, rotation/translation inverse, 3 × 3 ops | `Math/Mat44` | `Matrix4x4.multiply`, `Matrix4x4.inversed`, `Matrix4x4.transformPoint`, `Matrix4x4.inversedRotationTranslation` |
 | Double precision (`RVec3`, `RMat44`): `DVec3`, `DMat44`, `Double3`. Jolt's `JPH_DOUBLE_PRECISION` becomes a SwiftPM package trait, `DoublePrecision`. | `Math/DVec3`, `Math/DMat44`, `Math/Double3`, `Math/Real` | `DMat44.transformPoint`, `DVec3.add` |
 | Packed storage types for meshes and serialization | `Math/Float2`, `Float3`, `Float4` | covered by mesh benchmarks (Phase 3) |
 | Half-float conversion, done in the shim so every target has it | `Math/HalfFloat` | `HalfFloat.fromFloat4` |

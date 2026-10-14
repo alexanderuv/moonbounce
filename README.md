@@ -6,7 +6,7 @@ Moonbounce is cross-platform. The library depends only on the Swift standard lib
 
 ## Status
 
-The math core is in place: `Vector3`, `Vector4`, `UInt32Vector4`, `Quaternion`, deterministic trigonometry, `AABB` and `Ray` (slab test), all allocation-free.
+The math core is in place: `Vector3`, `Vector4`, `UInt32Vector4`, `Quaternion`, `Matrix4x4`, deterministic trigonometry, `AABB` and `Ray` (slab test), all allocation-free.
 
 The [roadmap](docs/roadmap.md) plans the path to parity with Jolt Physics v5.6.0. It maps every Jolt feature to a phase, a benchmark and the behavior to test, and sets Jolt's PerformanceTest scenes as the end goals.
 
