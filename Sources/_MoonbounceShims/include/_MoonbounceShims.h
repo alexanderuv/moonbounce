@@ -21,6 +21,10 @@ typedef int mb_int4 __attribute__((ext_vector_type(4)));
 
 #define MB_INLINE static inline __attribute__((always_inline))
 
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
+
 // MARK: - Min, max and reductions
 
 /// Lane-wise IEEE 754 minNum: a NaN operand yields the other operand.
@@ -29,11 +33,19 @@ MB_INLINE mb_float4 mb_min(mb_float4 a, mb_float4 b) { return __builtin_elementw
 /// Lane-wise IEEE 754 maxNum: a NaN operand yields the other operand.
 MB_INLINE mb_float4 mb_max(mb_float4 a, mb_float4 b) { return __builtin_elementwise_max(a, b); }
 
-/// The smallest of the four lanes.
+// The smallest and largest of the four lanes, with minNum / maxNum semantics.
+//
+// On arm64 both forms compile to one `fminnmv` / `fmaxnmv`, but LLVM's loop
+// unroller prices the generic reduction as its expanded shuffle tree, so a
+// loop around it unrolled 2× where the NEON intrinsic unrolls 8×, as clang
+// does for Jolt's `vminvq_f32`. The results are bit for bit the same.
+#if defined(__aarch64__)
+MB_INLINE float mb_reduce_min(mb_float4 v) { return vminnmvq_f32((float32x4_t)v); }
+MB_INLINE float mb_reduce_max(mb_float4 v) { return vmaxnmvq_f32((float32x4_t)v); }
+#else
 MB_INLINE float mb_reduce_min(mb_float4 v) { return __builtin_reduce_min(v); }
-
-/// The largest of the four lanes.
 MB_INLINE float mb_reduce_max(mb_float4 v) { return __builtin_reduce_max(v); }
+#endif
 
 /// Lane-wise unsigned minimum.
 MB_INLINE mb_uint4 mb_umin(mb_uint4 a, mb_uint4 b) { return __builtin_elementwise_min(a, b); }
