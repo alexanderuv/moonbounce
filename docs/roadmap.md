@@ -5,13 +5,24 @@ Moonbounce aims to support every simulation feature of [Jolt Physics](https://gi
 - **Per feature:** a micro-benchmark.
 - **End to end:** Jolt's own PerformanceTest scenes. These are the end goals.
 
-This document is the plan. Every Jolt v5.6.0 header (`Jolt/` in the source tree) is assigned to a phase, and every feature names the benchmark that proves it and the Jolt unit tests that define its behavior. The [inventory](#inventory-every-jolt-header) at the end accounts for every header, including those Moonbounce replaces with a Swift language feature instead of porting.
+This document is the plan. Every Jolt v5.6.0 header (`Jolt/` in the source tree) is assigned to a phase, and every feature names the benchmark that proves it and the Jolt unit tests that define its behavior. The [inventory](#inventory-every-jolt-header) at the end accounts for every header, including those that a Swift language feature makes unnecessary.
+
+## Parity means features, not code
+
+Moonbounce supports what Jolt supports. It does not copy how Jolt does it.
+
+- **Same capabilities.** Every simulation feature Jolt offers has a Moonbounce counterpart that does the same job at least as fast.
+- **Own design.** Algorithms, data layouts, encodings and code are Moonbounce's own. Jolt's source is a reference for *what* a feature does and for the edge cases it handles, not a template to translate. Where a well-known technique is the right choice (the slab test, GJK, Cody-Waite reduction), Moonbounce implements it from the literature rather than from Jolt's code.
+- **Own API.** The API is designed for Swift and may look nothing like Jolt's: different names, different types, a different split of responsibilities, or more than Jolt offers. A feature counts as covered when a Moonbounce user can do what a Jolt user can do.
+- **Helpers follow need.** Jolt's low-level helpers that exist only to serve its own internal algorithms (for example the `UVec4` lane compaction and byte expansion behind its triangle codec) are not features. Moonbounce adds a helper when one of its own algorithms needs it.
+- **Tests cover behavior.** "Port the tests" in a phase means: write Moonbounce tests that check the behavior those Jolt tests check, against Moonbounce's API, with accuracy targets at least as strict as Jolt's.
+- **The exception is inputs.** Benchmark scenes must start from the same state as Jolt's to compare fairly. Code that reproduces Jolt's inputs bit for bit (its random number generator, its sin/cos for terrain heights) lives with the scene definitions in `Benchmarks/`, never in the library. See [Inputs that must match bit for bit](#inputs-that-must-match-bit-for-bit).
 
 ## Rules for every phase
 
 A feature is done when all of these hold:
 
-1. **Behavior:** it passes tests ported from the Jolt unit tests named in its phase. The ports test observable behavior, not Jolt's internals.
+1. **Behavior:** it passes Moonbounce tests that cover the behavior of the Jolt unit tests named in its phase. They test observable behavior, not Jolt's internals.
 2. **Speed:** its benchmark is even (within 5%) or faster than the Jolt counterpart on macOS and on Windows, measured with the [comparison script](#the-comparison-script). Wall time must hold on both. Instruction counts must hold where the platform can count them (see [Platforms](#platforms)).
 3. **Allocations:** it does not allocate in steady state. The malloc count per measured iteration is 0.
 4. **Portability:** the library builds and passes its tests on every tier 1 and tier 2 platform, using only the Swift standard library and `_MoonbounceShims`.
@@ -63,7 +74,7 @@ Windows matters more than Linux, so it is tier 1 with macOS.
   - It keeps measured threads on performance cores the way user-interactive QoS does on macOS: high thread priority with power throttling turned off (`SetThreadInformation`, `ThreadPowerThrottling`).
   - The allocation rule is checked on macOS and Linux, where malloc can be interposed. On Windows it covers only Windows-specific code paths, through the temp allocator's own counters.
 - **Native APIs.** Threads, waiting and FP control come from the Windows SDK (`WinSDK`): Win32 threads, `WaitOnAddress` or SRW locks, and MXCSR for denormals. The Apple and Linux paths use pthreads, their wait primitives and FPCR or MXCSR. All of it sits behind one internal interface (Phase 2), so nothing above it branches per platform.
-- **Math library.** The shim needs no `libm` link on Windows; the UCRT provides it. This only matters until Phase 1 replaces libm trigonometry.
+- **Math library.** Moonbounce links no `libm` on any platform. Its trigonometry is its own (Phase 1), so results do not depend on the platform's C library.
 
 ## End goals: Jolt's PerformanceTest scenes
 
@@ -149,7 +160,7 @@ Moonbounce's hash will never equal Jolt's. A different solver produces different
   - The Moonbounce scene implements mt19937 and both functions, so every body starts in the same state.
 - **Terrain heights:**
   - ConvexVsMesh, LargeMesh and CharacterVirtual compute terrain heights with Jolt's `Sin`/`Cos`. Those are the vectorized `Vec4::SinCos` polynomial, not libm.
-  - Phase 1 ports that approximation, so the meshes match exactly.
+  - Moonbounce's own trigonometry (Phase 1) is a different approximation and rounds differently in the last bit. So the scene definitions in `Benchmarks/` carry a Jolt-compatible sin/cos used only to build these meshes, next to the mt19937 for HighSpeed. The library never uses it.
 - **Ragdoll assets:**
   - Ragdoll needs three Jolt ObjectStream files: `Human.tof` (the ragdoll), `Human/dead_pose1.tof` (the pose) and `terrain2.bof` (the level).
   - They come from Horizon Zero Dawn, released by Guerrilla Games under the MIT license (Jolt's `Assets/LICENSE`).
@@ -196,11 +207,11 @@ Benchmark target: `Primitives` (extended). Port the tests in `UnitTests/Math/*` 
 
 | Feature | Jolt source | Benchmark |
 |---|---|---|
-| Rest of the `Vec3`/`Quat` API: perpendicular, swizzles, swing-twist decomposition, slerp, Euler angles, from-to rotation, random rotation | `Math/Vec3`, `Math/Quat`, `Math/Swizzle` | `Quat.swingTwist`, `Quat.slerp`, `Vec3.normalizedPerpendicular` |
+| The rest of `Vec3` and `Quat`: perpendicular, swizzles, swing-twist decomposition, slerp, Euler angles, from-to rotation, random rotation, unit-vector and unit-quaternion compression | `Math/Vec3`, `Math/Quat`, `Math/Swizzle` | `Quat.swingTwist`, `Quat.slerp`, `Vec3.normalizedPerpendicular` |
 | `Vec4`: full 4-lane float math | `Math/Vec4` | `Vec4.multiplyAdd`, `Vec4.reduceMin` |
-| `UVec4`: 32-bit integer lanes, masks, shifts, select, compaction | `Math/UVec4` | `UVec4.select`, `UVec4.countTrues` |
-| `BVec16`: 16 byte lanes (triangle codec flags) | `Math/BVec16` | `BVec16.compare` |
-| Deterministic trigonometry: vectorized sin/cos, tan, asin, acos, atan, atan2. These replace the current `mb_sin`/`mb_cos` (libm), whose results differ between platforms. | `Math/Trigonometry`, `Vec4::SinCos` | `Vec4.sinCos`, `Vec4.aTan2` |
+| `UVec4`: 32-bit integer lanes, comparison masks, shifts, select | `Math/UVec4` | `UVec4.select`, `UVec4.countTrues` |
+| `BVec16`: 16 byte lanes. Jolt needs them for its triangle codec flags; Moonbounce adds them only if its own mesh codec does (Phase 3) | `Math/BVec16` | `BVec16.compare` |
+| Deterministic trigonometry: vectorized sin/cos, tan, asin, acos, atan, atan2. Moonbounce's own minimax polynomials, evaluated with fused multiply-adds so every platform computes the same bits. They replace libm, whose results differ between platforms. | `Math/Trigonometry`, `Vec4::SinCos` | `Vec4.sinCos`, `Vec4.atan2` |
 | `Mat44`: transforms, products, inverse, rotation/translation inverse, 3 × 3 ops | `Math/Mat44` | `Mat44.multiply`, `Mat44.inversed`, `Mat44.transformPoint`, `Mat44.inversedRotationTranslation` |
 | Double precision (`RVec3`, `RMat44`): `DVec3`, `DMat44`, `Double3`. Jolt's `JPH_DOUBLE_PRECISION` becomes a SwiftPM package trait, `DoublePrecision`. | `Math/DVec3`, `Math/DMat44`, `Math/Double3`, `Math/Real` | `DMat44.transformPoint`, `DVec3.add` |
 | Packed storage types for meshes and serialization | `Math/Float2`, `Float3`, `Float4` | covered by mesh benchmarks (Phase 3) |
@@ -419,7 +430,7 @@ Metal and DirectX 12 are platform APIs. Each backend is therefore a separate opt
 
 ## Inventory: every Jolt header
 
-Each header in Jolt v5.6.0's `Jolt/` directory, with the phase that ports it. "Swift" means a Swift language or standard-library feature replaces it, so there is nothing to port.
+Each header in Jolt v5.6.0's `Jolt/` directory, with the phase that covers its features. "Swift" means a Swift language or standard-library feature replaces it, so there is nothing to build.
 
 | Folder | Header | Phase |
 |---|---|---|

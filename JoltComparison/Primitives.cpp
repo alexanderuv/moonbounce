@@ -101,6 +101,31 @@ struct SplitMix64
 		Vec3 half_extent = Vector(0.5f, 10);
 		return AABox(center - half_extent, center + half_extent);
 	}
+
+	Vec4 Vector4(float inLow, float inHigh)
+	{
+		float x = Uniform(inLow, inHigh);
+		float y = Uniform(inLow, inHigh);
+		float z = Uniform(inLow, inHigh);
+		float w = Uniform(inLow, inHigh);
+		return Vec4(x, y, z, w);
+	}
+
+	// Same as uvec4() in Fixtures.swift: the low and high halves of two draws.
+	UVec4 Integers()
+	{
+		uint64_t a = Next();
+		uint64_t b = Next();
+		return UVec4(uint32(a), uint32(a >> 32), uint32(b), uint32(b >> 32));
+	}
+
+	// Same as mask() in Fixtures.swift: lane i is all ones when bit i is set.
+	UVec4 Mask()
+	{
+		uint64_t bits = Next();
+		auto lane = [bits](int inBit) { return ((bits >> inBit) & 1) != 0 ? 0xffffffffu : 0u; };
+		return UVec4(lane(0), lane(1), lane(2), lane(3));
+	}
 };
 
 static constexpr int cCount = 1000;
@@ -111,6 +136,9 @@ struct Fixtures
 	std::vector<Quat> mRotationsA, mRotationsB;
 	std::vector<AABox> mBoxesA, mBoxesB;
 	Vec3 mRayOrigin, mRayDirection;
+	std::vector<Vec4> mVectors4A, mVectors4B, mVectors4C;
+	std::vector<UVec4> mIntegersA, mIntegersB, mMasks;
+	std::vector<Vec4> mAngles, mCoordinatesY, mCoordinatesX;
 
 	Fixtures()
 	{
@@ -123,6 +151,16 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mBoxesB.push_back(rng.Box());
 		mRayOrigin = Vec3(-150, 3, -7);
 		mRayDirection = Vec3(1, 0.02f, 0.05f).Normalized();
+		// Phase 1, in the order of Fixtures.swift.
+		for (int i = 0; i < cCount; ++i) mVectors4A.push_back(rng.Vector4(-100, 100));
+		for (int i = 0; i < cCount; ++i) mVectors4B.push_back(rng.Vector4(-100, 100));
+		for (int i = 0; i < cCount; ++i) mVectors4C.push_back(rng.Vector4(-100, 100));
+		for (int i = 0; i < cCount; ++i) mIntegersA.push_back(rng.Integers());
+		for (int i = 0; i < cCount; ++i) mIntegersB.push_back(rng.Integers());
+		for (int i = 0; i < cCount; ++i) mMasks.push_back(rng.Mask());
+		for (int i = 0; i < cCount; ++i) mAngles.push_back(rng.Vector4(-10, 10));
+		for (int i = 0; i < cCount; ++i) mCoordinatesY.push_back(rng.Vector4(-5, 5));
+		for (int i = 0; i < cCount; ++i) mCoordinatesX.push_back(rng.Vector4(-5, 5));
 	}
 };
 
@@ -238,6 +276,24 @@ static void Sweep(const char *inName, const std::vector<A> &inA, const std::vect
 	});
 }
 
+template <class A, class B, class C, class Out, class Transform>
+static void Sweep(const char *inName, const std::vector<A> &inA, const std::vector<B> &inB, const std::vector<C> &inC, Transform inTransform)
+{
+	std::vector<Out> outputs(inA.size());
+	Measure(inName, [&] {
+		for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+		{
+			for (size_t i = 0; i < inA.size(); ++i)
+				outputs[i] = inTransform(inA[i], inB[i], inC[i]);
+			BlackHole(outputs.data());
+		}
+	});
+}
+
+// Two-value results, laid out like the Swift tuples.
+struct SinCos { Vec4 mSin, mCos; };
+struct SwingTwist { Quat mSwing, mTwist; };
+
 // MARK: - Benchmarks
 
 int main()
@@ -277,6 +333,17 @@ int main()
 			BlackHole(&bounds);
 		}
 	});
+
+	// Phase 1
+	Sweep<Vec3, Vec3>("Vec3.normalizedPerpendicular", f.mVectorsA, [](Vec3Arg v) { return v.GetNormalizedPerpendicular(); });
+	Sweep<Vec4, Vec4, Vec4, Vec4>("Vec4.multiplyAdd", f.mVectors4A, f.mVectors4B, f.mVectors4C, [](Vec4Arg a, Vec4Arg b, Vec4Arg c) { return Vec4::sFusedMultiplyAdd(a, b, c); });
+	Sweep<Vec4, float>("Vec4.reduceMin", f.mVectors4A, [](Vec4Arg v) { return v.ReduceMin(); });
+	Sweep<UVec4, UVec4, UVec4, UVec4>("UVec4.select", f.mIntegersA, f.mIntegersB, f.mMasks, [](UVec4Arg a, UVec4Arg b, UVec4Arg m) { return UVec4::sSelect(a, b, m); });
+	Sweep<UVec4, int>("UVec4.countTrues", f.mMasks, [](UVec4Arg m) { return m.CountTrues(); });
+	Sweep<Vec4, SinCos>("Vec4.sinCos", f.mAngles, [](Vec4Arg x) { SinCos r; x.SinCos(r.mSin, r.mCos); return r; });
+	Sweep<Vec4, Vec4, Vec4>("Vec4.atan2", f.mCoordinatesY, f.mCoordinatesX, [](Vec4Arg y, Vec4Arg x) { return Vec4::sATan2(y, x); });
+	Sweep<Quat, SwingTwist>("Quat.swingTwist", f.mRotationsA, [](QuatArg q) { SwingTwist r; q.GetSwingTwist(r.mSwing, r.mTwist); return r; });
+	Sweep<Quat, Quat, Quat>("Quat.slerp", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 
 	std::printf("\n  }\n}\n");
 	return 0;
