@@ -19,7 +19,7 @@ Options:
 
 - `--jolt-version TAG`: the Jolt Physics tag to fetch. Default: `v5.6.0`. Any tag of [JoltPhysics](https://github.com/jrouwe/JoltPhysics) works.
 - `--rounds N`: alternate N runs of each suite. Default: 3. Each figure is the median over rounds of the per-run p50.
-- `--filter REGEX`: limit to matching benchmarks. Repeatable.
+- `--filter REGEX`: limit to benchmarks whose whole name matches, as package-benchmark requires: `'Matrix4x4\..*'` selects every `Matrix4x4` benchmark, `Matrix4x4` alone selects none. Repeatable.
 
 Jolt is fetched at the requested tag and built into `JoltComparison/.build/`, so each run measures the code it fetched on the machine it runs on. The build directory is safe to delete; the next run recreates it.
 

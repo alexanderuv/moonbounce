@@ -25,6 +25,31 @@ typedef int mb_int4 __attribute__((ext_vector_type(4)));
 #include <arm_neon.h>
 #endif
 
+// MARK: - Fused multiply-add
+
+/// Lane-wise `a * b + c`, rounded once: one `fmla` / `vfmadd` where the target
+/// has it, and a correctly rounded `fmaf` per lane where it does not, so the
+/// result is the same bits everywhere.
+///
+/// The standard library's `SIMD.addingProduct` computes the same value but is
+/// written as a loop over lanes that LLVM must re-vectorize. When one lane of
+/// the result is read twice (as `mb_xyzz` does), that re-vectorization keeps a
+/// scalar copy of the lane's whole dependency chain: three chained
+/// multiply-adds followed by `mb_xyzz`, the shape of a matrix-point product,
+/// grow from 4 instructions to 11. This builtin is one vector FMA from the
+/// start.
+MB_INLINE mb_float4 mb_fma(mb_float4 a, mb_float4 b, mb_float4 c) { return __builtin_elementwise_fma(a, b, c); }
+
+/// Lane-wise `c - a * b`, rounded once: one `fmls` / `vfnmadd`.
+MB_INLINE mb_float4 mb_fms(mb_float4 a, mb_float4 b, mb_float4 c) { return __builtin_elementwise_fma(-a, b, c); }
+
+// MARK: - Negation
+
+/// Each lane with its sign flipped, as IEEE 754 negation requires: +0
+/// becomes -0. Swift's prefix `-` on `SIMD4<Float>` is `0 - v` instead, which
+/// turns +0 into +0, and which LLVM cannot fold into a fused multiply-subtract.
+MB_INLINE mb_float4 mb_negate(mb_float4 v) { return -v; }
+
 // MARK: - Min, max and reductions
 
 /// Lane-wise IEEE 754 minNum: a NaN operand yields the other operand.

@@ -63,10 +63,10 @@ extension Quaternion {
     /// orientation, dq/dt = ½ (ω, 0) q, is the typical use.
     @inline(always)
     public static func product(imaginary v: Vector3, _ q: Quaternion) -> Quaternion {
-        let b = q.simd, n = -q.simd
+        let b = q.simd, n = negated(q.simd)
         var r = v.storage.x * SIMD4(b.w, n.z, b.y, n.x)
-        r = r.addingProduct(v.storage.y, SIMD4(b.z, b.w, n.x, n.y))
-        r = r.addingProduct(v.storage.z, SIMD4(n.y, b.x, b.w, n.z))
+        r = multiplyAdd(v.storage.y, SIMD4(b.z, b.w, n.x, n.y), r)
+        r = multiplyAdd(v.storage.z, SIMD4(n.y, b.x, b.w, n.z), r)
         return Quaternion(r)
     }
 
@@ -126,7 +126,7 @@ extension Quaternion {
 
 extension Quaternion {
     @inline(always)
-    public static prefix func - (q: Quaternion) -> Quaternion { Quaternion(-q.simd) }
+    public static prefix func - (q: Quaternion) -> Quaternion { Quaternion(negated(q.simd)) }
 
     @inline(always)
     public static func + (lhs: Quaternion, rhs: Quaternion) -> Quaternion { Quaternion(lhs.simd + rhs.simd) }
@@ -354,7 +354,7 @@ extension Quaternion {
 
     @inlinable @inline(always)
     func addingScaled(_ other: Quaternion, _ scale: Float) -> Quaternion {
-        Quaternion(simd.addingProduct(scale, other.simd))
+        Quaternion(multiplyAdd(scale, other.simd, simd))
     }
 }
 
@@ -372,7 +372,7 @@ extension Quaternion {
     @inlinable
     public func smallestThreeEncoded() -> UInt32 {
         let largest = Vector4(simd).abs.highestComponentIndex
-        let q = simd[largest] < 0 ? -simd : simd
+        let q = simd[largest] < 0 ? negated(simd) : simd
         var value = UInt32(largest) << 30
         var shift: UInt32 = 0
         for i in 0..<4 where i != largest {

@@ -7,8 +7,9 @@ public import _MoonbounceShims
 // no trigonometry at all. These functions compute the same bits everywhere:
 // they use only IEEE 754 basic operations, square roots and fused
 // multiply-adds, all of which are correctly rounded on every target.
-// (Fused multiply-adds are written explicitly with `addingProduct`; Swift
-// never contracts on its own, so the code below means exactly what it says.)
+// (Fused multiply-adds are written explicitly, with `multiplyAdd` on vectors
+// and `addingProduct` on scalars; Swift never contracts on its own, so the
+// code below means exactly what it says.)
 //
 // Each function reduces its argument to a small interval and evaluates a
 // minimax polynomial fitted for that interval with a Remez exchange, with
@@ -45,9 +46,9 @@ var signMask: SIMD4<UInt32> { SIMD4(repeating: 0x8000_0000) }
 func sinKernel(_ r: SIMD4<Float>, _ z: SIMD4<Float>) -> SIMD4<Float> {
     // sin(r) = r + r³ P(z)
     var p = SIMD4<Float>(repeating: -0x1.994eb4p-13)
-    p = SIMD4(repeating: 0x1.11076p-7).addingProduct(p, z)
-    p = SIMD4(repeating: -0x1.555546p-3).addingProduct(p, z)
-    return r.addingProduct(r * z, p)
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.11076p-7))
+    p = multiplyAdd(p, z, SIMD4(repeating: -0x1.555546p-3))
+    return multiplyAdd(r * z, p, r)
 }
 
 /// cos(r) for |r| <= π / 4, given z = r²; error below 6 × 10⁻¹⁰.
@@ -55,10 +56,10 @@ func sinKernel(_ r: SIMD4<Float>, _ z: SIMD4<Float>) -> SIMD4<Float> {
 func cosKernel(_ z: SIMD4<Float>) -> SIMD4<Float> {
     // cos(r) = 1 - z / 2 + z² Q(z)
     var q = SIMD4<Float>(repeating: 0x1.9a025ap-16)
-    q = SIMD4(repeating: -0x1.6c0c8cp-10).addingProduct(q, z)
-    q = SIMD4(repeating: 0x1.55554ap-5).addingProduct(q, z)
-    let c = SIMD4<Float>(repeating: -0.5).addingProduct(q, z)
-    return SIMD4<Float>(repeating: 1).addingProduct(c, z)
+    q = multiplyAdd(q, z, SIMD4(repeating: -0x1.6c0c8cp-10))
+    q = multiplyAdd(q, z, SIMD4(repeating: 0x1.55554ap-5))
+    let c = multiplyAdd(q, z, SIMD4(repeating: -0.5))
+    return multiplyAdd(c, z, SIMD4(repeating: 1))
 }
 
 /// tan(r) for |r| <= π / 4, given z = r²; relative error below 5 × 10⁻⁹.
@@ -66,13 +67,13 @@ func cosKernel(_ z: SIMD4<Float>) -> SIMD4<Float> {
 func tanKernel(_ r: SIMD4<Float>, _ z: SIMD4<Float>) -> SIMD4<Float> {
     // tan(r) = r + r³ T(z)
     var t = SIMD4<Float>(repeating: 0x1.2143p-8)
-    t = SIMD4(repeating: 0x1.4695c4p-17).addingProduct(t, z)
-    t = SIMD4(repeating: 0x1.653e18p-7).addingProduct(t, z)
-    t = SIMD4(repeating: 0x1.5c3e26p-6).addingProduct(t, z)
-    t = SIMD4(repeating: 0x1.bae79ep-5).addingProduct(t, z)
-    t = SIMD4(repeating: 0x1.110d46p-3).addingProduct(t, z)
-    t = SIMD4(repeating: 0x1.555562p-2).addingProduct(t, z)
-    return r.addingProduct(r * z, t)
+    t = multiplyAdd(t, z, SIMD4(repeating: 0x1.4695c4p-17))
+    t = multiplyAdd(t, z, SIMD4(repeating: 0x1.653e18p-7))
+    t = multiplyAdd(t, z, SIMD4(repeating: 0x1.5c3e26p-6))
+    t = multiplyAdd(t, z, SIMD4(repeating: 0x1.bae79ep-5))
+    t = multiplyAdd(t, z, SIMD4(repeating: 0x1.110d46p-3))
+    t = multiplyAdd(t, z, SIMD4(repeating: 0x1.555562p-2))
+    return multiplyAdd(r * z, t, r)
 }
 
 /// asin(s) for 0 <= s <= 0.5, given z = s²; relative error below 6 × 10⁻⁹.
@@ -80,11 +81,11 @@ func tanKernel(_ r: SIMD4<Float>, _ z: SIMD4<Float>) -> SIMD4<Float> {
 func asinKernel(_ s: SIMD4<Float>, _ z: SIMD4<Float>) -> SIMD4<Float> {
     // asin(s) = s + s³ S(z)
     var p = SIMD4<Float>(repeating: 0x1.59dac2p-5)
-    p = SIMD4(repeating: 0x1.8ba26p-6).addingProduct(p, z)
-    p = SIMD4(repeating: 0x1.748c64p-5).addingProduct(p, z)
-    p = SIMD4(repeating: 0x1.33014ep-4).addingProduct(p, z)
-    p = SIMD4(repeating: 0x1.5555cap-3).addingProduct(p, z)
-    return s.addingProduct(s * z, p)
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.8ba26p-6))
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.748c64p-5))
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.33014ep-4))
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.5555cap-3))
+    return multiplyAdd(s * z, p, s)
 }
 
 /// atan(t) for 0 <= t <= 1; relative error below 3 × 10⁻⁸.
@@ -97,15 +98,15 @@ func atanKernel(_ t: SIMD4<Float>) -> SIMD4<Float> {
     // atan(t) = t + t³ A(t²)
     let z = t * t
     var p = SIMD4<Float>(repeating: -0x1.defe4p-10)
-    p = SIMD4(repeating: 0x1.6a8f4cp-7).addingProduct(p, z)
-    p = SIMD4(repeating: -0x1.01af68p-5).addingProduct(p, z)
-    p = SIMD4(repeating: 0x1.dd0ebap-5).addingProduct(p, z)
-    p = SIMD4(repeating: -0x1.58dc7p-4).addingProduct(p, z)
-    p = SIMD4(repeating: 0x1.c0d284p-4).addingProduct(p, z)
-    p = SIMD4(repeating: -0x1.2426f8p-3).addingProduct(p, z)
-    p = SIMD4(repeating: 0x1.999276p-3).addingProduct(p, z)
-    p = SIMD4(repeating: -0x1.55553ep-2).addingProduct(p, z)
-    return t.addingProduct(t * z, p)
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.6a8f4cp-7))
+    p = multiplyAdd(p, z, SIMD4(repeating: -0x1.01af68p-5))
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.dd0ebap-5))
+    p = multiplyAdd(p, z, SIMD4(repeating: -0x1.58dc7p-4))
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.c0d284p-4))
+    p = multiplyAdd(p, z, SIMD4(repeating: -0x1.2426f8p-3))
+    p = multiplyAdd(p, z, SIMD4(repeating: 0x1.999276p-3))
+    p = multiplyAdd(p, z, SIMD4(repeating: -0x1.55553ep-2))
+    return multiplyAdd(t * z, p, t)
 }
 
 /// `x` reduced by the nearest multiple of π / 2: `r` in about [-π / 4, π / 4]
@@ -120,7 +121,9 @@ func atanKernel(_ t: SIMD4<Float>) -> SIMD4<Float> {
 @inlinable @inline(always)
 func reduceQuarterTurns(_ x: SIMD4<Float>) -> (r: SIMD4<Float>, quadrant: SIMD4<UInt32>) {
     let k = mb_round(x * twoOverPi)
-    let r = x.addingProduct(-k, halfPi).addingProduct(-k, halfPiLow).addingProduct(-k, halfPiTail)
+    var r = multiplySubtract(halfPi, k, x)
+    r = multiplySubtract(halfPiLow, k, r)
+    r = multiplySubtract(halfPiTail, k, r)
     return (r, mb_float4_to_int(k))
 }
 

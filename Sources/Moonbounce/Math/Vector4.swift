@@ -75,7 +75,7 @@ extension Vector4: AdditiveArithmetic {
 
 extension Vector4 {
     @inline(always)
-    public static prefix func - (v: Vector4) -> Vector4 { Vector4(-v.simd) }
+    public static prefix func - (v: Vector4) -> Vector4 { Vector4(negated(v.simd)) }
 
     /// Component-wise product.
     @inline(always)
@@ -106,7 +106,7 @@ extension Vector4 {
     /// `self + a * b`, rounded once (a fused multiply-add).
     @inline(always)
     public func addingProduct(_ a: Vector4, _ b: Vector4) -> Vector4 {
-        Vector4(simd.addingProduct(a.simd, b.simd))
+        Vector4(multiplyAdd(a.simd, b.simd, simd))
     }
 
     /// `a * b - c * d` with the error of the second product compensated, so the
@@ -117,8 +117,8 @@ extension Vector4 {
     @inline(always)
     public static func differenceOfProducts(_ a: Vector4, _ b: Vector4, _ c: Vector4, _ d: Vector4) -> Vector4 {
         let cd = c.simd * d.simd
-        let error = cd.addingProduct(-c.simd, d.simd)
-        let difference = (-cd).addingProduct(a.simd, b.simd)
+        let error = multiplySubtract(c.simd, d.simd, cd)
+        let difference = multiplyAdd(a.simd, b.simd, negated(cd))
         return Vector4(difference + error)
     }
 

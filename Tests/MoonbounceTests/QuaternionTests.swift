@@ -70,6 +70,13 @@ import Testing
         #expect((q * q.inverse).isApproximatelyEqual(to: .identity, tolerance: 1.0e-6))
     }
 
+    @Test func negationFlipsTheSignOfZero() {
+        // IEEE 754 negation, which `0 - q` would not be.
+        let q = -Quaternion.zero
+        #expect([q.x, q.y, q.z, q.w].allSatisfy { $0.sign == .minus })
+        #expect(-Quaternion(x: 1, y: -2, z: 3, w: -4) == Quaternion(x: -1, y: 2, z: -3, w: 4))
+    }
+
     @Test func normalization() {
         let q = Quaternion(x: 1, y: 2, z: 2, w: 4)
         #expect(q.lengthSquared == 25)

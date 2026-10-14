@@ -4,6 +4,10 @@ print a side-by-side table.
 
 Usage: JoltComparison/compare.py [--jolt-version TAG] [--rounds N] [--filter REGEX ...]
 
+A --filter regular expression must match a benchmark's whole name, as
+package-benchmark requires: `Matrix4x4\..*` selects every Matrix4x4 benchmark,
+`Matrix4x4` selects none.
+
 Fetches Jolt at --jolt-version into JoltComparison/.build (git-ignored), builds its
 harness with CMake, then runs both suites in alternating rounds so background
 load and thermal drift hit both sides alike. Each figure is the median over
@@ -93,6 +97,8 @@ def swift_round(name_filters):
     results = {}
     with open(SWIFT_RESULTS / "Current_run.influx.csv", newline="") as file:
         rows = [row for row in csv.reader(file) if row and not row[0].startswith("#")]
+    if not rows:
+        sys.exit("compare.py: no Swift benchmark ran; a --filter must match a whole benchmark name")
     header = rows[0]
     column = {name: header.index(name) for name in ("metric", "test", "percentile", "value")}
     for row in rows[1:]:
@@ -134,7 +140,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--jolt-version", default=DEFAULT_JOLT_VERSION, help=f"Jolt Physics tag to compare against (default {DEFAULT_JOLT_VERSION})")
     parser.add_argument("--rounds", type=int, default=3, help="alternating runs of each suite (default 3)")
-    parser.add_argument("--filter", action="append", help="only benchmarks matching this regular expression; repeatable")
+    parser.add_argument("--filter", action="append", help="only benchmarks whose whole name matches this regular expression; repeatable")
     arguments = parser.parse_args()
 
     check_prerequisites()
@@ -147,7 +153,7 @@ def main():
     jolt, swift = combine(jolt_rounds), combine(swift_rounds)
 
     if arguments.filter:
-        jolt = {name: value for name, value in jolt.items() if any(re.search(f, name) for f in arguments.filter)}
+        jolt = {name: value for name, value in jolt.items() if any(re.fullmatch(f, name) for f in arguments.filter)}
     names = sorted(set(swift) & set(jolt))
     unmatched = sorted(set(swift) ^ set(jolt))
 

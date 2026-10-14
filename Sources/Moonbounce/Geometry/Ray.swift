@@ -59,14 +59,14 @@ extension AABB {
 
         // A parallel axis never bounds the interval: the gate forces its entry
         // to -inf and its exit to +inf.
-        let near = horizontalMaximum3(minimum(minimum(t1, t2), -gate))
+        let near = horizontalMaximum3(minimum(minimum(t1, t2), negated(gate)))
         let far = horizontalMinimum3(maximum(maximum(t1, t2), gate))
 
         // It only rejects rays whose origin lies outside that slab. With a
         // reciprocal of 1, t1 = min - o and t2 = max - o, so the origin is
         // outside exactly when t1 > 0 or t2 < 0. The gate turns other axes
         // into -inf.
-        let outsideParallelSlab = horizontalMaximum3(minimum(maximum(t1, -t2), gate)) > 0
+        let outsideParallelSlab = horizontalMaximum3(minimum(maximum(t1, negated(t2)), gate)) > 0
 
         let miss = near > far || far < 0 || outsideParallelSlab
         return miss ? .infinity : near
