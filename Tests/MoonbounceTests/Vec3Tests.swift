@@ -246,6 +246,13 @@ import Testing
         }
     }
 
+    @Test func octahedralEncodingOfVectorsWithoutDirection() {
+        let degenerate = [Vec3.zero, Vec3(.infinity, 0, 0), Vec3(0, -.infinity, 1), Vec3(.nan, 0, 1), Vec3(repeating: .nan)]
+        for v in degenerate {
+            #expect(v.octahedralEncoded() == Vec3.axisZ.octahedralEncoded())
+        }
+    }
+
     @Test func occupiesOneSIMDRegister() {
         #expect(MemoryLayout<Vec3>.size == 16)
         #expect(MemoryLayout<Vec3>.alignment == 16)

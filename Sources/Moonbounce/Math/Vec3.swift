@@ -408,14 +408,23 @@ extension Vec3 {
     /// error is below 7 × 10⁻⁵, and the six axis directions round-trip
     /// exactly.
     ///
+    /// A vector with no direction to encode, zero or with an infinite or NaN
+    /// component, encodes as the z axis rather than trapping.
+    ///
     /// Zana Cigolle et al., "A Survey of Efficient Representations for
     /// Independent Unit Vectors", JCGT 3(2), 2014.
     @inlinable
     public func octahedralEncoded() -> UInt32 {
         let l1 = Swift.abs(x) + Swift.abs(y) + Swift.abs(z)
-        var u = x / l1, v = y / l1
-        if z < 0 {
-            (u, v) = Vec3.foldOctahedron(u, v)
+        // u = v = 0 is the z axis. Dividing by a zero or non-finite l1 would
+        // give NaN instead, which traps in `quantize`.
+        var u: Float = 0, v: Float = 0
+        if l1 > 0 && l1.isFinite {
+            u = x / l1
+            v = y / l1
+            if z < 0 {
+                (u, v) = Vec3.foldOctahedron(u, v)
+            }
         }
         // 65,535 levels: an odd count, so 0 is a level and the axes are exact.
         func quantize(_ t: Float) -> UInt32 {
