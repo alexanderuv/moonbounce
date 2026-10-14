@@ -100,6 +100,9 @@ import Testing
     @Test func arithmetic() {
         #expect(-Vector4(1, 2, 3, 4) == Vector4(-1, -2, -3, -4))
         #expect(-Vector4.zero == .zero)
+        // IEEE 754 negation flips the sign of zero, which `0 - v` would not.
+        let negativeZero = -Vector4.zero
+        #expect([negativeZero.x, negativeZero.y, negativeZero.z, negativeZero.w].allSatisfy { $0.sign == .minus })
         #expect(Vector4(1, 2, 3, 4) + Vector4(5, 6, 7, 8) == Vector4(6, 8, 10, 12))
         #expect(Vector4(1, 2, 3, 4) - Vector4(8, 7, 6, 5) == Vector4(-7, -5, -3, -1))
         #expect(Vector4(1, 2, 3, 4) * Vector4(5, 6, 7, 8) == Vector4(5, 12, 21, 32))

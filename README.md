@@ -22,7 +22,7 @@ Parity means features and speed, not code: Moonbounce supports everything Jolt s
 | Path | What |
 |---|---|
 | `Sources/Moonbounce` | The library. |
-| `Sources/_MoonbounceShims` | Header-only C wrappers around clang builtins (vector min/max, reductions, shuffles, bit casts, conversions, comparison masks). Implementation detail. |
+| `Sources/_MoonbounceShims` | Header-only C wrappers around clang builtins (vector min/max, reductions, shuffles, fused multiply-add, negation, bit casts, conversions, comparison masks). Implementation detail. |
 | `Tests/MoonbounceTests` | Swift Testing suites. |
 | `docs/` | Design documents, including the [roadmap](docs/roadmap.md). |
 | `JoltComparison/` | **Temporary** side-by-side validation against Jolt. Its script fetches and builds Jolt at a pinned tag on each run, into a git-ignored build folder, then runs both benchmark suites. Delete the folder once validation is done. See its [README](JoltComparison/README.md). |
@@ -61,6 +61,9 @@ These rules come from reading the generated assembly. Each one closes a gap agai
 - **Min/max, reductions and shuffles come from `_MoonbounceShims`.**
   - Swift has no fast-math flags, so it cannot emit a single `fminnm` or `fmaxnmv`. A lane-by-lane shuffle makes LLVM split nearby arithmetic into 2-lane pieces.
   - Clang builtins in `static inline` functions inline into `@inlinable` Swift on every platform. This is the same approach as swift-numerics' `_NumericsShims`.
+- **So do vector fused multiply-adds and negation: `multiplyAdd`, `multiplySubtract` and `negated` in `SIMDPrimitives.swift`.**
+  - `SIMD.addingProduct` is a per-lane loop that LLVM re-vectorizes. When a lane of the result is read twice, it keeps a scalar copy of that lane's whole chain: a matrix-point product took 11 instructions instead of 4.
+  - Prefix `-` on `SIMD4<Float>` is `0 - v`. It maps +0 to +0 where IEEE 754 negation gives -0, and LLVM cannot fold it into `fmls`. With a true negation, `Quaternion.multiply` dropped from 21 to 14 instructions.
 - **Public hot-path API is `@inline(always)` on `@frozen` types.**
   - `@inlinable` alone lets the optimizer still emit a call. It did for the cross product inside `Quaternion * Vector3`, which doubled its cost.
   - On a `public` declaration, `@inline(always)` (SE-0496) implies `@inlinable`, so the body is exposed to clients and inlined into them. Don't write both.
@@ -69,4 +72,5 @@ These rules come from reading the generated assembly. Each one closes a gap agai
 - **Vector constants are computed properties, not stored ones.**
   - A stored `static let` or global of a SIMD type is reached from client code through an addressor call. Inside a hot loop that call also spills every live register, which made `Vector4.atan2` twice Jolt's instruction count.
   - `@inline(always) static var zero: Vector3 { Vector3(repeating: 0) }` folds to a constant instead. Scalar `Float` constants are already folded, so they stay `let`.
+- **Benchmark operations are local `@inline(always)` functions, not closure literals.** The optimizer declines to inline a closure above its size threshold, and a matrix product is above it: each element then became a call that spilled both 64-byte matrices to the stack. The C++ harness's lambdas always inline, so the Swift side must too.
 - **Build mode:** benchmarks use plain `-O`. `-Ounchecked` yields identical instruction counts, because bounds checks are already hoisted out of the inner loops.

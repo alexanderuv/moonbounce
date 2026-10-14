@@ -16,13 +16,19 @@
 //   vectorize: an `AABB.encapsulate` built on them costs ~60 instructions
 //   instead of 2.
 //
-// - Take min/max, reductions and shuffles from the shims. Without fast-math
-//   flags, a compare and `replacing(with:where:)` is the best Swift can do
-//   for min/max: two dependent instructions, which doubles the latency of
-//   reductions like `AABB.encapsulate`. A shuffle written as
-//   `SIMD4(v.y, v.z, v.x, v.x)` makes LLVM split the surrounding arithmetic
-//   into 2-lane pieces (19 instructions for a cross product instead of 9).
-//   `addingProduct` already lowers to a fused multiply-add.
+// - Take min/max, reductions, shuffles and fused multiply-adds from the
+//   shims. Without fast-math flags, a compare and `replacing(with:where:)` is
+//   the best Swift can do for min/max: two dependent instructions, which
+//   doubles the latency of reductions like `AABB.encapsulate`. A shuffle
+//   written as `SIMD4(v.y, v.z, v.x, v.x)` makes LLVM split the surrounding
+//   arithmetic into 2-lane pieces (19 instructions for a cross product
+//   instead of 9). `SIMD.addingProduct` is a per-lane loop that LLVM
+//   re-vectorizes, and keeps scalar copies of lanes it sees read twice;
+//   `multiplyAdd` is one vector instruction.
+//
+// - Negate with `negated`, never prefix `-`. On `SIMD4<Float>` the standard
+//   library's `-v` is `0 - v`: it maps +0 to +0 where IEEE 754 negation gives
+//   -0, and LLVM cannot fold it into a fused multiply-subtract.
 //
 // The shims are imported publicly because `@inlinable` bodies reference them.
 public import _MoonbounceShims
@@ -37,6 +43,37 @@ func minimum(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
 @inlinable @inline(always)
 func maximum(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
     mb_max(a, b)
+}
+
+/// Lane-wise `a * b + c`, rounded once.
+@inlinable @inline(always)
+func multiplyAdd(_ a: SIMD4<Float>, _ b: SIMD4<Float>, _ c: SIMD4<Float>) -> SIMD4<Float> {
+    mb_fma(a, b, c)
+}
+
+/// `a * b + c` with the scalar `a` applied to every lane, rounded once.
+@inlinable @inline(always)
+func multiplyAdd(_ a: Float, _ b: SIMD4<Float>, _ c: SIMD4<Float>) -> SIMD4<Float> {
+    mb_fma(SIMD4(repeating: a), b, c)
+}
+
+/// Lane-wise `c - a * b`, rounded once.
+@inlinable @inline(always)
+func multiplySubtract(_ a: SIMD4<Float>, _ b: SIMD4<Float>, _ c: SIMD4<Float>) -> SIMD4<Float> {
+    mb_fms(a, b, c)
+}
+
+/// `c - a * b` with the scalar `a` applied to every lane, rounded once.
+@inlinable @inline(always)
+func multiplySubtract(_ a: Float, _ b: SIMD4<Float>, _ c: SIMD4<Float>) -> SIMD4<Float> {
+    mb_fms(SIMD4(repeating: a), b, c)
+}
+
+/// Lane-wise IEEE 754 negation, which turns +0 into -0. Use it instead of
+/// prefix `-`, which on `SIMD4<Float>` computes `0 - v`.
+@inlinable @inline(always)
+func negated(_ v: SIMD4<Float>) -> SIMD4<Float> {
+    mb_negate(v)
 }
 
 /// Lane-wise absolute value, by clearing the sign bits.
@@ -80,10 +117,10 @@ func hamiltonProduct(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
     //   w = aw*bw - ax*bx - ay*by - az*bz
     // Grouped by the scalar from `a`, each term is one multiply-add of a lane
     // of `a` against a shuffle of `b` and `-b`.
-    let n = -b
+    let n = negated(b)
     var r = a.w * b
-    r = r.addingProduct(a.x, SIMD4(b.w, n.z, b.y, n.x))
-    r = r.addingProduct(a.y, SIMD4(b.z, b.w, n.x, n.y))
-    r = r.addingProduct(a.z, SIMD4(n.y, b.x, b.w, n.z))
+    r = multiplyAdd(a.x, SIMD4(b.w, n.z, b.y, n.x), r)
+    r = multiplyAdd(a.y, SIMD4(b.z, b.w, n.x, n.y), r)
+    r = multiplyAdd(a.z, SIMD4(n.y, b.x, b.w, n.z), r)
     return r
 }

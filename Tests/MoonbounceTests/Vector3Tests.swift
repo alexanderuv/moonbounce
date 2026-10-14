@@ -12,6 +12,9 @@ import Testing
         #expect(2 * a == Vector3(2, 4, 6))
         #expect(a / 2 == Vector3(0.5, 1, 1.5))
         #expect(-a == Vector3(-1, -2, -3))
+        // IEEE 754 negation flips the sign of zero, which `0 - v` would not.
+        let negativeZero = -Vector3.zero
+        #expect([negativeZero.x, negativeZero.y, negativeZero.z].allSatisfy { $0.sign == .minus })
         #expect(a + .zero == a)
 
         var c = a

@@ -78,7 +78,7 @@ extension Vector3: AdditiveArithmetic {
 
 extension Vector3 {
     @inline(always)
-    public static prefix func - (v: Vector3) -> Vector3 { Vector3(storage: -v.storage) }
+    public static prefix func - (v: Vector3) -> Vector3 { Vector3(storage: negated(v.storage)) }
 
     /// Component-wise product.
     @inline(always)
@@ -106,7 +106,7 @@ extension Vector3 {
     /// `self + a * b`, rounded once (a fused multiply-add).
     @inline(always)
     public func addingProduct(_ a: Float, _ b: Vector3) -> Vector3 {
-        Vector3(storage: storage.addingProduct(a, b.storage))
+        Vector3(storage: multiplyAdd(a, b.storage, storage))
     }
 }
 

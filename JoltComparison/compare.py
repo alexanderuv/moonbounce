@@ -4,6 +4,10 @@ print a side-by-side table.
 
 Usage: JoltComparison/compare.py [--jolt-version TAG] [--rounds N] [--filter REGEX ...]
 
+A --filter regular expression must match a benchmark's whole name, as
+package-benchmark requires: `Matrix4x4\..*` selects every Matrix4x4 benchmark,
+`Matrix4x4` selects none.
+
 Fetches Jolt at --jolt-version into JoltComparison/.build (git-ignored), builds its
 harness with CMake, then runs both suites in alternating rounds so background
 load and thermal drift hit both sides alike. Each figure is the median over
@@ -85,14 +89,23 @@ def swift_round(name_filters):
     ]
     for name_filter in name_filters or []:
         command += ["--filter", name_filter]
+    # Remove the previous run's results first, so a run that writes nothing
+    # can't pass them off as this one's.
+    results_file = SWIFT_RESULTS / "Current_run.influx.csv"
+    results_file.unlink(missing_ok=True)
     run(command, ROOT / "Benchmarks")
 
+    no_benchmark_ran = "compare.py: no Swift benchmark ran; a --filter must match a whole benchmark name"
+    if not results_file.exists():
+        sys.exit(no_benchmark_ran)
     # Values are raw per-iteration counts (nanoseconds for wall clock); the
     # unit column is only package-benchmark's display unit.
     scale = 1000 / SWIFT_OPERATIONS_PER_ITERATION
     results = {}
-    with open(SWIFT_RESULTS / "Current_run.influx.csv", newline="") as file:
+    with open(results_file, newline="") as file:
         rows = [row for row in csv.reader(file) if row and not row[0].startswith("#")]
+    if not rows:
+        sys.exit(no_benchmark_ran)
     header = rows[0]
     column = {name: header.index(name) for name in ("metric", "test", "percentile", "value")}
     for row in rows[1:]:
@@ -105,6 +118,12 @@ def swift_round(name_filters):
             entry["instructions"] = value * scale
         elif metric == "Malloc(total)" and percentile == 100:
             entry["mallocs"] = int(value)
+    # A header with no data rows means nothing ran, too.
+    if not results:
+        sys.exit(no_benchmark_ran)
+    incomplete = sorted(name for name, entry in results.items() if entry.keys() != {"ns", "instructions", "mallocs"})
+    if incomplete:
+        sys.exit(f"compare.py: missing p50 time, p50 instructions or total mallocs for: {', '.join(incomplete)}")
     return results
 
 
@@ -134,7 +153,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--jolt-version", default=DEFAULT_JOLT_VERSION, help=f"Jolt Physics tag to compare against (default {DEFAULT_JOLT_VERSION})")
     parser.add_argument("--rounds", type=int, default=3, help="alternating runs of each suite (default 3)")
-    parser.add_argument("--filter", action="append", help="only benchmarks matching this regular expression; repeatable")
+    parser.add_argument("--filter", action="append", help="only benchmarks whose whole name matches this regular expression; repeatable")
     arguments = parser.parse_args()
 
     check_prerequisites()
@@ -147,7 +166,7 @@ def main():
     jolt, swift = combine(jolt_rounds), combine(swift_rounds)
 
     if arguments.filter:
-        jolt = {name: value for name, value in jolt.items() if any(re.search(f, name) for f in arguments.filter)}
+        jolt = {name: value for name, value in jolt.items() if any(re.fullmatch(f, name) for f in arguments.filter)}
     names = sorted(set(swift) & set(jolt))
     unmatched = sorted(set(swift) ^ set(jolt))
 

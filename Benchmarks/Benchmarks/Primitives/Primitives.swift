@@ -28,34 +28,50 @@ let benchmarks: @Sendable () -> Void = {
 
     let fixtures = Fixtures()
 
+    // Each operation is a local `@inline(always)` function rather than a
+    // closure literal. The optimizer declines to inline a closure above its
+    // size threshold, and `sinCos` or `slerp` is above it, which leaves a
+    // function call per element. A closure literal cannot be marked
+    // `@inline(always)`; a local function can, which matches the C++
+    // harness, where every lambda inlines.
+
     Benchmark("Vector3.normalized") { benchmark in
-        sweep(benchmark, fixtures.vectorsA) { $0.normalized() }
+        @inline(always) func operation(_ v: Vector3) -> Vector3 { v.normalized() }
+        sweep(benchmark, fixtures.vectorsA, operation)
     }
 
     Benchmark("Vector3.dot") { benchmark in
-        sweep(benchmark, fixtures.vectorsA, fixtures.vectorsB) { $0.dot($1) }
+        @inline(always) func operation(_ a: Vector3, _ b: Vector3) -> Float { a.dot(b) }
+        sweep(benchmark, fixtures.vectorsA, fixtures.vectorsB, operation)
     }
 
     Benchmark("Vector3.cross") { benchmark in
-        sweep(benchmark, fixtures.vectorsA, fixtures.vectorsB) { $0.cross($1) }
+        @inline(always) func operation(_ a: Vector3, _ b: Vector3) -> Vector3 { a.cross(b) }
+        sweep(benchmark, fixtures.vectorsA, fixtures.vectorsB, operation)
     }
 
     Benchmark("Quaternion.multiply") { benchmark in
-        sweep(benchmark, fixtures.rotationsA, fixtures.rotationsB) { $0 * $1 }
+        @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a * b }
+        sweep(benchmark, fixtures.rotationsA, fixtures.rotationsB, operation)
     }
 
     Benchmark("Quaternion.rotate") { benchmark in
-        sweep(benchmark, fixtures.rotationsA, fixtures.vectorsA) { $0 * $1 }
+        @inline(always) func operation(_ q: Quaternion, _ v: Vector3) -> Vector3 { q * v }
+        sweep(benchmark, fixtures.rotationsA, fixtures.vectorsA, operation)
     }
 
     Benchmark("AABB.overlaps") { benchmark in
-        sweep(benchmark, fixtures.boxesA, fixtures.boxesB) { $0.overlaps($1) }
+        @inline(always) func operation(_ a: AABB, _ b: AABB) -> Bool { a.overlaps(b) }
+        sweep(benchmark, fixtures.boxesA, fixtures.boxesB, operation)
     }
 
     Benchmark("AABB.rayDistance") { benchmark in
         let origin = fixtures.ray.origin
         let inverseDirection = RayInverseDirection(fixtures.ray.direction)
-        sweep(benchmark, fixtures.boxesA) { $0.rayDistance(origin: origin, inverseDirection: inverseDirection) }
+        @inline(always) func operation(_ box: AABB) -> Float {
+            box.rayDistance(origin: origin, inverseDirection: inverseDirection)
+        }
+        sweep(benchmark, fixtures.boxesA, operation)
     }
 
     Benchmark("AABB.encapsulate") { benchmark in
@@ -77,61 +93,56 @@ let benchmarks: @Sendable () -> Void = {
     // MARK: Phase 1
 
     Benchmark("Vector3.normalizedPerpendicular") { benchmark in
-        sweep(benchmark, fixtures.vectorsA) { $0.normalizedPerpendicular() }
+        @inline(always) func operation(_ v: Vector3) -> Vector3 { v.normalizedPerpendicular() }
+        sweep(benchmark, fixtures.vectorsA, operation)
     }
 
     Benchmark("Vector4.multiplyAdd") { benchmark in
-        sweep(benchmark, fixtures.vectors4A, fixtures.vectors4B, fixtures.vectors4C) { $2.addingProduct($0, $1) }
+        @inline(always) func operation(_ a: Vector4, _ b: Vector4, _ c: Vector4) -> Vector4 { c.addingProduct(a, b) }
+        sweep(benchmark, fixtures.vectors4A, fixtures.vectors4B, fixtures.vectors4C, operation)
     }
 
     Benchmark("Vector4.reduceMin") { benchmark in
-        sweep(benchmark, fixtures.vectors4A) { $0.reduceMin() }
+        @inline(always) func operation(_ v: Vector4) -> Float { v.reduceMin() }
+        sweep(benchmark, fixtures.vectors4A, operation)
     }
 
     Benchmark("UInt32Vector4.select") { benchmark in
-        sweep(benchmark, fixtures.integersA, fixtures.integersB, fixtures.masks) { UInt32Vector4.select($0, $1, where: $2) }
+        @inline(always) func operation(_ a: UInt32Vector4, _ b: UInt32Vector4, _ mask: UInt32Vector4) -> UInt32Vector4 {
+            UInt32Vector4.select(a, b, where: mask)
+        }
+        sweep(benchmark, fixtures.integersA, fixtures.integersB, fixtures.masks, operation)
     }
 
     Benchmark("UInt32Vector4.countTrues") { benchmark in
         // Int32, to write the same 4 bytes per result as the C++ `int`.
-        sweep(benchmark, fixtures.masks) { Int32(truncatingIfNeeded: $0.countTrues) }
+        @inline(always) func operation(_ mask: UInt32Vector4) -> Int32 { Int32(truncatingIfNeeded: mask.countTrues) }
+        sweep(benchmark, fixtures.masks, operation)
     }
 
     Benchmark("Vector4.sinCos") { benchmark in
-        sweep(benchmark, fixtures.angles) { $0.sinCos() }
+        @inline(always) func operation(_ v: Vector4) -> (sin: Vector4, cos: Vector4) { v.sinCos() }
+        sweep(benchmark, fixtures.angles, operation)
     }
 
     Benchmark("Vector4.atan2") { benchmark in
-        // A direct loop rather than `sweep`: the closure is too large for the
-        // optimizer to inline into the sweep loop, so it would rebuild the
-        // polynomial's constants on every call. Real callers hoist them.
-        let y = fixtures.coordinatesY, x = fixtures.coordinatesX
-        var outputs = zeroedOutputs(Vector4.self, count: y.count)
-        startMeasuring(benchmark)
-        for _ in benchmark.scaledIterations {
-            let lhs = y.span, rhs = x.span
-            var output = outputs.mutableSpan
-            for i in lhs.indices {
-                output[i] = Vector4.atan2(lhs[i], rhs[i])
-            }
-            blackHole(outputs)
-        }
-        benchmark.stopMeasurement()
+        @inline(always) func operation(_ y: Vector4, _ x: Vector4) -> Vector4 { Vector4.atan2(y, x) }
+        sweep(benchmark, fixtures.coordinatesY, fixtures.coordinatesX, operation)
     }
 
     Benchmark("Quaternion.swingTwist") { benchmark in
-        sweep(benchmark, fixtures.rotationsA) { $0.swingTwist }
+        @inline(always) func operation(_ q: Quaternion) -> (swing: Quaternion, twist: Quaternion) { q.swingTwist }
+        sweep(benchmark, fixtures.rotationsA, operation)
     }
 
     Benchmark("Quaternion.slerp") { benchmark in
-        sweep(benchmark, fixtures.rotationsA, fixtures.rotationsB) { $0.slerp(to: $1, 0.3) }
+        @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a.slerp(to: b, 0.3) }
+        sweep(benchmark, fixtures.rotationsA, fixtures.rotationsB, operation)
     }
 }
 
-/// Output storage filled with zero bits. Every output type here is valid when
-/// all its bits are zero. The storage is not filled by `transform`: a second
-/// call site stops the optimizer from inlining a large `transform` into the
-/// measured loop, which then rebuilds its constants on every element.
+/// Output storage filled with zero bits, which every output type here
+/// accepts, so filling it runs none of the measured code.
 @inline(always)
 private func zeroedOutputs<Output: BitwiseCopyable>(_ type: Output.Type, count: Int) -> [Output] {
     [Output](unsafeUninitializedCapacity: count) { buffer, initialized in
