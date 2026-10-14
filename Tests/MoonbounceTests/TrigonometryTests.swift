@@ -47,6 +47,75 @@ import Testing
         #expect(cosError < 1.0e-7)
     }
 
+    /// Arguments past the Cody-Waite range take the exact reduction. The
+    /// named values once gave |sin| and |cos| far above 1; 16367173 · 2^72 is
+    /// the `Float` closest to a multiple of π / 2, where the reduction
+    /// cancels the most.
+    /// Lanes past the Cody-Waite range, alternating in sign, uniform in bit
+    /// pattern up to the largest finite value so every binade gets its share.
+    /// Built from the generator's raw output, so the inputs never depend on
+    /// how the standard library draws from a range.
+    static func randomLargeArguments(_ rng: inout SplitMix64) -> Vector4 {
+        let first = Float(0x1p17).bitPattern, count = Float.greatestFiniteMagnitude.bitPattern - first + 1
+        var v = Vector4.zero
+        for lane in 0..<4 {
+            let bits = first + UInt32(truncatingIfNeeded: rng.next()) % count
+            v[lane] = Float(bitPattern: lane % 2 == 0 ? bits : bits | 0x8000_0000)
+        }
+        return v
+    }
+
+    @Test func largeArgumentsKeepFullAccuracy() {
+        var sinError = 0.0, cosError = 0.0, tanError = 0.0
+        func check(_ x: Vector4) {
+            let (s, c) = x.sinCos()
+            let t = x.tan()
+            for lane in 0..<4 {
+                let exact = Double(x[lane])
+                sinError = max(sinError, abs(Double(s[lane]) - Foundation.sin(exact)))
+                cosError = max(cosError, abs(Double(c[lane]) - Foundation.cos(exact)))
+                let exactTan = Foundation.tan(exact)
+                tanError = max(tanError, abs(Double(t[lane]) - exactTan) / max(1, abs(exactTan)))
+            }
+        }
+
+        let named: [Float] = [
+            0x1p17, Float(0x1p17).nextUp, 0x1p18, 3.0e7, 5.2707196e7, 1.0e9, 3.0e9, 0x1p31, 1.0e20,
+            Float(sign: .plus, exponent: 72, significand: 16_367_173 * 0x1p-23), .greatestFiniteMagnitude,
+        ]
+        for x in named {
+            check(Vector4(x, -x, x, -x))
+        }
+        var rng = SplitMix64()
+        for _ in 0..<50_000 {
+            check(Self.randomLargeArguments(&rng))
+        }
+        #expect(sinError < 1.0e-7)
+        #expect(cosError < 1.0e-7)
+        #expect(tanError < 2.0e-7)
+    }
+
+    @Test func largeAndSmallArgumentsMixInOneVector() {
+        let x = Vector4(0.5, 1.0e9, -2, -3.0e30)
+        let (s, c) = x.sinCos()
+        let t = x.tan()
+        for lane in 0..<4 {
+            #expect(s[lane] == Trigonometry.sin(x[lane]))
+            #expect(c[lane] == Trigonometry.cos(x[lane]))
+            #expect(t[lane] == Trigonometry.tan(x[lane]))
+        }
+    }
+
+    @Test func nonFiniteArgumentsGiveNaN() {
+        let x = Vector4(.infinity, -.infinity, .nan, 1)
+        let (s, c) = x.sinCos()
+        let t = x.tan()
+        for lane in 0..<3 {
+            #expect(s[lane].isNaN && c[lane].isNaN && t[lane].isNaN)
+        }
+        #expect(s.w == Trigonometry.sin(1) && c.w == Trigonometry.cos(1) && t.w == Trigonometry.tan(1))
+    }
+
     @Test func scalarFormsMatchLaneZero() {
         for x: Float in [-3, -0.5, 0, 0.25, 1, 2.5] {
             #expect(Trigonometry.sin(x) == Vector4(repeating: x).sinCos().sin.x)
@@ -158,6 +227,21 @@ import Testing
         #expect(worst < 3.0e-7)
     }
 
+    /// A NaN must reach the result rather than become a plausible angle.
+    @Test func inverseFunctionsPropagateNaN() {
+        let nan = Vector4(.nan, -.nan, 0.5, -2)
+        for result in [nan.asin(), nan.acos(), nan.atan(), Vector4.atan2(nan, .one), Vector4.atan2(.one, nan)] {
+            #expect(result.x.isNaN && result.y.isNaN)
+            #expect(!result.z.isNaN && !result.w.isNaN)
+        }
+        #expect(Trigonometry.asin(.nan).isNaN)
+        #expect(Trigonometry.acos(.nan).isNaN)
+        #expect(Trigonometry.atan(.nan).isNaN)
+        #expect(Trigonometry.atan2(.nan, .nan).isNaN)
+        #expect(Trigonometry.atan2(0, .nan).isNaN)
+        #expect(Trigonometry.atan2(.nan, 0).isNaN)
+    }
+
     @Test func acosApproximate() {
         for i in -1000...1000 {
             let x = Float(i) / 1000
@@ -194,5 +278,25 @@ import Testing
             mix(Vector4.atan2(x, unit))
         }
         #expect(hash == 0x522D_3B9C_A0AE_9265)
+    }
+
+    /// The same for arguments past the Cody-Waite range, which take the
+    /// exact reduction.
+    @Test func largeArgumentResultsAreBitForBitStable() {
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325 // FNV-1a
+        func mix(_ v: Vector4) {
+            for lane in 0..<4 {
+                hash = (hash ^ UInt64(v[lane].bitPattern)) &* 0x0000_0100_0000_01B3
+            }
+        }
+        var rng = SplitMix64()
+        for _ in 0..<10_000 {
+            let x = Self.randomLargeArguments(&rng)
+            let (s, c) = x.sinCos()
+            mix(s)
+            mix(c)
+            mix(x.tan())
+        }
+        #expect(hash == 0x0F74_8106_EA60_560A)
     }
 }

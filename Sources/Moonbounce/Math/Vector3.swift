@@ -266,8 +266,9 @@ extension Vector3 {
         return Vector3(storage: mb_yzxx(t.simd))
     }
 
-    /// Each component converted to an integer, rounding toward zero.
-    /// Components must lie within the 32-bit signed range.
+    /// Each component converted to a signed 32-bit integer, rounding toward
+    /// zero, and returned as its bit pattern. Components outside the 32-bit
+    /// signed range saturate to its nearest end, and NaN becomes 0.
     @inline(always)
     public func truncatedToInt() -> UInt32Vector4 { UInt32Vector4(mb_float4_to_int(storage)) }
 
@@ -347,12 +348,14 @@ extension Vector3 {
     public func reduceSum() -> Float { storage.x + storage.y + storage.z }
 
     /// The index of the smallest component; the first one when several tie.
+    /// NaN components are ignored, and the index is 2 when all are NaN.
     @inline(always)
-    public var lowestComponentIndex: Int { Vector4(storage).lowestComponentIndex }
+    public var lowestComponentIndex: Int { Vector4(storage).lowestLane(ifAllNaN: 2) }
 
     /// The index of the largest component; the first one when several tie.
+    /// NaN components are ignored, and the index is 2 when all are NaN.
     @inline(always)
-    public var highestComponentIndex: Int { Vector4(storage).highestComponentIndex }
+    public var highestComponentIndex: Int { Vector4(storage).highestLane(ifAllNaN: 2) }
 }
 
 // MARK: - Swizzles
@@ -405,14 +408,23 @@ extension Vector3 {
     /// error is below 7 × 10⁻⁵, and the six axis directions round-trip
     /// exactly.
     ///
+    /// A vector with no direction to encode, zero or with an infinite or NaN
+    /// component, encodes as the z axis rather than trapping.
+    ///
     /// Zana Cigolle et al., "A Survey of Efficient Representations for
     /// Independent Unit Vectors", JCGT 3(2), 2014.
     @inlinable
     public func octahedralEncoded() -> UInt32 {
         let l1 = Swift.abs(x) + Swift.abs(y) + Swift.abs(z)
-        var u = x / l1, v = y / l1
-        if z < 0 {
-            (u, v) = Vector3.foldOctahedron(u, v)
+        // u = v = 0 is the z axis. Dividing by a zero or non-finite l1 would
+        // give NaN instead, which traps in `quantize`.
+        var u: Float = 0, v: Float = 0
+        if l1 > 0 && l1.isFinite {
+            u = x / l1
+            v = y / l1
+            if z < 0 {
+                (u, v) = Vector3.foldOctahedron(u, v)
+            }
         }
         // 65,535 levels: an odd count, so 0 is a level and the axes are exact.
         func quantize(_ t: Float) -> UInt32 {
