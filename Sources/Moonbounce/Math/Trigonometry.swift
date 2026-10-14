@@ -109,19 +109,92 @@ func atanKernel(_ t: SIMD4<Float>) -> SIMD4<Float> {
 }
 
 /// `x` reduced by the nearest multiple of π / 2: `r` in about [-π / 4, π / 4]
-/// and the multiple's index, whose low two bits are the quadrant.
+/// and the multiple's index, whose low two bits are the quadrant. A NaN or
+/// infinite lane gives a NaN `r`.
 ///
 /// Cody-Waite reduction with π / 2 split in three: x - k · `halfPi` is exact,
 /// because the fused multiply-add rounds once and the difference fits in a
 /// `Float`; the two smaller parts then each add one rounding. The third part
 /// matters near the poles of tan, where r is tiny and the error of a
-/// two-part π / 2, multiplied by k, would dominate it. Accuracy holds for
-/// |x| up to about 10⁵.
+/// two-part π / 2, multiplied by k, would dominate it.
+///
+/// Checked against every `Float`, that keeps the functions built on it
+/// within their stated error up to |x| = 2^18. Past that the roundings of
+/// the smaller parts, which grow with k, take over, and past about 2^24 k
+/// itself is no longer the nearest integer, so r leaves [-π / 4, π / 4] and
+/// the polynomials extrapolate. Lanes beyond `codyWaiteLimit`, rare in
+/// practice, take the exact reduction of ``reducingLargeArguments(_:_:)``
+/// instead, behind one compare and one branch that is never taken for
+/// ordinary angles.
 @inlinable @inline(always)
 func reduceQuarterTurns(_ x: SIMD4<Float>) -> (r: SIMD4<Float>, quadrant: SIMD4<UInt32>) {
     let k = mb_round(x * twoOverPi)
     let r = x.addingProduct(-k, halfPi).addingProduct(-k, halfPiLow).addingProduct(-k, halfPiTail)
-    return (r, mb_float4_to_int(k))
+    let reduced = (r: r, quadrant: mb_float4_to_int(k))
+    // One across-lane maximum and a scalar compare. It skips NaN lanes, which
+    // need no exact reduction: their r is NaN already.
+    if _slowPath(mb_reduce_max(absolute(x)) > codyWaiteLimit) {
+        return reducingLargeArguments(x, reduced)
+    }
+    return reduced
+}
+
+/// The largest |x| that the Cody-Waite reduction in ``reduceQuarterTurns(_:)``
+/// handles; see there.
+@usableFromInline let codyWaiteLimit: Float = 0x1p17
+
+/// The bits of 2 / π after a word of zeros, most significant first: bit `j`
+/// of the fraction, of weight 2^-j, is bit `j + 31` of the sequence. The zero
+/// word lets a window start before the binary point, and the words reach the
+/// last bit that the largest finite `Float` needs.
+private let twoOverPiBits: InlineArray<9, UInt32> = [
+    0x0000_0000,
+    0xA2F9_836E, 0x4E44_1529, 0xFC27_57D1, 0xF534_DDC0,
+    0xDB62_9599, 0x3C43_9041, 0xFE51_63AB, 0xDEBB_C561,
+]
+
+/// `reduced` with every lane whose |x| exceeds `codyWaiteLimit` replaced by
+/// its exact reduction, or by NaN where x is infinite.
+///
+/// Payne-Hanek reduction. With x = m · 2^(e - 23) for an integer m < 2^24,
+/// x · 2 / π = m · Σ bⱼ 2^(e - 23 - j) over the bits bⱼ of 2 / π. Only the
+/// result modulo 4 matters, and the terms with j <= e - 25 are multiples of
+/// 4, so a 128-bit window of bits starting at j = e - 24 gives x · 2 / π
+/// modulo 4 as a fixed-point number with 126 fraction bits. Its error, from
+/// the bits past the window, is below 2^-102: far below the smallest
+/// distance between a `Float` and a multiple of π / 2, 2^-29.2 at
+/// x = 16367173 · 2^72, so r keeps its full precision even where the
+/// reduction cancels most of x. Everything is
+/// integer arithmetic and correctly rounded `Double` operations, so every
+/// platform gets the same bits.
+@usableFromInline @inline(never)
+func reducingLargeArguments(
+    _ x: SIMD4<Float>, _ reduced: (r: SIMD4<Float>, quadrant: SIMD4<UInt32>)
+) -> (r: SIMD4<Float>, quadrant: SIMD4<UInt32>) {
+    var (r, quadrant) = reduced
+    for lane in 0..<4 where x[lane].magnitude > codyWaiteLimit {
+        guard x[lane].isFinite else {
+            (r[lane], quadrant[lane]) = (.nan, 0)
+            continue
+        }
+        let m = UInt128(x[lane].significandBitPattern | 1 << 23)
+        let start = Int(x[lane].exponent) + 7 // bit j = e - 24 of the fraction
+        let word = start >> 5, shift = start & 31
+        let words = UInt128(twoOverPiBits[word]) << 96 | UInt128(twoOverPiBits[word + 1]) << 64
+            | UInt128(twoOverPiBits[word + 2]) << 32 | UInt128(twoOverPiBits[word + 3])
+        let window = words << shift | UInt128(twoOverPiBits[word + 4]) >> (32 - shift)
+
+        // x · 2 / π modulo 4, with the binary point after the top two bits.
+        let turns = m &* window
+        // Round to the nearest quarter turn; the remainder is in [-1/2, 1/2).
+        let k = (turns &+ 1 << 125) >> 126
+        let remainder = Int128(bitPattern: turns &- k << 126)
+        let reducedLane = Float(Double(remainder) * 0x1p-126 * 0x1.921fb54442d18p0)
+        let negative = x[lane] < 0
+        r[lane] = negative ? -reducedLane : reducedLane
+        quadrant[lane] = negative ? 0 &- UInt32(k) : UInt32(k)
+    }
+    return (r, quadrant)
 }
 
 /// π / 2 - `v`, with π / 2 carried to 48 bits. Subtracting `v` from the low
@@ -155,8 +228,9 @@ func copyingSigns(_ magnitude: SIMD4<Float>, from sign: SIMD4<Float>) -> SIMD4<F
 extension Vec4 {
     /// The sine and cosine of each lane, in radians.
     ///
-    /// The error is below 1 × 10⁻⁷ for |x| up to 100π, and both results are
-    /// exact at multiples of π / 2 up to the reduction's rounding.
+    /// The error is below 1 × 10⁻⁷ for every finite x, and both results are
+    /// exact at multiples of π / 2 up to the reduction's rounding. Infinity
+    /// and NaN give NaN.
     @inline(always)
     public func sinCos() -> (sin: Vec4, cos: Vec4) {
         let (r, quadrant) = reduceQuarterTurns(simd)
@@ -177,7 +251,8 @@ extension Vec4 {
 
     /// The tangent of each lane, in radians.
     ///
-    /// The relative error is below 2 × 10⁻⁷ for |x| up to 100π, poles included.
+    /// The relative error is below 2 × 10⁻⁷ for every finite x, poles
+    /// included. Infinity and NaN give NaN.
     @inline(always)
     public func tan() -> Vec4 {
         let (r, quadrant) = reduceQuarterTurns(simd)
