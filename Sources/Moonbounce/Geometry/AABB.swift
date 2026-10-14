@@ -1,0 +1,97 @@
+/// An axis-aligned bounding box spanning `min` to `max`, inclusive.
+@frozen
+public struct AABB: Equatable, Sendable, BitwiseCopyable {
+    public var min: Vec3
+    public var max: Vec3
+
+    @inlinable @inline(always)
+    public init(min: Vec3, max: Vec3) {
+        self.min = min
+        self.max = max
+    }
+
+    @inlinable @inline(always)
+    public init(center: Vec3, halfExtent: Vec3) {
+        self.init(min: center - halfExtent, max: center + halfExtent)
+    }
+
+    /// An inverted box that contains nothing. Encapsulating any point or box
+    /// into it yields exactly that point or box.
+    public static let empty = AABB(
+        min: Vec3(repeating: .greatestFiniteMagnitude),
+        max: Vec3(repeating: -.greatestFiniteMagnitude)
+    )
+
+    /// Whether `min <= max` on every axis.
+    @inlinable @inline(always)
+    public var isValid: Bool { all(min.storage .<= max.storage) }
+
+    @inlinable @inline(always)
+    public var center: Vec3 { (min + max) * 0.5 }
+
+    @inlinable @inline(always)
+    public var halfExtent: Vec3 { (max - min) * 0.5 }
+
+    @inlinable @inline(always)
+    public var size: Vec3 { max - min }
+
+    @inlinable @inline(always)
+    public var surfaceArea: Float {
+        let s = size
+        return 2 * (s.x * s.y + s.y * s.z + s.z * s.x)
+    }
+
+    @inlinable @inline(always)
+    public var volume: Float {
+        let s = size
+        return s.x * s.y * s.z
+    }
+}
+
+extension AABB {
+    /// Whether the boxes share at least one point; touching faces count.
+    @inlinable @inline(always)
+    public func overlaps(_ other: AABB) -> Bool {
+        !any((min.storage .> other.max.storage) .| (max.storage .< other.min.storage))
+    }
+
+    @inlinable @inline(always)
+    public func contains(_ point: Vec3) -> Bool {
+        all((point.storage .>= min.storage) .& (point.storage .<= max.storage))
+    }
+
+    @inlinable @inline(always)
+    public func contains(_ other: AABB) -> Bool {
+        all((other.min.storage .>= min.storage) .& (other.max.storage .<= max.storage))
+    }
+
+    /// Grows the box to include `point`.
+    @inlinable @inline(always)
+    public mutating func encapsulate(_ point: Vec3) {
+        min = Vec3.min(min, point)
+        max = Vec3.max(max, point)
+    }
+
+    /// Grows the box to include `other`.
+    @inlinable @inline(always)
+    public mutating func encapsulate(_ other: AABB) {
+        min = Vec3.min(min, other.min)
+        max = Vec3.max(max, other.max)
+    }
+
+    /// The smallest box containing both boxes.
+    @inlinable @inline(always)
+    public func union(_ other: AABB) -> AABB {
+        AABB(min: Vec3.min(min, other.min), max: Vec3.max(max, other.max))
+    }
+
+    /// The box grown by `margin` on every side.
+    @inlinable @inline(always)
+    public func expanded(by margin: Vec3) -> AABB {
+        AABB(min: min - margin, max: max + margin)
+    }
+}
+
+extension AABB: CustomStringConvertible {
+    public var description: String { "AABB(min: \(min), max: \(max))" }
+}
