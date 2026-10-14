@@ -51,6 +51,16 @@ import Testing
         #expect(v.highestComponentIndex == highest)
     }
 
+    @Test func extremeComponentIndicesIgnoreNaN() {
+        #expect(Vec4(.nan, 2, 1, 3).lowestComponentIndex == 2)
+        #expect(Vec4(.nan, 2, 1, 3).highestComponentIndex == 3)
+        #expect(Vec4(4, .nan, .nan, -1).highestComponentIndex == 0)
+        // No lane equals the minimum or maximum; the index must still be valid.
+        #expect(Vec4.nan.lowestComponentIndex == 3)
+        #expect(Vec4.nan.highestComponentIndex == 3)
+        #expect(Vec4.nan.abs.highestComponentIndex == 3)
+    }
+
     @Test func comparisonMasks() {
         let a = Vec4(1, 2, 3, 4), b = Vec4(2, 1, 3, 4)
         let t: UInt32 = 0xFFFF_FFFF

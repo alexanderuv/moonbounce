@@ -374,6 +374,9 @@ extension Quat {
     /// is made positive and needs no sign. Unit length then determines it
     /// from the other three, which all lie in [-1/√2, 1/√2]. The rotation
     /// error is below 0.005 radians (0.3°).
+    ///
+    /// NaN components encode as 0, so a corrupted quaternion still encodes,
+    /// to a valid rotation, rather than trapping.
     @inlinable
     public func smallestThreeEncoded() -> UInt32 {
         let largest = Vec4(simd).abs.highestComponentIndex
@@ -406,6 +409,8 @@ extension Quat {
 
     @inlinable @inline(always)
     static func quantize(_ t: Float) -> UInt32 {
+        // A NaN level would trap in the conversion below.
+        let t = t.isNaN ? 0 : t
         let level = ((t + 0.70710678) * quantizationScale).rounded(.toNearestOrEven)
         return UInt32(Swift.min(Swift.max(level, 0), 1022))
     }

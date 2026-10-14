@@ -348,12 +348,14 @@ extension Vec3 {
     public func reduceSum() -> Float { storage.x + storage.y + storage.z }
 
     /// The index of the smallest component; the first one when several tie.
+    /// NaN components are ignored, and the index is 2 when all are NaN.
     @inline(always)
-    public var lowestComponentIndex: Int { Vec4(storage).lowestComponentIndex }
+    public var lowestComponentIndex: Int { Vec4(storage).lowestLane(ifAllNaN: 2) }
 
     /// The index of the largest component; the first one when several tie.
+    /// NaN components are ignored, and the index is 2 when all are NaN.
     @inline(always)
-    public var highestComponentIndex: Int { Vec4(storage).highestComponentIndex }
+    public var highestComponentIndex: Int { Vec4(storage).highestLane(ifAllNaN: 2) }
 }
 
 // MARK: - Swizzles

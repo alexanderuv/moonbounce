@@ -375,6 +375,14 @@ import Testing
         }
     }
 
+    @Test func smallestThreeEncodingOfNaNDoesNotTrap() {
+        let allNaN = Quat(x: .nan, y: .nan, z: .nan, w: .nan)
+        let oneNaN = Quat(x: .nan, y: 0, z: 0, w: 1)
+        for q in [allNaN, oneNaN, -oneNaN] {
+            #expect(Quat(smallestThreeEncoded: q.smallestThreeEncoded()) == .identity)
+        }
+    }
+
     @Test func occupiesOneSIMDRegister() {
         #expect(MemoryLayout<Quat>.size == 16)
     }

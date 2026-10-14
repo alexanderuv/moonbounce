@@ -110,6 +110,9 @@ import Testing
         #expect(v1.lowestComponentIndex == 0 && v1.highestComponentIndex == 1)
         #expect(v2.lowestComponentIndex == 1 && v2.highestComponentIndex == 2)
         #expect(v3.lowestComponentIndex == 2 && v3.highestComponentIndex == 0)
+        #expect(Vec3(.nan, 4, 2).lowestComponentIndex == 2 && Vec3(.nan, 4, 2).highestComponentIndex == 1)
+        // All NaN: the index stays within x, y and z.
+        #expect(Vec3(repeating: .nan).lowestComponentIndex == 2 && Vec3(repeating: .nan).highestComponentIndex == 2)
         #expect(Vec3(-1, 3, 7).clamped(min: Vec3(1, 2, 3), max: Vec3(4, 5, 6)) == Vec3(1, 3, 6))
     }
 
