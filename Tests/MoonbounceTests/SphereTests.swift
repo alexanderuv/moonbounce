@@ -29,6 +29,36 @@ import Testing
         #endif
     }
 
+    // MARK: Overlap and support
+
+    @Test func overlapsSphere() {
+        #expect(sphere.overlaps(sphere))
+        #expect(sphere.overlaps(Sphere(center: Vector3(0, 3, 10), radius: 1.5)))
+        // Touching counts.
+        #expect(sphere.overlaps(Sphere(center: Vector3(0, 0, 13), radius: 1)))
+        #expect(!sphere.overlaps(Sphere(center: Vector3(0, 0, 13.01), radius: 1)))
+        #expect(!sphere.overlaps(Sphere(center: Vector3(3, 3, 10), radius: 2)))
+    }
+
+    @Test func overlapsBox() {
+        // Center inside.
+        #expect(sphere.overlaps(AABB(min: Vector3(-1, -1, 9), max: Vector3(1, 1, 11))))
+        // Face, then the corner (3, 3, 10) at 3√2 ≈ 4.24 from the center.
+        #expect(sphere.overlaps(AABB(min: Vector3(2, -1, 9), max: Vector3(4, 1, 11))))
+        #expect(!sphere.overlaps(AABB(min: Vector3(2.01, -1, 9), max: Vector3(4, 1, 11))))
+        #expect(!sphere.overlaps(AABB(min: Vector3(1.5, 1.5, 9), max: Vector3(4, 4, 11))))
+        #expect(sphere.overlaps(AABB(min: Vector3(1.4, 1.4, 9), max: Vector3(4, 4, 11))))
+    }
+
+    @Test func supportIsFurthestAlongTheDirection() {
+        #expect(sphere.support(.axisX) == Vector3(2, 0, 10))
+        #expect(sphere.support(Vector3(0, 0, -5)) == Vector3(0, 0, 8))
+        let diagonal = sphere.support(Vector3(1, 1, 0))
+        #expect(diagonal.isApproximatelyEqual(to: Vector3(Float(2).squareRoot(), Float(2).squareRoot(), 10)))
+        // A zero direction gives the center.
+        #expect(sphere.support(.zero) == sphere.center)
+    }
+
     // MARK: rayDistance
 
     @Test func hitFromOutsideReturnsEntryDistance() {

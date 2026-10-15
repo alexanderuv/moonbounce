@@ -13,6 +13,8 @@
 #include <Jolt/Core/Memory.h>
 #include <Jolt/Geometry/AABox.h>
 #include <Jolt/Geometry/AABox4.h>
+#include <Jolt/Geometry/Ellipse.h>
+#include <Jolt/Geometry/OrientedBox.h>
 #include <Jolt/Geometry/RayAABox.h>
 #include <Jolt/Geometry/RayCapsule.h>
 #include <Jolt/Geometry/RayCylinder.h>
@@ -97,6 +99,15 @@ struct AABox4Input
 {
 	Vec4 mMinX, mMinY, mMinZ;
 	Vec4 mMaxX, mMaxY, mMaxZ;
+};
+
+// An ellipse's radii, laid out like Moonbounce's Ellipse: 8 bytes. Jolt's
+// Ellipse keeps them private, so each benchmark call builds one, which
+// costs nothing once inlined.
+struct EllipseInput
+{
+	float mA;
+	float mB;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -216,6 +227,35 @@ struct SplitMix64
 		Vec3 offset = Vector(-8, 8);
 		return { origin, (inTarget + offset) - origin };
 	}
+
+	// Same as orientedBox(rotation:) in Fixtures.swift.
+	OrientedBox OrientedBoxInput(QuatArg inRotation)
+	{
+		Vec3 center = Vector(-4, 4);
+		Vec3 half_extents = Vector(0.5f, 3);
+		return OrientedBox(Mat44::sRotationTranslation(inRotation, center), half_extents);
+	}
+
+	// Same as ellipse() in Fixtures.swift.
+	EllipseInput EllipseRadii()
+	{
+		float a = Uniform(0.5f, 5);
+		float b = Uniform(0.5f, 5);
+		return { a, b };
+	}
+
+	// Same as point(outside:) in Fixtures.swift: bit 0 of the first draw
+	// picks the sign of the outside coordinate, bit 1 its axis.
+	Float2 PointOutside(const EllipseInput &inEllipse)
+	{
+		uint64_t bits = Next();
+		float magnitude = Uniform(1.1f, 3);
+		float other = Uniform(-3, 3);
+		float outside = (bits & 1) == 0 ? magnitude : -magnitude;
+		float u = (bits & 2) == 0 ? outside : other;
+		float v = (bits & 2) == 0 ? other : outside;
+		return Float2(inEllipse.mA * u, inEllipse.mB * v);
+	}
 };
 
 static constexpr int cCount = 1000;
@@ -238,6 +278,9 @@ struct Fixtures
 	std::vector<RayInput> mTriangleRays;
 	std::vector<Triangle4Input> mTriangleGroups;
 	std::vector<AABox4Input> mBoxGroups;
+	std::vector<OrientedBox> mOrientedBoxesA, mOrientedBoxesB;
+	std::vector<EllipseInput> mEllipses;
+	std::vector<Float2> mEllipsePoints;
 
 	Fixtures()
 	{
@@ -298,6 +341,10 @@ struct Fixtures
 				Vec4(b0.mMax.GetZ(), b1.mMax.GetZ(), b2.mMax.GetZ(), b3.mMax.GetZ())
 			});
 		}
+		for (int i = 0; i < cCount; ++i) mOrientedBoxesA.push_back(rng.OrientedBoxInput(mRotationsA[i]));
+		for (int i = 0; i < cCount; ++i) mOrientedBoxesB.push_back(rng.OrientedBoxInput(mRotationsB[i]));
+		for (int i = 0; i < cCount; ++i) mEllipses.push_back(rng.EllipseRadii());
+		for (const EllipseInput &e : mEllipses) mEllipsePoints.push_back(rng.PointOutside(e));
 	}
 };
 
@@ -492,6 +539,8 @@ int main()
 	Sweep<RayInput, Triangle4Input, Vec4>("Triangle4.rayDistance", f.mTriangleRays, f.mTriangleGroups, [](const RayInput &r, const Triangle4Input &t) { return RayTriangle4(r.mOrigin, r.mDirection, t.mV0X, t.mV0Y, t.mV0Z, t.mV1X, t.mV1Y, t.mV1Z, t.mV2X, t.mV2Y, t.mV2Z); });
 	Sweep<AABox4Input, AABox, UVec4>("AABB4.overlaps", f.mBoxGroups, f.mBoxesB, [](const AABox4Input &b, const AABox &box) { return AABox4VsBox(box, b.mMinX, b.mMinY, b.mMinZ, b.mMaxX, b.mMaxY, b.mMaxZ); });
 	Sweep<AABox4Input, Vec4>("AABB4.rayDistance", f.mBoxGroups, [&](const AABox4Input &b) { return RayAABox4(origin, inverse_direction, b.mMinX, b.mMinY, b.mMinZ, b.mMaxX, b.mMaxY, b.mMaxZ); });
+	Sweep<OrientedBox, OrientedBox, uint8_t>("OrientedBox.overlaps", f.mOrientedBoxesA, f.mOrientedBoxesB, [](const OrientedBox &a, const OrientedBox &b) { return a.Overlaps(b); });
+	Sweep<EllipseInput, Float2, Float2>("Ellipse.closestPoint", f.mEllipses, f.mEllipsePoints, [](const EllipseInput &e, const Float2 &p) { return Ellipse(e.mA, e.mB).GetClosestPoint(p); });
 
 	std::printf("\n  }\n}\n");
 	return 0;

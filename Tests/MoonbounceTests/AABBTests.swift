@@ -75,4 +75,20 @@ import Testing
         let box = AABB(min: Vector3(1, -2, 3), max: Vector3(2, 4, 5))
         #expect(box.scaled(by: Vector3(-1, 1, -2)) == AABB(min: Vector3(-2, -2, -10), max: Vector3(-1, 4, -6)))
     }
+
+    @Test func closestPointClampsToTheBox() {
+        let box = AABB(min: Vector3(-1, 0, 2), max: Vector3(3, 2, 5))
+        #expect(box.closestPoint(to: Vector3(0, 1, 3)) == Vector3(0, 1, 3))
+        #expect(box.closestPoint(to: Vector3(5, 1, 3)) == Vector3(3, 1, 3))
+        #expect(box.closestPoint(to: Vector3(-4, -1, 9)) == Vector3(-1, 0, 5))
+    }
+
+    @Test func squaredDistanceIsZeroInside() {
+        let box = AABB(min: Vector3(-1, 0, 2), max: Vector3(3, 2, 5))
+        #expect(box.squaredDistance(to: Vector3(0, 1, 3)) == 0)
+        #expect(box.squaredDistance(to: Vector3(3, 2, 5)) == 0)
+        #expect(box.squaredDistance(to: Vector3(5, 1, 3)) == 4)
+        // Off a corner: 3² + 1² + 4².
+        #expect(box.squaredDistance(to: Vector3(-4, -1, 9)) == 26)
+    }
 }

@@ -16,6 +16,26 @@ public struct Triangle: Equatable, Sendable, BitwiseCopyable {
 }
 
 extension Triangle {
+    /// The average of the three vertices.
+    @inline(always)
+    public var centroid: Vector3 {
+        (a + b + c) * (1.0 / 3.0)
+    }
+
+    /// The vertex furthest along `direction`: the support function that GJK
+    /// queries. Ties go to the later vertex, `c` over `b` over `a`.
+    @inline(always)
+    public func support(_ direction: Vector3) -> Vector3 {
+        let da = a.dot(direction), db = b.dot(direction), dc = c.dot(direction)
+        if da > db {
+            return da > dc ? a : c
+        } else {
+            return db > dc ? b : c
+        }
+    }
+}
+
+extension Triangle {
     /// The distance along the ray to the triangle, in multiples of
     /// `direction`, or `.infinity` when the ray misses it.
     ///

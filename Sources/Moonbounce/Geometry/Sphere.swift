@@ -54,6 +54,31 @@ public struct Sphere: Equatable, Sendable, BitwiseCopyable {
 }
 
 extension Sphere {
+    /// Whether the spheres overlap; touching counts.
+    @inline(always)
+    public func overlaps(_ other: Sphere) -> Bool {
+        let offset = storage - other.storage
+        let reach = storage.w + other.storage.w
+        return dot3(offset, offset) <= reach * reach
+    }
+
+    /// Whether the sphere overlaps `box`; touching counts.
+    @inline(always)
+    public func overlaps(_ box: AABB) -> Bool {
+        box.squaredDistance(to: center) <= storage.w * storage.w
+    }
+
+    /// The point of the sphere furthest along `direction`, which need not be
+    /// unit length: the support function that GJK queries. A zero direction
+    /// gives the center.
+    @inline(always)
+    public func support(_ direction: Vector3) -> Vector3 {
+        let length = direction.length
+        return length > 0 ? center + direction * (storage.w / length) : center
+    }
+}
+
+extension Sphere {
     /// The distance along the ray to the sphere, in multiples of `direction`:
     /// 0 when `origin` is inside the sphere or on its surface, and `.infinity`
     /// when the ray misses or the sphere lies behind it.

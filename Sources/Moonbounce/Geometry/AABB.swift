@@ -85,6 +85,19 @@ extension AABB {
         AABB(min: Vector3.min(min, other.min), max: Vector3.max(max, other.max))
     }
 
+    /// The point of the box nearest `point`: `point` itself when inside.
+    @inline(always)
+    public func closestPoint(to point: Vector3) -> Vector3 {
+        Vector3(storage: minimum(maximum(point.storage, min.storage), max.storage))
+    }
+
+    /// The squared distance from the box to `point`, 0 when inside.
+    @inline(always)
+    public func squaredDistance(to point: Vector3) -> Float {
+        let offset = closestPoint(to: point).storage - point.storage
+        return dot3(offset, offset)
+    }
+
     /// The box grown by `margin` on every side.
     @inline(always)
     public func expanded(by margin: Vector3) -> AABB {

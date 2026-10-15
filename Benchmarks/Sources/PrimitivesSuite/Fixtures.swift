@@ -110,6 +110,34 @@ struct SplitMix64: RandomNumberGenerator {
         let offset = vector3(-8, 8)
         return Ray(origin: origin, direction: (target + offset) - origin)
     }
+
+    /// A box turned by `rotation`, centered in [-4, 4) with half extents in
+    /// [0.5, 3), so about 40% of pairs overlap and the rest exit at each kind
+    /// of axis.
+    mutating func orientedBox(rotation: Quaternion) -> OrientedBox {
+        let center = vector3(-4, 4)
+        let halfExtents = vector3(0.5, 3)
+        return OrientedBox(orientation: Matrix4x4(rotation: rotation, translation: center), halfExtents: halfExtents)
+    }
+
+    /// An ellipse with radii in [0.5, 5).
+    mutating func ellipse() -> Ellipse {
+        let radiusX = uniform(0.5, 5)
+        let radiusY = uniform(0.5, 5)
+        return Ellipse(radiusX: radiusX, radiusY: radiusY)
+    }
+
+    /// A point outside `ellipse`: `(radiusX · u, radiusY · v)`, where one of
+    /// `u` and `v` is at least 1.1 in magnitude, below 3, and the other is in
+    /// [-3, 3). Bit 0 of the first draw picks the sign, bit 1 the axis.
+    mutating func point(outside ellipse: Ellipse) -> SIMD2<Float> {
+        let bits = next()
+        let magnitude = uniform(1.1, 3)
+        let other = uniform(-3, 3)
+        let outside = bits & 1 == 0 ? magnitude : -magnitude
+        let (u, v) = bits & 2 == 0 ? (outside, other) : (other, outside)
+        return SIMD2(ellipse.radiusX * u, ellipse.radiusY * v)
+    }
 }
 
 /// Inputs shared by every benchmark: `count` elements per array, small enough
@@ -158,6 +186,12 @@ struct Fixtures: Sendable {
     let triangleGroups: [Triangle4]
     /// `boxesA[i]` to `boxesA[i + 3]` (wrapping), with no further draws.
     let boxGroups: [AABB4]
+    /// Boxes turned by `rotationsA` and `rotationsB`, near the origin.
+    let orientedBoxesA: [OrientedBox]
+    let orientedBoxesB: [OrientedBox]
+    let ellipses: [Ellipse]
+    /// One point outside each ellipse.
+    let ellipsePoints: [SIMD2<Float>]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -197,5 +231,9 @@ struct Fixtures: Sendable {
             func at(_ k: Int) -> AABB { boxesA[(i + k) % boxesA.count] }
             return AABB4(at(0), at(1), at(2), at(3))
         }
+        orientedBoxesA = rotationsA.map { rng.orientedBox(rotation: $0) }
+        orientedBoxesB = rotationsB.map { rng.orientedBox(rotation: $0) }
+        ellipses = (0..<Self.count).map { _ in rng.ellipse() }
+        ellipsePoints = ellipses.map { rng.point(outside: $0) }
     }
 }
