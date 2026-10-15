@@ -17,6 +17,8 @@
 #include <Jolt/Geometry/ClipPoly.h>
 #include <Jolt/Geometry/ClosestPoint.h>
 #include <Jolt/Geometry/Ellipse.h>
+#include <Jolt/Geometry/Indexify.h>
+#include <Jolt/Geometry/MortonCode.h>
 #include <Jolt/Geometry/OrientedBox.h>
 #include <Jolt/Geometry/RayAABox.h>
 #include <Jolt/Geometry/RayCapsule.h>
@@ -319,6 +321,33 @@ struct SplitMix64
 		cy *= half_diagonal;
 		return { Vec3(x + cx, y + cy, z), Vec3(x - cy, y + cx, z), Vec3(x - cx, y - cy, z), Vec3(x + cy, y - cx, z) };
 	}
+
+	// Same as heightFieldSoup(columns:rows:) in Fixtures.swift: corner heights
+	// row by row, then each vertex's offset, vertex by vertex.
+	TriangleList HeightFieldSoup(int inColumns, int inRows)
+	{
+		std::vector<float> heights;
+		for (int i = 0; i < (inColumns + 1) * (inRows + 1); ++i)
+			heights.push_back(Uniform(0, 2));
+		auto vertex = [&](int inX, int inY) {
+			Vec3 corner(float(inX), float(inY), heights[inY * (inColumns + 1) + inX]);
+			return corner + Vector(-2e-5f, 2e-5f);
+		};
+		TriangleList soup;
+		for (int y = 0; y < inRows; ++y)
+			for (int x = 0; x < inColumns; ++x)
+			{
+				Vec3 a = vertex(x, y);
+				Vec3 b = vertex(x + 1, y);
+				Vec3 c = vertex(x + 1, y + 1);
+				soup.push_back(Triangle(a, b, c));
+				Vec3 d = vertex(x, y);
+				Vec3 e = vertex(x + 1, y + 1);
+				Vec3 g = vertex(x, y + 1);
+				soup.push_back(Triangle(d, e, g));
+			}
+		return soup;
+	}
 };
 
 static constexpr int cCount = 1000;
@@ -347,6 +376,9 @@ struct Fixtures
 	std::vector<TriangleInput> mSimplexTriangles;
 	std::vector<TetrahedronInput> mTetrahedra;
 	std::vector<SquareInput> mFacesToClip, mClippingFaces;
+	// Same as soup and soupMaterials in Fixtures.swift: the material is on
+	// each triangle.
+	TriangleList mSoup;
 
 	Fixtures()
 	{
@@ -425,6 +457,8 @@ struct Fixtures
 		}
 		for (int i = 0; i < cCount; ++i) mFacesToClip.push_back(rng.Square(1.5f));
 		for (int i = 0; i < cCount; ++i) mClippingFaces.push_back(rng.Square(0));
+		mSoup = rng.HeightFieldSoup(25, 20);
+		for (size_t i = 0; i < mSoup.size(); ++i) mSoup[i].mMaterialIndex = uint32(i % 4);
 	}
 };
 
@@ -644,6 +678,24 @@ int main()
 		});
 	}
 	Sweep<TetrahedronInput, ClosestPointOutput>("ClosestPoint.onTetrahedron", f.mTetrahedra, [](const TetrahedronInput &t) { ClosestPointOutput r; r.mPoint = ClosestPoint::GetClosestPointOnTetrahedron(t.mA, t.mB, t.mC, t.mD, r.mSet); return r; });
+
+	AABox morton_bounds(Vec3::sReplicate(-100), Vec3::sReplicate(100));
+	Sweep<Vec3, uint32>("MortonCode.interleave", f.mVectorsA, [&](Vec3Arg v) { return MortonCode::sGetMortonCode(v, morton_bounds); });
+
+	// One weld of the whole soup per sweep, as in the Swift benchmark. The
+	// outputs are reused; Indexify allocates its working memory each call.
+	{
+		VertexList vertices;
+		IndexedTriangleList triangles;
+		Measure("VertexWelder.weld", [&] {
+			for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+			{
+				Indexify(f.mSoup, vertices, triangles);
+				BlackHole(vertices.data());
+				BlackHole(triangles.data());
+			}
+		});
+	}
 
 	std::printf("\n  }\n}\n");
 	return 0;

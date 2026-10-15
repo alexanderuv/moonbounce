@@ -166,6 +166,27 @@ struct SplitMix64: RandomNumberGenerator {
             a: Vector3(x + cx, y + cy, z), b: Vector3(x - cy, y + cx, z),
             c: Vector3(x - cx, y - cy, z), d: Vector3(x + cy, y - cx, z))
     }
+
+    /// A height field of `columns` by `rows` unit quads as a triangle soup,
+    /// quad by quad, row by row, two triangles each. Corners have heights in
+    /// [0, 2), drawn row by row first; then each vertex of the soup, in order,
+    /// moves by up to 2 · 10⁻⁵ on each axis, so the copies of a corner are
+    /// within 10⁻⁴ of each other and weld.
+    mutating func heightFieldSoup(columns: Int, rows: Int) -> [Triangle] {
+        let heights = (0..<(columns + 1) * (rows + 1)).map { _ in uniform(0, 2) }
+        func vertex(_ x: Int, _ y: Int) -> Vector3 {
+            let corner = Vector3(Float(x), Float(y), heights[y * (columns + 1) + x])
+            return corner + vector3(-2e-5, 2e-5)
+        }
+        var soup: [Triangle] = []
+        for y in 0..<rows {
+            for x in 0..<columns {
+                soup.append(Triangle(vertex(x, y), vertex(x + 1, y), vertex(x + 1, y + 1)))
+                soup.append(Triangle(vertex(x, y), vertex(x + 1, y + 1), vertex(x, y + 1)))
+            }
+        }
+        return soup
+    }
 }
 
 /// A square's corners in order, laid out like the C++ harness's
@@ -246,6 +267,10 @@ struct Fixtures: Sendable {
     /// in part.
     let facesToClip: [Square]
     let clippingFaces: [Square]
+    /// A height field of 25 by 20 quads as a soup of `count` triangles, which
+    /// weld to its 546 corners, and a material per triangle: its index modulo 4.
+    let soup: [Triangle]
+    let soupMaterials: [UInt32]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -299,5 +324,7 @@ struct Fixtures: Sendable {
         }
         facesToClip = (0..<Self.count).map { _ in rng.square(reach: 1.5) }
         clippingFaces = (0..<Self.count).map { _ in rng.square(reach: 0) }
+        soup = rng.heightFieldSoup(columns: 25, rows: 20)
+        soupMaterials = soup.indices.map { UInt32($0 % 4) }
     }
 }
