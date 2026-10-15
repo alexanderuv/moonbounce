@@ -1,0 +1,139 @@
+# Builds the library and runs its tests on every tier 1 and tier 2 platform in
+# docs/roadmap.md (Platforms), as rule 4 of "Rules for every phase" requires.
+# Each platform is its own job, so each reports as its own status check.
+#
+# Every job builds and tests in Debug, then builds in Release, where the
+# optimizer inlines the hot paths and the shim's builtins. macOS and Linux also
+# test the Release build; Windows can't yet (see the windows job).
+# `-enable-testing` lets the Release build serve the tests' `@testable import`.
+#
+# Tests run through .github/scripts/swift-test.sh, which fails a run that
+# discovers no tests instead of letting it pass.
+
+name: CI
+
+on:
+  # Pull requests cover branch work; pushes to main check each merge.
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new commit on a pull request supersedes the last one, so a pull request
+  # shares one group and cancels. Every other run gets a group of its own:
+  # a shared group keeps only one pending run, so a burst of merges would drop
+  # the middle main commit's result.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    # The same shell everywhere, so the test script runs unchanged. On Windows
+    # this is Git Bash.
+    shell: bash
+
+jobs:
+  macos:
+    name: macOS arm64
+    # GitHub names macOS images after their Xcode. The xcode-27 image runs
+    # macOS 27 and ships Swift 6.4, which Package.swift requires.
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: swift --version
+      - name: Build
+        run: swift build --build-tests
+      - name: Test
+        run: .github/scripts/swift-test.sh --skip-build
+      - name: Build release
+        run: swift build -c release --build-tests -Xswiftc -enable-testing
+      - name: Test release
+        run: .github/scripts/swift-test.sh -c release --skip-build -Xswiftc -enable-testing
+      # Build only, in release, the configuration the benchmarks run in. They
+      # are measured by hand, not in CI.
+      - name: Build benchmarks
+        run: swift build -c release --package-path Benchmarks
+
+  linux:
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # At the default x86-64 baseline, without FMA: the shim's fused
+          # multiply-adds fall back to libm's fmaf, and the tests still expect
+          # the same bits as everywhere else.
+          - arch: x86-64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    # The official multi-architecture image; the tag is for reading, the digest
+    # is what runs.
+    container: swift:6.4.1-noble@sha256:64f2c54113c2d5c234ed8fa2f59684b5d1ab3c4802657031679b4a8d6308a2dd
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: swift --version
+      - name: Build
+        run: swift build --build-tests
+      - name: Test
+        run: .github/scripts/swift-test.sh --skip-build
+      - name: Build release
+        run: swift build -c release --build-tests -Xswiftc -enable-testing
+      - name: Test release
+        run: .github/scripts/swift-test.sh -c release --skip-build -Xswiftc -enable-testing
+
+  windows:
+    name: Windows ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # At the default x86-64 baseline, as on Linux: no SSE4.1 and no FMA,
+          # so the shim takes its portable paths and its fused multiply-adds
+          # call the Microsoft C runtime's fmaf. Tier 1 is measured at
+          # x86-64-v3, which CI does not build yet (see docs/roadmap.md,
+          # Platforms).
+          - arch: x86-64
+            runner: windows-2025
+            installer: amd64
+          - arch: arm64
+            runner: windows-11-arm
+            installer: arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      # The swift.org toolchain. Linux runs the official image of the same
+      # version, and macOS the Swift that ships with its Xcode.
+      SWIFT_VERSION: 6.4.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
+        with:
+          swift-version: swift-${{ env.SWIFT_VERSION }}-release
+          swift-build: ${{ env.SWIFT_VERSION }}-RELEASE
+          build_arch: ${{ matrix.installer }}
+      - name: Toolchain
+        run: swift --version
+      - name: Build
+        run: swift build --build-tests
+      - name: Test
+        run: .github/scripts/swift-test.sh --skip-build
+      # Build only: Swift Testing finds no tests in Windows Release builds, so a
+      # test step would pass while testing nothing. See KNOWN_ISSUES.md and #32.
+      - name: Build release
+        run: swift build -c release --build-tests -Xswiftc -enable-testing

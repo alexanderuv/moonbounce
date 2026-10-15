@@ -25,6 +25,7 @@ Parity means features and speed, not code: Moonbounce supports everything Jolt s
 | `Sources/_MoonbounceShims` | Header-only C wrappers around clang builtins (vector min/max, reductions, shuffles, fused multiply-add, negation, bit casts, conversions, comparison masks). Implementation detail. |
 | `Tests/MoonbounceTests` | Swift Testing suites. |
 | `docs/` | Design documents, including the [roadmap](docs/roadmap.md). |
+| `KNOWN_ISSUES.md` | [Toolchain problems](KNOWN_ISSUES.md) that Moonbounce works around or that limit what CI tests, and how to tell when each can go. |
 | `JoltComparison/` | **Temporary** side-by-side validation against Jolt. Its script fetches and builds Jolt at a pinned tag on each run, into a git-ignored build folder, then runs both benchmark suites. Delete the folder once validation is done. See its [README](JoltComparison/README.md). |
 | `Benchmarks/` | Separate package with the micro-benchmarks. It is separate so the library's own dependency graph stays empty. The bodies and fixtures live in suite libraries under `Benchmarks/Sources/` (`PrimitivesSuite`), built on `BenchmarkSupport`, the measurement rules and runner interface they share. None of them depends on a benchmark framework. Runners register the bodies: the [ordo-one/benchmark](https://github.com/ordo-one/benchmark) executables under `Benchmarks/Benchmarks/` (`Primitives`) on macOS and Linux, and a portable runner on Windows once it exists. |
 
