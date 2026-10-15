@@ -1,5 +1,3 @@
-import _MoonbounceShims
-
 /// Turns a triangle soup into an indexed mesh, merging vertices closer than a
 /// distance, and turns an indexed mesh back into a soup.
 ///
@@ -109,7 +107,8 @@ extension VertexWelder {
                     }
                     let search = unsafe WeldSearch(
                         positions: positions.baseAddress!, links: links, distance: distance)
-                    unsafe search.split(indices, count: count, scratch: scratch, depth: Self.maxSplitDepth)
+                    unsafe search.split(
+                        indices, count: count, scratch: scratch, scratchCapacity: count, depth: Self.maxSplitDepth)
 
                     // Each link now points at a lower vertex, or at itself for
                     // the first of a group. Going up from 0, a vertex's link
@@ -169,8 +168,12 @@ struct WeldSearch {
     }
 
     /// Welds among the first `count` of `indices`, which it reorders.
-    /// `scratch` has room for `count` indices.
-    func split(_ indices: UnsafeMutablePointer<UInt32>, count: Int, scratch: UnsafeMutablePointer<UInt32>, depth: Int) {
+    /// `scratch` has room for `scratchCapacity` indices, at least `count`.
+    func split(
+        _ indices: UnsafeMutablePointer<UInt32>, count: Int, scratch: UnsafeMutablePointer<UInt32>,
+        scratchCapacity: Int, depth: Int
+    ) {
+        assert(scratchCapacity >= count)
         guard count > 8 && depth > 0 else {
             unsafe compareEachPair(indices, count: count)
             return
@@ -224,8 +227,36 @@ struct WeldSearch {
         for i in 0..<near {
             unsafe indices[write &+ i] = scratch[i]
         }
-        unsafe split(indices, count: end, scratch: scratch, depth: depth &- 1)
-        unsafe split(indices + write, count: count &- write, scratch: scratch, depth: depth &- 1)
+
+        // The lower half reorders its vertices, the near ones among them, so
+        // they must be gathered again for the upper half. They stay in
+        // scratch while there is room below them for the lower half's own
+        // scratch; otherwise they are sorted out of the lower half again.
+        let keepsNear = scratchCapacity &- near >= end
+        unsafe split(
+            indices, count: end, scratch: keepsNear ? scratch + near : scratch,
+            scratchCapacity: keepsNear ? scratchCapacity &- near : scratchCapacity, depth: depth &- 1)
+        if keepsNear {
+            for i in 0..<near {
+                unsafe indices[write &+ i] = scratch[i]
+            }
+        } else {
+            var front = 0, back = end
+            while front < back {
+                if unsafe coordinate(indices[front], axis) - middle < -distance {
+                    front &+= 1
+                } else {
+                    back &-= 1
+                    let vertex = unsafe indices[front]
+                    unsafe indices[front] = indices[back]
+                    unsafe indices[back] = vertex
+                }
+            }
+            assert(front == write)
+        }
+        unsafe split(
+            indices + write, count: count &- write, scratch: scratch, scratchCapacity: scratchCapacity,
+            depth: depth &- 1)
     }
 
     /// Welds every pair among the first `count` of `indices` within

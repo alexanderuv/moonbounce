@@ -102,6 +102,48 @@ import Testing
         }
     }
 
+    @Test func randomSoupsMatchAllPairs() {
+        // Random soups dense enough for long chains, against a reference that
+        // joins every pair within the distance with no search: the same
+        // groups, each at its first vertex's position.
+        var rng = SplitMix64()
+        func unit() -> Float { Float(rng.next() >> 40) * 0x1p-24 }
+        let distance: Float = 0.05
+        for round in 0..<40 {
+            let triangleCount = 10 + round * 5
+            let soup = (0..<triangleCount).map { _ in
+                Triangle(Vector3(unit(), unit(), unit()), Vector3(unit(), unit(), unit()), Vector3(unit(), unit(), unit()))
+            }
+            let positions = soup.flatMap { [$0.a, $0.b, $0.c] }
+
+            // Union-find over every pair, each group's root its lowest vertex.
+            var parent = Array(positions.indices)
+            func root(_ i: Int) -> Int {
+                var i = i
+                while parent[i] != i { i = parent[i] }
+                return i
+            }
+            for i in positions.indices {
+                for j in (i + 1)..<positions.count
+                where (positions[j] - positions[i]).lengthSquared <= distance * distance {
+                    let a = root(i), b = root(j)
+                    parent[max(a, b)] = min(a, b)
+                }
+            }
+            let roots = positions.indices.map(root)
+
+            let mesh = Self.weld(soup, distance: distance)
+            #expect(mesh.vertices == Set(roots).sorted().map { positions[$0] }, "round \(round)")
+            // Each kept triangle's vertices are its corners' group positions.
+            let expected = soup.indices.compactMap { t -> Triangle? in
+                let corners = (0..<3).map { positions[roots[3 * t + $0]] }
+                let triangle = Triangle(corners[0], corners[1], corners[2])
+                return (triangle.b - triangle.a).cross(triangle.c - triangle.a).isNearZero() ? nil : triangle
+            }
+            #expect(Self.unweld(mesh) == expected, "round \(round)")
+        }
+    }
+
     @Test func zeroDistanceWeldsOnlyEqualPositions() {
         let nudged = Vector3(1, Float(1).nextUp, 0)
         let soup = [Triangle(Self.p0, Self.p1, Self.p2), Triangle(Self.p0, nudged, Self.p3)]
