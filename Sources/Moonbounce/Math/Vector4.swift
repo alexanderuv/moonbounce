@@ -134,10 +134,7 @@ extension Vector4 {
     /// `c * d` exactly, and the result adds it back.
     @inline(always)
     public static func differenceOfProducts(_ a: Vector4, _ b: Vector4, _ c: Vector4, _ d: Vector4) -> Vector4 {
-        let cd = c.simd * d.simd
-        let error = multiplySubtract(c.simd, d.simd, cd)
-        let difference = multiplyAdd(a.simd, b.simd, negated(cd))
-        return Vector4(difference + error)
+        Vector4(Moonbounce.differenceOfProducts(a.simd, b.simd, c.simd, d.simd))
     }
 
     /// `1 / self`, lane by lane.

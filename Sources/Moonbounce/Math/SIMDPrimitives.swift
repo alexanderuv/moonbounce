@@ -108,6 +108,37 @@ func cross3(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
     mb_cross(a, b)
 }
 
+/// Lane-wise `a * b - c * d`, with the rounding error of `c * d` added back,
+/// so the result is nearly exact even when the two products almost cancel.
+@inlinable @inline(always)
+func differenceOfProducts(_ a: SIMD4<Float>, _ b: SIMD4<Float>, _ c: SIMD4<Float>, _ d: SIMD4<Float>) -> SIMD4<Float> {
+    let cd = c * d
+    let error = multiplySubtract(c, d, cd)
+    let difference = multiplyAdd(a, b, negated(cd))
+    return difference + error
+}
+
+/// The cross product of lanes x, y and z, each lane a `differenceOfProducts`,
+/// for inputs whose w lane repeats z. Lane w of the result is 0 unless
+/// `a.z * b.z` overflows, so it can be one factor of a `mb_pairwise_add` dot
+/// product.
+///
+/// Lane x is `differenceOfProducts(a.y, b.z, a.z, b.y)`, and so on, with the
+/// operands in the order a structure-of-arrays cross product uses, so the two
+/// give the same bits.
+///
+/// Rotating a z-repeated vector by three lanes gives `(z, x, y, z)` in one
+/// `ext` on arm64. Its products give the components in the order
+/// `(y, z, x)`, and lane w works out as `a.z * b.z - a.z * b.z`, which the
+/// compensated difference makes exactly 0. One more shuffle puts the
+/// components in order.
+@inlinable @inline(always)
+func preciseCross3(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
+    let rotatedA = mb_wxyz(a), rotatedB = mb_wxyz(b)
+    let yzx0 = differenceOfProducts(rotatedA, b, a, rotatedB)
+    return mb_zxyw(yzx0)
+}
+
 /// The Hamilton product of two `(x, y, z, w)` quaternions.
 @inlinable @inline(always)
 func hamiltonProduct(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
