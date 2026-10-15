@@ -48,7 +48,7 @@ A build below x86-64-v3 is supported for correctness only. Without FMA, each vec
 
 ### Measuring on Windows
 
-package-benchmark runs only on macOS and Linux, so Windows gets a portable runner, `Benchmarks/Sources/PortableRunner`, over the same suite libraries and `MeasurementRules`. It times with `QueryPerformanceCounter` and, lacking a retired-instruction counter, counts cycles with `QueryThreadCycleTime`. Those cycles tick at the time-stamp counter's fixed rate while the thread runs: they leave out time the thread waits, but unlike instructions they vary with the core's clock speed. Measured threads run at high priority with power throttling off, so Windows prefers performance cores for them. malloc can't be interposed on Windows, so the allocation rule is checked on macOS and Linux, and on Windows only through the temp allocator's counters.
+package-benchmark runs only on macOS and Linux, so Windows gets a portable runner, `Benchmarks/Sources/PortableRunner`, over the same suite libraries and `MeasurementRules`. It times with `QueryPerformanceCounter` and, lacking a retired-instruction counter, counts cycles with `QueryThreadCycleTime`. Those cycles tick at the time-stamp counter's fixed rate while the thread runs: they leave out time the thread waits, but unlike instructions they vary with the core's clock speed. Measured threads run at high priority with power throttling off, so Windows prefers performance cores for them. malloc can't be interposed on Windows, so the portable runner counts no allocations and the allocation rule is checked on macOS and Linux. On Windows it will be checked through a temp allocator's counters (planned).
 
 ## Benchmarks
 
