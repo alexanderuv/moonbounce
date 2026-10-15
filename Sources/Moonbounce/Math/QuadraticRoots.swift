@@ -54,3 +54,24 @@ extension Float {
         return first <= second ? (first, second) : (second, first)
     }
 }
+
+/// The nearer root ahead of a ray's origin of `a·t² + 2h·t + c = 0`, the
+/// quadratic a ray test against a round surface solves: 0 when `c <= 0` (the
+/// origin is inside or on the surface), and `.infinity` when there is no root
+/// ahead.
+///
+/// For an outside origin, `c > 0`, so both roots share a sign, and they are
+/// ahead only when `h < 0`. The nearer one is `(-h - √(h² - ac)) / a`. It is
+/// computed as `c / (√(h² - ac) - h)` instead, which is the same value. That
+/// form adds two positive numbers where the other subtracts nearly equal
+/// ones, and it needs no division by `a`: at `a = 0` it gives the linear
+/// root, `-c / 2h`, and with `h = 0` too, a miss. It also skips the sorting
+/// and degenerate cases of ``Float/quadraticRoots(a:b:c:)``, which a ray test
+/// never needs.
+@inlinable @inline(always)
+func nearestRootAhead(a: Float, h: Float, c: Float) -> Float {
+    let discriminant = Float.differenceOfProducts(h, h, a, c)
+    let entry = c / (discriminant.squareRoot() - h)
+    let hit = h < 0 && discriminant >= 0
+    return c <= 0 ? 0 : hit ? entry : .infinity
+}

@@ -84,6 +84,14 @@ struct SplitMix64: RandomNumberGenerator {
         return Sphere(center: center, radius: radius)
     }
 
+    /// The half height and radius of a capsule or cylinder around the y axis:
+    /// a half height in [0.5, 10) and a radius in [0.5, 5).
+    mutating func axialDimensions() -> (halfHeight: Float, radius: Float) {
+        let halfHeight = uniform(0.5, 10)
+        let radius = uniform(0.5, 5)
+        return (halfHeight, radius)
+    }
+
     /// A ray from a random origin through a point within 8 of `target` on each
     /// axis, so a sphere of radius 0.5 to 10 at `target` is hit about half the
     /// time. The direction runs from the origin to that point, unnormalized.
@@ -126,6 +134,12 @@ struct Fixtures: Sendable {
     let spheres: [Sphere]
     /// One ray per sphere, aimed near it: about half hit.
     let sphereRays: [Ray]
+    /// Capsules and cylinders of the same dimensions, around the y axis.
+    let capsules: [Capsule]
+    let cylinders: [Cylinder]
+    /// One ray per capsule and cylinder, aimed near the origin, where both are
+    /// centered.
+    let axialRays: [Ray]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -151,5 +165,9 @@ struct Fixtures: Sendable {
         rigidTransforms = zip(rotationsA, vectorsA).map { Matrix4x4(rotation: $0, translation: $1) }
         spheres = (0..<Self.count).map { _ in rng.sphere() }
         sphereRays = spheres.map { rng.ray(toward: $0.center) }
+        let axialDimensions = (0..<Self.count).map { _ in rng.axialDimensions() }
+        capsules = axialDimensions.map { Capsule(halfHeight: $0.halfHeight, radius: $0.radius) }
+        cylinders = axialDimensions.map { Cylinder(halfHeight: $0.halfHeight, radius: $0.radius) }
+        axialRays = (0..<Self.count).map { _ in rng.ray(toward: .zero) }
     }
 }

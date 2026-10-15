@@ -13,6 +13,8 @@
 #include <Jolt/Core/Memory.h>
 #include <Jolt/Geometry/AABox.h>
 #include <Jolt/Geometry/RayAABox.h>
+#include <Jolt/Geometry/RayCapsule.h>
+#include <Jolt/Geometry/RayCylinder.h>
 #include <Jolt/Geometry/RaySphere.h>
 #include <Jolt/Geometry/Sphere.h>
 #include <Jolt/Math/Mat44.h>
@@ -62,6 +64,14 @@ struct RayInput
 {
 	Vec3 mOrigin;
 	Vec3 mDirection;
+};
+
+// A capsule or cylinder around the y axis, laid out like Moonbounce's Capsule
+// and Cylinder: 8 bytes. Jolt's ray tests take the two floats directly.
+struct AxialInput
+{
+	float mHalfHeight;
+	float mRadius;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -155,6 +165,14 @@ struct SplitMix64
 		return Sphere(center, radius);
 	}
 
+	// Same as axialDimensions() in Fixtures.swift.
+	AxialInput AxialDimensions()
+	{
+		float half_height = Uniform(0.5f, 10);
+		float radius = Uniform(0.5f, 5);
+		return { half_height, radius };
+	}
+
 	// Same as ray(toward:) in Fixtures.swift: the direction runs from a random
 	// origin to a point within 8 of the target, unnormalized.
 	RayInput RayToward(Vec3Arg inTarget)
@@ -179,6 +197,8 @@ struct Fixtures
 	std::vector<Mat44> mMatricesA, mMatricesB, mRigidTransforms;
 	std::vector<Sphere> mSpheres;
 	std::vector<RayInput> mSphereRays;
+	std::vector<AxialInput> mAxialShapes;
+	std::vector<RayInput> mAxialRays;
 
 	Fixtures()
 	{
@@ -206,6 +226,8 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mRigidTransforms.push_back(Mat44::sRotationTranslation(mRotationsA[i], mVectorsA[i]));
 		for (int i = 0; i < cCount; ++i) mSpheres.push_back(rng.SphereInput());
 		for (int i = 0; i < cCount; ++i) mSphereRays.push_back(rng.RayToward(mSpheres[i].GetCenter()));
+		for (int i = 0; i < cCount; ++i) mAxialShapes.push_back(rng.AxialDimensions());
+		for (int i = 0; i < cCount; ++i) mAxialRays.push_back(rng.RayToward(Vec3::sZero()));
 	}
 };
 
@@ -394,6 +416,8 @@ int main()
 	Sweep<Mat44, Mat44>("Matrix4x4.inversedRotationTranslation", f.mRigidTransforms, [](Mat44Arg m) { return m.InversedRotationTranslation(); });
 	Sweep<Quat, Quat, Quat>("Quaternion.slerp", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 	Sweep<RayInput, Sphere, float>("Sphere.rayDistance", f.mSphereRays, f.mSpheres, [](const RayInput &r, const Sphere &s) { return RaySphere(r.mOrigin, r.mDirection, s.GetCenter(), s.GetRadius()); });
+	Sweep<RayInput, AxialInput, float>("Capsule.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCapsule(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });
+	Sweep<RayInput, AxialInput, float>("Cylinder.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCylinder(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });
 
 	std::printf("\n  }\n}\n");
 	return 0;
