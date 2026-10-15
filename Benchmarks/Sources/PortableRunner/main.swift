@@ -183,11 +183,13 @@ if json {
     let nameWidth = max("Benchmark".count, benchmarks.map(\.name.count).max()!)
     let headers = ["Iterations", "ns p0", "ns p50", "ns p99", "cycles p0", "cycles p50", "cycles p99"]
     func row(_ name: String, _ cells: [String]) -> String {
-        name.padding(nameWidth) + zip(cells, headers).map { "  " + $0.leftPadding($1.count) }.joined()
+        // Rows print as each benchmark finishes, so numeric columns get a
+        // fixed width that fits a GJK sweep's seven-digit cycle count.
+        name.padding(nameWidth) + zip(cells, headers).map { "  " + $0.leftPadding(max($1.count, 10)) }.joined()
     }
     print("Per sweep of 1,000 operations; percentiles over each benchmark's iterations.\n")
     print(row("Benchmark", headers))
-    print(row(String(repeating: "-", count: nameWidth), headers.map { String(repeating: "-", count: $0.count) }))
+    print(row(String(repeating: "-", count: nameWidth), headers.map { String(repeating: "-", count: max($0.count, 10)) }))
     for benchmark in benchmarks {
         let samples = measure(benchmark)
         let ns = perSweepPercentiles(samples.ticks, scale: Counters.nanoseconds)
