@@ -105,4 +105,15 @@ import Testing
         #expect(v.splatX == UInt32Vector4(repeating: 1) && v.splatY == UInt32Vector4(repeating: 2))
         #expect(v.splatZ == UInt32Vector4(repeating: 3) && v.splatW == UInt32Vector4(repeating: 4))
     }
+
+    @Test func occupiesOneSIMDRegister() {
+        #expect(MemoryLayout<UInt32Vector4>.size == 16)
+        #if os(Windows) && arch(x86_64)
+        // TODO: Remove this branch with the codegen-bug carve-out in
+        // `UInt32LaneStorage`, which stores the lanes as two `UInt64`s.
+        #expect(MemoryLayout<UInt32Vector4>.alignment == 8)
+        #else
+        #expect(MemoryLayout<UInt32Vector4>.alignment == 16)
+        #endif
+    }
 }

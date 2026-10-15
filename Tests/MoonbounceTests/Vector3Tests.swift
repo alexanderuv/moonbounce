@@ -258,6 +258,12 @@ import Testing
 
     @Test func occupiesOneSIMDRegister() {
         #expect(MemoryLayout<Vector3>.size == 16)
+        #if os(Windows) && arch(x86_64)
+        // TODO: Remove this branch with the codegen-bug carve-out in
+        // `FloatLaneStorage`, which stores the lanes as two `UInt64`s.
+        #expect(MemoryLayout<Vector3>.alignment == 8)
+        #else
         #expect(MemoryLayout<Vector3>.alignment == 16)
+        #endif
     }
 }

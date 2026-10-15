@@ -24,6 +24,34 @@ public struct Ray: Equatable, Sendable, BitwiseCopyable {
 /// once per query moves the divisions out of the per-box test.
 @frozen
 public struct RayInverseDirection: Sendable, BitwiseCopyable {
+    #if os(Windows) && arch(x86_64)
+    // TODO: Remove this branch once the x86-64 Windows codegen bug is fixed;
+    // see `FloatLaneStorage`.
+    @usableFromInline var reciprocalLanes: FloatLaneStorage
+    @usableFromInline var parallelGateLanes: FloatLaneStorage
+
+    /// `1 / direction`, with parallel axes replaced by 1 so the division stays finite.
+    @inlinable @inline(always)
+    var reciprocal: SIMD4<Float> {
+        get { reciprocalLanes.simd }
+        set { reciprocalLanes = FloatLaneStorage(newValue) }
+    }
+
+    /// `+infinity` on axes the direction is too small to divide by, and
+    /// `-infinity` on the rest. Folding a lane with `min`/`max` against this
+    /// selects per axis with one instruction instead of a mask and a blend.
+    @inlinable @inline(always)
+    var parallelGate: SIMD4<Float> {
+        get { parallelGateLanes.simd }
+        set { parallelGateLanes = FloatLaneStorage(newValue) }
+    }
+
+    @inlinable @inline(always)
+    init(reciprocal: SIMD4<Float>, parallelGate: SIMD4<Float>) {
+        reciprocalLanes = FloatLaneStorage(reciprocal)
+        parallelGateLanes = FloatLaneStorage(parallelGate)
+    }
+    #else
     /// `1 / direction`, with parallel axes replaced by 1 so the division stays finite.
     @usableFromInline var reciprocal: SIMD4<Float>
 
@@ -32,12 +60,21 @@ public struct RayInverseDirection: Sendable, BitwiseCopyable {
     /// selects per axis with one instruction instead of a mask and a blend.
     @usableFromInline var parallelGate: SIMD4<Float>
 
+    @inlinable @inline(always)
+    init(reciprocal: SIMD4<Float>, parallelGate: SIMD4<Float>) {
+        self.reciprocal = reciprocal
+        self.parallelGate = parallelGate
+    }
+    #endif
+
     @inline(always)
     public init(_ direction: Vector3) {
         let d = direction.storage
         let isParallel = absolute(d) .<= SIMD4(repeating: 1.0e-20)
-        reciprocal = 1 / d.replacing(with: 1, where: isParallel)
-        parallelGate = SIMD4(repeating: -.infinity).replacing(with: .infinity, where: isParallel)
+        self.init(
+            reciprocal: 1 / d.replacing(with: 1, where: isParallel),
+            parallelGate: SIMD4(repeating: -.infinity).replacing(with: .infinity, where: isParallel)
+        )
     }
 }
 

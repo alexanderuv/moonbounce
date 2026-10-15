@@ -7,34 +7,52 @@ public import _MoonbounceShims
 /// on `UInt32Vector4` consume.
 @frozen
 public struct Vector4: Equatable, Sendable, BitwiseCopyable {
+    #if os(Windows) && arch(x86_64)
+    // TODO: Remove this branch once the x86-64 Windows codegen bug is fixed;
+    // see `FloatLaneStorage`.
+    @usableFromInline var lanes: FloatLaneStorage
+
+    @inline(always)
+    public var simd: SIMD4<Float> {
+        get { lanes.simd }
+        set { lanes = FloatLaneStorage(newValue) }
+    }
+
+    @inline(always)
+    public init(_ simd: SIMD4<Float>) {
+        lanes = FloatLaneStorage(simd)
+    }
+    #else
     public var simd: SIMD4<Float>
 
     @inline(always)
     public init(_ simd: SIMD4<Float>) {
         self.simd = simd
     }
+    #endif
 
     @inline(always)
     public init(_ x: Float, _ y: Float, _ z: Float, _ w: Float) {
-        simd = SIMD4(x, y, z, w)
+        self.init(SIMD4(x, y, z, w))
     }
 
     @inline(always)
     public init(repeating value: Float) {
-        simd = SIMD4(repeating: value)
+        self.init(SIMD4(repeating: value))
     }
 
     /// `(v.x, v.y, v.z, w)`.
     @inline(always)
     public init(_ v: Vector3, _ w: Float) {
-        simd = v.storage
+        var simd = v.storage
         simd.w = w
+        self.init(simd)
     }
 
     /// The floats whose bit patterns are the lanes of `bits`.
     @inline(always)
     public init(bitPattern bits: UInt32Vector4) {
-        simd = mb_float4_from_bits(bits.simd)
+        self.init(mb_float4_from_bits(bits.simd))
     }
 
     @inline(always) public var x: Float { get { simd.x } set { simd.x = newValue } }
