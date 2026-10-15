@@ -28,13 +28,6 @@ enum BoxDistanceReference {
             return result
         }
 
-        /// The twelve edges, as pairs of vertices that differ on one axis.
-        var edges: [(Point, Point)] {
-            (0..<8).flatMap { i in
-                (0..<3).compactMap { axis in i >> axis & 1 == 0 ? (vertex(i), vertex(i | 1 << axis)) : nil }
-            }
-        }
-
         func distance(to point: Point) -> Double {
             var squared = 0.0
             for axis in 0..<3 {
@@ -70,13 +63,20 @@ enum BoxDistanceReference {
 
     static func distance(_ a: OrientedBox, _ b: OrientedBox) -> Double {
         let a = Box(a), b = Box(b)
+        let verticesA = (0..<8).map(a.vertex), verticesB = (0..<8).map(b.vertex)
         var result = Double.infinity
         for i in 0..<8 {
-            result = Swift.min(result, b.distance(to: a.vertex(i)), a.distance(to: b.vertex(i)))
+            result = Swift.min(result, b.distance(to: verticesA[i]), a.distance(to: verticesB[i]))
         }
-        for (p1, q1) in a.edges {
-            for (p2, q2) in b.edges {
-                result = Swift.min(result, segmentDistance(p1, q1, p2, q2))
+        // The twelve edges of each: vertices that differ on one axis.
+        for i in 0..<8 {
+            for axisA in 0..<3 where i >> axisA & 1 == 0 {
+                let p1 = verticesA[i], q1 = verticesA[i | 1 << axisA]
+                for j in 0..<8 {
+                    for axisB in 0..<3 where j >> axisB & 1 == 0 {
+                        result = Swift.min(result, segmentDistance(p1, q1, verticesB[j], verticesB[j | 1 << axisB]))
+                    }
+                }
             }
         }
         return result

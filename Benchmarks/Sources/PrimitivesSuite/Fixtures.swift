@@ -111,6 +111,14 @@ struct SplitMix64: RandomNumberGenerator {
         return Ray(origin: origin, direction: (target + offset) - origin)
     }
 
+    /// A cast from `start` aimed within 1.5 of `target` on each axis,
+    /// reaching 0.6 to 2 times as far.
+    mutating func cast(from start: Vector3, toward target: Vector3) -> Vector3 {
+        let offset = vector3(-1.5, 1.5)
+        let reach = uniform(0.6, 2)
+        return ((target + offset) - start) * reach
+    }
+
     /// A box turned by `rotation`, centered in [-4, 4) with half extents in
     /// [0.5, 3), so about 40% of pairs overlap and the rest exit at each kind
     /// of axis.
@@ -271,6 +279,13 @@ struct Fixtures: Sendable {
     /// weld to its 546 corners, and a material per triangle: its index modulo 4.
     let soup: [Triangle]
     let soupMaterials: [UInt32]
+    /// For the GJK casts, one per pair of `orientedBoxesA` and
+    /// `orientedBoxesB`: rays from box B's center toward box A, and
+    /// directions to move box A toward box B. Of the 1,000 rays, 189 miss
+    /// and 61 start inside A. The boxes are large next to their gaps, so
+    /// only 4 casts miss, and the 396 pairs that overlap hit at the start.
+    let boxRays: [Ray]
+    let boxCastDirections: [Vector3]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -326,5 +341,12 @@ struct Fixtures: Sendable {
         clippingFaces = (0..<Self.count).map { _ in rng.square(reach: 0) }
         soup = rng.heightFieldSoup(columns: 25, rows: 20)
         soupMaterials = soup.indices.map { UInt32($0 % 4) }
+        boxRays = zip(orientedBoxesA, orientedBoxesB).map { a, b in
+            let origin = b.orientation.translation
+            return Ray(origin: origin, direction: rng.cast(from: origin, toward: a.orientation.translation))
+        }
+        boxCastDirections = zip(orientedBoxesA, orientedBoxesB).map { a, b in
+            rng.cast(from: a.orientation.translation, toward: b.orientation.translation)
+        }
     }
 }

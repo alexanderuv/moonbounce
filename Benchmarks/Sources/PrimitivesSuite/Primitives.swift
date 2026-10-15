@@ -270,6 +270,34 @@ extension SuiteBenchmark {
                 }
                 sweep(iteration, fixtures.orientedBoxesA, fixtures.orientedBoxesB, state: &gjk, operation)
             },
+
+            SuiteBenchmark(name: "GJK.castRay") { iteration in
+                // Rays from each box B's center toward box A, cast against A
+                // over their full length. One GJK is reused; a miss gives
+                // the largest float, as Jolt's harness records it.
+                var gjk = GJK()
+                @inline(always) func operation(_ ray: Ray, _ box: OrientedBox, _ gjk: inout GJK) -> Float {
+                    gjk.castRay(ray, against: box.convex, tolerance: 1.0e-4, maxFraction: 1) ?? .greatestFiniteMagnitude
+                }
+                sweep(iteration, fixtures.boxRays, fixtures.orientedBoxesA, state: &gjk, operation)
+            },
+
+            SuiteBenchmark(name: "GJK.castShape") { iteration in
+                // Box A moved toward box B, both cores with a convex radius
+                // of 0.05. A miss gives the largest float as the fraction.
+                var gjk = GJK()
+                @inline(always) func operation(
+                    _ a: OrientedBox, _ direction: Vector3, _ b: OrientedBox, _ gjk: inout GJK
+                ) -> GJK.ShapeCastHit {
+                    gjk.castShape(
+                        AABB(min: -a.halfExtents, max: a.halfExtents), convexRadiusA: 0.05, from: a.orientation,
+                        direction: direction, against: b.convex, convexRadiusB: 0.05, tolerance: 1.0e-4, maxFraction: 1)
+                        ?? GJK.ShapeCastHit(fraction: .greatestFiniteMagnitude, pointA: .zero, pointB: .zero, separatingAxis: .zero)
+                }
+                sweep(
+                    iteration, fixtures.orientedBoxesA, fixtures.boxCastDirections, fixtures.orientedBoxesB, state: &gjk,
+                    operation)
+            },
         ]
     }
 }
