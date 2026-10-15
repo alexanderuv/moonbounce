@@ -63,7 +63,7 @@ Cycles confirm a time ratio rather than measure work: unlike instructions, they 
   - Windows, as the portable runner measures: `QueryPerformanceCounter` wall time, cycles from `QueryThreadCycleTime`, and the highest thread priority with power throttling off, so Windows prefers performance cores.
 - **Jolt as it ships:** the Distribution configuration (no profiler, asserts or debug renderer) with Jolt's release flags, plus LTO. Jolt's math is header-only and inlines into the harness, so the harness is compiled with the same flags.
   - ARM: `-O3 -ffp-contract=on -fno-rtti -fno-exceptions`.
-  - Windows: `/O2 /Oi /Ot /GS- /Gy` without RTTI or exceptions, plus `/fp:fast` for MSVC, under the Visual Studio generator Jolt's own build scripts use. Jolt's default x86-64 build selects AVX2, FMA, F16C and LZCNT there, the x86-64-v3 features its code uses.
+  - Windows: `/O2 /Oi /Ot /GS- /Gy` without RTTI or exceptions, plus `/fp:fast` for MSVC, under the Visual Studio generator Jolt's own build scripts use. Jolt's default x86-64 build selects AVX2, FMA, F16C, BMI and LZCNT there, the x86-64-v3 features its code uses.
 - **Allocation counting:** on the Jolt side, it counts through Jolt's allocation hooks and a global `operator new`. On the Swift side, package-benchmark's malloc interposer does the counting on macOS. Windows has no malloc interposer, so the portable runner counts nothing.
 
 ## Adding a benchmark

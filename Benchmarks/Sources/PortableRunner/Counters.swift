@@ -44,12 +44,11 @@ enum Counters {
         ticks * 1e9 / Double(ticksPerSecond)
     }
 
-    /// Keeps the calling thread on performance cores: on a hybrid CPU,
-    /// Windows schedules a thread it may throttle on efficiency cores too,
-    /// which can make a run several times slower. The highest priority in
-    /// the process's class, with execution-speed throttling off, makes
-    /// Windows prefer performance cores. Returns whether Windows accepted
-    /// both settings.
+    /// Asks Windows to prefer performance cores for the calling thread, with
+    /// the highest priority in the process's class and execution-speed
+    /// throttling off. On a hybrid CPU, Windows schedules a thread it may
+    /// throttle on efficiency cores too, which can make a run several times
+    /// slower. Returns whether Windows accepted both settings.
     static func keepOnPerformanceCores() -> Bool {
         let thread = GetCurrentThread()
         guard SetThreadPriority(thread, THREAD_PRIORITY_HIGHEST) else { return false }

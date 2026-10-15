@@ -703,7 +703,7 @@ int main()
 {
 	if (!KeepOnPerformanceCores())
 	{
-		std::fprintf(stderr, "jolt_primitives: could not keep the thread on performance cores\n");
+		std::fprintf(stderr, "jolt_primitives: could not set the measuring thread's scheduling\n");
 		return 1;
 	}
 
