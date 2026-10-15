@@ -47,6 +47,8 @@ Benchmarks live in the separate `Benchmarks/` package.
 - Metrics are wall time, retired instructions and malloc count.
 - Each area of the library has its own benchmark target, such as `Primitives` for math and geometry.
 - Bodies and fixtures live in suite libraries under `Benchmarks/Sources/` (`PrimitivesSuite`), built on `BenchmarkSupport`. Runners only register them, so package-benchmark on macOS and Linux and the portable runner on Windows measure the same code.
+- Each operation is a local `@inline(always)` function, not a closure literal, so it inlines into the sweep (see the comment in `PrimitivesSuite/Primitives.swift`).
+- Benchmarks build with plain `-O`. `-Ounchecked` gives identical instruction counts, since bounds checks are already hoisted out of the inner loops.
 
 ## Speed reference
 

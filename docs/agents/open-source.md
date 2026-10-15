@@ -35,8 +35,8 @@ Moonbounce stands on its own: describe it by what it does and how it is built.
 | Definition of done, platforms, measurement, recorded results | `docs/validation.md` |
 | Decisions and the reasons for them | `docs/adr/` |
 | Toolchain bugs Moonbounce works around | `KNOWN_ISSUES.md` |
-| Commit and pull request format | `CONTRIBUTING.md` |
-| Why a piece of code is the way it is | A comment beside the code |
+| Coding rules, commit and pull request format | `CONTRIBUTING.md` |
+| Why a piece of code is the way it is | A comment beside the code; rules elsewhere cite it |
 
 When you move or rename a section, update every reference to it. Search the repository and the open issues.
 
