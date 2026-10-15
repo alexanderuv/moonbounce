@@ -104,8 +104,8 @@ jobs:
           # At the default x86-64 baseline, as on Linux: no SSE4.1 and no FMA,
           # so the shim takes its portable paths and its fused multiply-adds
           # call the Microsoft C runtime's fmaf. Tier 1 is measured at
-          # x86-64-v3, which CI does not build yet (see docs/validation.md,
-          # Platforms).
+          # x86-64-v3, which CI builds for the benchmarks only (see
+          # docs/validation.md, Platforms).
           - arch: x86-64
             runner: windows-2025
             installer: amd64
@@ -137,3 +137,9 @@ jobs:
       # test step would pass while testing nothing. See KNOWN_ISSUES.md and #32.
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
+      # The portable benchmark runner, built at x86-64-v3 as x86-64 benchmarks
+      # are measured. One short benchmark checks that the build passes the
+      # runner's level check; the figures themselves are measured by hand.
+      - name: Benchmarks
+        if: matrix.arch == 'x86-64'
+        run: swift run -c release --package-path Benchmarks -Xcc -march=x86-64-v3 PortableRunner --filter 'Vector3\.dot'

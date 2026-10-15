@@ -1,7 +1,8 @@
 // swift-tools-version: 6.4
 
 // Benchmarks live in their own package so the library's dependency graph stays
-// empty for clients. Run with `swift package benchmark` from this directory.
+// empty for clients. Run with `swift package benchmark` from this directory, or
+// on Windows with the portable runner (see Sources/PortableRunner/main.swift).
 
 import PackageDescription
 
@@ -27,6 +28,19 @@ let package = Package(
             dependencies: [
                 "BenchmarkSupport",
                 .product(name: "Moonbounce", package: "moonbounce"),
+            ]
+        ),
+        // Which instruction-set level the build targets, so a runner can refuse
+        // to measure below the level Moonbounce is measured at.
+        .target(name: "BuildLevel"),
+        // The portable runner, for Windows: registers every suite's bodies and
+        // measures them with the Windows clocks and the same `MeasurementRules`.
+        .executableTarget(
+            name: "PortableRunner",
+            dependencies: [
+                "BenchmarkSupport",
+                "BuildLevel",
+                "PrimitivesSuite",
             ]
         ),
         // The package-benchmark runner for `Primitives`: registers the suite's bodies.
