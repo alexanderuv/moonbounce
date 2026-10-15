@@ -75,3 +75,7 @@ These rules come from reading the generated assembly. Each one closes a gap agai
 - **Benchmark operations are local `@inline(always)` functions, not closure literals.** The optimizer declines to inline a closure above its size threshold, and a matrix product is above it: each element then became a call that spilled both 64-byte matrices to the stack. The C++ harness's lambdas always inline, so the Swift side must too.
   - The sweep loops and the operations sit together in the suite library, so they inline there, whichever runner registers them. A runner only brackets each measured iteration through `MeasuredIteration`: two calls per 1,000 sweeps, nothing per operation.
 - **Build mode:** benchmarks use plain `-O`. `-Ounchecked` yields identical instruction counts, because bounds checks are already hoisted out of the inner loops.
+
+## License
+
+Moonbounce is available under the MIT License. See [LICENSE](LICENSE).
