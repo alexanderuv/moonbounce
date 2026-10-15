@@ -316,6 +316,23 @@ extension SuiteBenchmark {
                 }
                 sweep(iteration, fixtures.orientedBoxesA, fixtures.penetratingBoxes, state: &epa, operation)
             },
+
+            SuiteBenchmark(name: "ConvexHullBuilder2D.build") { iteration in
+                // One hull of all the points per sweep, so an operation is a
+                // point, with Jolt's tolerance in its hull tests. The builder
+                // and its output are reused: one build before the clock
+                // starts sizes them.
+                let points = fixtures.hullPoints
+                var builder = ConvexHullBuilder2D()
+                var hull: [Int] = []
+                _ = builder.build(points.span, tolerance: 1.0e-3, into: &hull)
+                iteration.startMeasurement()
+                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                    blackHole(builder.build(points.span, tolerance: 1.0e-3, into: &hull))
+                    blackHole(hull)
+                }
+                iteration.stopMeasurement()
+            },
         ]
     }
 }

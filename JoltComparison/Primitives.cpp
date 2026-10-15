@@ -20,6 +20,7 @@
 #include <Jolt/Geometry/AABox4.h>
 #include <Jolt/Geometry/ClipPoly.h>
 #include <Jolt/Geometry/ClosestPoint.h>
+#include <Jolt/Geometry/ConvexHullBuilder2D.h>
 #include <Jolt/Geometry/ConvexSupport.h>
 #include <Jolt/Geometry/EPAPenetrationDepth.h>
 #include <Jolt/Geometry/Ellipse.h>
@@ -436,6 +437,8 @@ struct Fixtures
 	std::vector<RayInput> mBoxRays;
 	std::vector<Vec3> mBoxCastDirections;
 	std::vector<OrientedBox> mPenetratingBoxes;
+	// Same as hullPoints in Fixtures.swift, in the plane z = 0.
+	Array<Vec3> mHullPoints;
 
 	Fixtures()
 	{
@@ -528,6 +531,12 @@ struct Fixtures
 			OrientedBox b = mOrientedBoxesB[i];
 			b.mOrientation.SetTranslation(mOrientedBoxesA[i].mOrientation.GetTranslation() + rng.Vector(-0.28f, 0.28f));
 			mPenetratingBoxes.push_back(b);
+		}
+		for (int i = 0; i < cCount; ++i)
+		{
+			float x = rng.Uniform(-10, 10);
+			float y = rng.Uniform(-10, 10);
+			mHullPoints.push_back(Vec3(x, y, 0));
 		}
 	}
 };
@@ -872,6 +881,59 @@ int main()
 			if (!epa.GetPenetrationDepth(core_a, rounded_a, cConvexRadius, core_b, rounded_b, cConvexRadius, cTolerance, cTolerance, r.mAxis, r.mPointA, r.mPointB))
 				r = { Vec3::sZero(), Vec3::sZero(), Vec3::sZero() };
 			return r;
+		});
+	}
+
+	// One hull of all the points per sweep, as in the Swift benchmark, with
+	// the starting triangle that ConvexHullBuilder::Initialize picks, which
+	// the Swift builder picks too. The output is reused; the builder
+	// allocates its edges each call.
+	{
+		const Array<Vec3> &points = f.mHullPoints;
+		ConvexHullBuilder2D::Edges hull;
+		Measure("ConvexHullBuilder2D.build", [&] {
+			for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+			{
+				int idx1 = -1;
+				float max_dist_sq = -1.0f;
+				for (int i = 0; i < (int)points.size(); ++i)
+				{
+					float dist_sq = points[i].LengthSq();
+					if (dist_sq > max_dist_sq)
+					{
+						max_dist_sq = dist_sq;
+						idx1 = i;
+					}
+				}
+				int idx2 = -1;
+				max_dist_sq = -1.0f;
+				for (int i = 0; i < (int)points.size(); ++i)
+					if (i != idx1)
+					{
+						float dist_sq = (points[i] - points[idx1]).LengthSq();
+						if (dist_sq > max_dist_sq)
+						{
+							max_dist_sq = dist_sq;
+							idx2 = i;
+						}
+					}
+				int idx3 = -1;
+				float best_triangle_area_sq = -1.0f;
+				for (int i = 0; i < (int)points.size(); ++i)
+					if (i != idx1 && i != idx2)
+					{
+						float triangle_area_sq = (points[idx1] - points[i]).Cross(points[idx2] - points[i]).LengthSq();
+						if (triangle_area_sq > best_triangle_area_sq)
+						{
+							best_triangle_area_sq = triangle_area_sq;
+							idx3 = i;
+						}
+					}
+				ConvexHullBuilder2D builder(points);
+				ConvexHullBuilder2D::EResult result = builder.Initialize(idx1, idx2, idx3, INT_MAX, 1.0e-3f, hull);
+				BlackHole(&result);
+				BlackHole(hull.data());
+			}
 		});
 	}
 

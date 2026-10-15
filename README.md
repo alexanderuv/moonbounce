@@ -18,7 +18,7 @@ Early: there are no bodies or simulation yet. What exists is the math and geomet
 | Convex queries | `ConvexSupport`, `TransformedConvex`, `RoundedConvex`, `MinkowskiDifference`, `GJK`, `EPA`, `ClosestPoint` | Whether two convex shapes overlap, how far apart they are or how deep they penetrate, and where one first touches the other when moved. |
 | Clipping | `Polygon` | Clips a polygon against planes, edges, boxes and other polygons, the step that contact manifolds are built from. |
 | Meshes | `IndexedTriangle`, `VertexWelder`, `MortonCode` | Turns a triangle soup into an indexed mesh and back, and gives a point's position on a Z-order (Morton) curve. |
-| 2D | `Ellipse` | Containment, normals and closest points on an ellipse. |
+| 2D | `Ellipse`, `ConvexHullBuilder2D` | Containment, normals and closest points on an ellipse, and the convex hull of points in a plane. |
 
 The [roadmap](docs/roadmap.md) lays out the path to a complete engine.
 
