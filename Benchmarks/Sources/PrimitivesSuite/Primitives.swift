@@ -180,6 +180,18 @@ extension SuiteBenchmark {
                 }
                 sweep(iteration, fixtures.boxGroups, operation)
             },
+
+            SuiteBenchmark(name: "OrientedBox.overlaps") { iteration in
+                @inline(always) func operation(_ a: OrientedBox, _ b: OrientedBox) -> Bool { a.overlaps(b) }
+                sweep(iteration, fixtures.orientedBoxesA, fixtures.orientedBoxesB, operation)
+            },
+
+            SuiteBenchmark(name: "Ellipse.closestPoint") { iteration in
+                @inline(always) func operation(_ ellipse: Ellipse, _ point: SIMD2<Float>) -> SIMD2<Float> {
+                    ellipse.closestPoint(to: point)
+                }
+                sweep(iteration, fixtures.ellipses, fixtures.ellipsePoints, operation)
+            },
         ]
     }
 }

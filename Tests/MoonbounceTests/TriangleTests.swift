@@ -83,6 +83,26 @@ import Testing
         #expect(distance(from: Vector3(0.25, 0.25, 0), .zero) == .infinity)
     }
 
+    // MARK: Centroid and support
+
+    @Test func centroidAveragesTheVertices() {
+        let t = Triangle(Vector3(0, 0, 3), Vector3(3, 0, 0), Vector3(0, 6, -3))
+        #expect(t.centroid == Vector3(1, 2, 0))
+    }
+
+    @Test func supportIsTheFurthestVertex() {
+        #expect(triangle.support(.axisX) == triangle.b)
+        #expect(triangle.support(.axisY) == triangle.c)
+        #expect(triangle.support(Vector3(-1, -1, 0)) == triangle.a)
+    }
+
+    @Test func supportTiesGoToTheLaterVertex() {
+        // All three tie along z, b and c along (1, 1, 0), a and b along -y.
+        #expect(triangle.support(.axisZ) == triangle.c)
+        #expect(triangle.support(Vector3(1, 1, 0)) == triangle.c)
+        #expect(triangle.support(-.axisY) == triangle.b)
+    }
+
     // MARK: Four at once
 
     @Test func fourTrianglesRoundTripThroughLanes() {
