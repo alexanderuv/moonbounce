@@ -102,25 +102,45 @@ import Testing
         }
     }
 
-    @Test func randomSoupsMatchAllPairs() {
-        // Random soups dense enough for long chains, against a reference that
-        // joins every pair within the distance with no search: the same
-        // groups, each at its first vertex's position.
+    /// Random soups for ``randomSoupsMatchAllPairs(_:_:_:)``: vertices in a
+    /// cube of side `size`, optionally snapped to a grid of tenths of it, and
+    /// a weld distance.
+    static let randomSoups: [(size: Float, distance: Float, snapped: Bool)] = [
+        // Sparse: chains of a few vertices.
+        (1, 0.05, false),
+        // Dense: most vertices lie near some split, and groups are large.
+        (0.3, 0.05, false), (0.05, 0.01, false), (1, 0.2, false),
+        // Many vertices exactly on split planes, and equal positions.
+        (1, 0.1, true), (1, 0, true),
+    ]
+
+    @Test(arguments: randomSoups)
+    func randomSoupsMatchAllPairs(_ size: Float, _ distance: Float, _ snapped: Bool) {
+        // Against a reference that joins every pair within the distance with
+        // no search: the same groups, each at its first vertex's position.
         var rng = SplitMix64()
-        func unit() -> Float { Float(rng.next() >> 40) * 0x1p-24 }
-        let distance: Float = 0.05
-        for round in 0..<40 {
-            let triangleCount = 10 + round * 5
-            let soup = (0..<triangleCount).map { _ in
-                Triangle(Vector3(unit(), unit(), unit()), Vector3(unit(), unit(), unit()), Vector3(unit(), unit(), unit()))
-            }
+        func coordinate() -> Float {
+            let unit = Float(rng.next() >> 40) * 0x1p-24
+            return (snapped ? (unit * 10).rounded(.down) / 10 : unit) * size
+        }
+        func point() -> Vector3 {
+            let x = coordinate(), y = coordinate(), z = coordinate()
+            return Vector3(x, y, z)
+        }
+        for round in 0..<30 {
+            let triangleCount = 3 + round * 13
+            let soup = (0..<triangleCount).map { _ in Triangle(point(), point(), point()) }
             let positions = soup.flatMap { [$0.a, $0.b, $0.c] }
 
             // Union-find over every pair, each group's root its lowest vertex.
             var parent = Array(positions.indices)
             func root(_ i: Int) -> Int {
                 var i = i
-                while parent[i] != i { i = parent[i] }
+                while parent[i] != i {
+                    // Halve the path: chains would otherwise grow long.
+                    parent[i] = parent[parent[i]]
+                    i = parent[i]
+                }
                 return i
             }
             for i in positions.indices {

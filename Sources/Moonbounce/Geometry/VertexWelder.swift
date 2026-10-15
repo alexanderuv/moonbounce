@@ -10,10 +10,11 @@
 /// soup, so the call itself costs nothing measurable, and the search stays
 /// internal.
 public struct VertexWelder: Sendable {
-    /// One `UInt32` per soup vertex, three times over, back to back: the
-    /// vertex indices that splitting partitions, a link from each vertex
-    /// toward the one it welds to, and scratch for vertices near a split
-    /// plane. Grown when a soup needs more, never shrunk.
+    /// `UInt32`s, four per soup vertex, back to back: the vertex indices
+    /// that splitting partitions, a link from each vertex toward the one it
+    /// welds to, and two per vertex of scratch for vertices near a split,
+    /// kept while the halves below it are searched. Grown when a soup needs
+    /// more, never shrunk.
     var workspace: [UInt32] = []
 
     public init() {}
@@ -46,8 +47,11 @@ extension VertexWelder {
     /// The search splits the vertices in half along the longest side of
     /// their bounds, sending those within `distance` of the split to both
     /// halves, so every close pair stays together in one half. It stops when
-    /// a group has 8 vertices or fewer, every vertex lies near the split, or
-    /// it is 32 splits deep; then it compares every pair in the group.
+    /// a group has 8 vertices or fewer, when it is 32 splits deep, or when
+    /// so many vertices lie near the split that the halves would hold more
+    /// pairs than the group; then it compares every pair in the group. So
+    /// the search never compares more pairs than all the vertices have, and
+    /// vertices spread out relative to `distance` take far fewer.
     ///
     /// `materialIndices` has one entry per triangle of `soup`, and `distance`
     /// is at least 0.
@@ -87,8 +91,8 @@ extension VertexWelder {
         triangles.removeAll(keepingCapacity: true)
         let count = soup.count &* 3
         guard count > 0 else { return }
-        if workspace.count < 3 &* count {
-            workspace = Array(repeating: 0, count: 3 &* count)
+        if workspace.count < 4 &* count {
+            workspace = Array(repeating: 0, count: 4 &* count)
         }
 
         // A triangle is its three vertices, back to back, so the soup reads
@@ -108,7 +112,7 @@ extension VertexWelder {
                     let search = unsafe WeldSearch(
                         positions: positions.baseAddress!, links: links, distance: distance)
                     unsafe search.split(
-                        indices, count: count, scratch: scratch, scratchCapacity: count, depth: Self.maxSplitDepth)
+                        indices, count: count, scratch: scratch, scratchCapacity: 2 &* count, depth: Self.maxSplitDepth)
 
                     // Each link now points at a lower vertex, or at itself for
                     // the first of a group. Going up from 0, a vertex's link
@@ -167,8 +171,9 @@ struct WeldSearch {
         unsafe distanceSquared = distance * distance
     }
 
-    /// Welds among the first `count` of `indices`, which it reorders.
-    /// `scratch` has room for `scratchCapacity` indices, at least `count`.
+    /// Welds among the first `count` of `indices`, which it overwrites: on
+    /// return they no longer hold the same vertices. `scratch` has room for
+    /// `scratchCapacity` indices, at least `count`.
     func split(
         _ indices: UnsafeMutablePointer<UInt32>, count: Int, scratch: UnsafeMutablePointer<UInt32>,
         scratchCapacity: Int, depth: Int
@@ -219,40 +224,34 @@ struct WeldSearch {
                 read &+= 1
             }
         }
-        guard near < count else {
-            unsafe compareEachPair(indices, count: count)
-            return
-        }
         // The near ones fill the gap the reads left: write + near == end.
         for i in 0..<near {
             unsafe indices[write &+ i] = scratch[i]
         }
 
+        // Splitting must leave fewer pairs to compare than the group has:
+        // with many vertices near the split, both halves keep most of them,
+        // and splitting further would multiply the work. So the halves'
+        // squared counts sum to less than the group's, and the pairs that
+        // the groups below compare never outnumber this group's. This also
+        // stops a split with every vertex near it.
+        let lower = Double(end), upper = Double(count &- write), all = Double(count)
         // The lower half reorders its vertices, the near ones among them, so
-        // they must be gathered again for the upper half. They stay in
-        // scratch while there is room below them for the lower half's own
-        // scratch; otherwise they are sorted out of the lower half again.
-        let keepsNear = scratchCapacity &- near >= end
+        // the near ones stay in scratch for the upper half, and the lower
+        // half gets the scratch past them. Without room there for the lower
+        // half's own scratch, every pair is compared instead.
+        guard lower * lower + upper * upper < all * all && scratchCapacity &- near >= end else {
+            unsafe compareEachPair(indices, count: count)
+            return
+        }
         unsafe split(
-            indices, count: end, scratch: keepsNear ? scratch + near : scratch,
-            scratchCapacity: keepsNear ? scratchCapacity &- near : scratchCapacity, depth: depth &- 1)
-        if keepsNear {
-            for i in 0..<near {
-                unsafe indices[write &+ i] = scratch[i]
-            }
-        } else {
-            var front = 0, back = end
-            while front < back {
-                if unsafe coordinate(indices[front], axis) - middle < -distance {
-                    front &+= 1
-                } else {
-                    back &-= 1
-                    let vertex = unsafe indices[front]
-                    unsafe indices[front] = indices[back]
-                    unsafe indices[back] = vertex
-                }
-            }
-            assert(front == write)
+            indices, count: end, scratch: scratch + near, scratchCapacity: scratchCapacity &- near, depth: depth &- 1)
+        // The upper half is the near ones and those above, which the lower
+        // half left in place. What the lower half left in its own range is
+        // not needed again: every split above this one keeps its near
+        // vertices the same way.
+        for i in 0..<near {
+            unsafe indices[write &+ i] = scratch[i]
         }
         unsafe split(
             indices + write, count: count &- write, scratch: scratch, scratchCapacity: scratchCapacity,
