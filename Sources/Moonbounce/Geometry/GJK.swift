@@ -110,7 +110,7 @@ extension GJK {
                 return false
             }
             previousLengthSquared = lengthSquared
-            keep(feature, withSupportPoints: false)
+            keep(feature, y: true, p: false, q: false)
         }
     }
 
@@ -165,7 +165,7 @@ extension GJK {
                 lengthSquared = 0
                 break
             }
-            keep(feature, withSupportPoints: true)
+            keep(feature, y: true, p: true, q: true)
             if lengthSquared <= toleranceSquared || lengthSquared <= Float.ulpOfOne * maxLengthSquared() {
                 axis = .zero
                 lengthSquared = 0
@@ -197,10 +197,14 @@ extension GJK {
     /// feature it lies on as vertex bits, or `nil` unless that squared length
     /// is below `limit`. NaN gives `nil`.
     ///
-    /// The last point added is part of the nearest feature, which lets the
-    /// triangle and tetrahedron tests skip the features without it.
+    /// With `lastPointIncluded`, the last point added is known to be part of
+    /// the nearest feature, which lets the triangle and tetrahedron tests skip
+    /// the features without it. Only the searches whose simplex stays put
+    /// know that; the casts move it with every step along the cast.
     @inlinable @inline(always)
-    func closestToOrigin(below limit: Float) -> (point: Vector3, lengthSquared: Float, feature: UInt32)? {
+    func closestToOrigin(
+        below limit: Float, lastPointIncluded: Bool = true
+    ) -> (point: Vector3, lengthSquared: Float, feature: UInt32)? {
         let closest: ClosestPoint
         switch count {
         case 1:
@@ -208,10 +212,11 @@ extension GJK {
         case 2:
             closest = unsafe ClosestPoint.onSegment(y[unchecked: 0], y[unchecked: 1])
         case 3:
-            closest = unsafe ClosestPoint.onTriangle(y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], includesC: true)
+            closest = unsafe ClosestPoint.onTriangle(
+                y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], includesC: lastPointIncluded)
         default:
             closest = unsafe ClosestPoint.onTetrahedron(
-                y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], y[unchecked: 3], includesD: true)
+                y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], y[unchecked: 3], includesD: lastPointIncluded)
         }
         let lengthSquared = closest.point.lengthSquared
         // Written so NaN fails.
@@ -230,16 +235,15 @@ extension GJK {
     }
 
     /// Shrinks the simplex to the points in `feature`, one bit per point, in
-    /// order; with `withSupportPoints`, their support points too.
+    /// order, keeping the arrays that are set: the points of the difference
+    /// in `y`, and the support points of `a` and `b` in `p` and `q`.
     @inlinable @inline(always)
-    mutating func keep(_ feature: UInt32, withSupportPoints: Bool) {
+    mutating func keep(_ feature: UInt32, y keepY: Bool, p keepP: Bool, q keepQ: Bool) {
         var kept = 0
         for i in 0..<count where feature & (1 &<< UInt32(i)) != 0 {
-            unsafe y[unchecked: kept] = y[unchecked: i]
-            if withSupportPoints {
-                unsafe p[unchecked: kept] = p[unchecked: i]
-                unsafe q[unchecked: kept] = q[unchecked: i]
-            }
+            if keepY { unsafe y[unchecked: kept] = y[unchecked: i] }
+            if keepP { unsafe p[unchecked: kept] = p[unchecked: i] }
+            if keepQ { unsafe q[unchecked: kept] = q[unchecked: i] }
             kept &+= 1
         }
         count = kept

@@ -157,6 +157,14 @@ struct GJKClosestPointsOutput
 	Vec3 mPointA, mPointB;
 };
 
+// A shape cast's fraction, contact points and separating axis, laid out like
+// Moonbounce's GJK.ShapeCastHit: 64 bytes.
+struct GJKShapeCastOutput
+{
+	float mFraction;
+	Vec3 mPointA, mPointB, mSeparatingAxis;
+};
+
 // Identical to SplitMix64 in Fixtures.swift.
 struct SplitMix64
 {
@@ -275,6 +283,14 @@ struct SplitMix64
 		return { origin, (inTarget + offset) - origin };
 	}
 
+	// Same as cast(from:toward:) in Fixtures.swift.
+	Vec3 CastToward(Vec3Arg inStart, Vec3Arg inTarget)
+	{
+		Vec3 offset = Vector(-1.5f, 1.5f);
+		float reach = Uniform(0.6f, 2);
+		return ((inTarget + offset) - inStart) * reach;
+	}
+
 	// Same as orientedBox(rotation:) in Fixtures.swift.
 	OrientedBox OrientedBoxInput(QuatArg inRotation)
 	{
@@ -389,6 +405,8 @@ struct Fixtures
 	// Same as soup and soupMaterials in Fixtures.swift: the material is on
 	// each triangle.
 	TriangleList mSoup;
+	std::vector<RayInput> mBoxRays;
+	std::vector<Vec3> mBoxCastDirections;
 
 	Fixtures()
 	{
@@ -469,6 +487,13 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mClippingFaces.push_back(rng.Square(0));
 		mSoup = rng.HeightFieldSoup(25, 20);
 		for (size_t i = 0; i < mSoup.size(); ++i) mSoup[i].mMaterialIndex = uint32(i % 4);
+		for (int i = 0; i < cCount; ++i)
+		{
+			Vec3 origin = mOrientedBoxesB[i].mOrientation.GetTranslation();
+			mBoxRays.push_back({ origin, rng.CastToward(origin, mOrientedBoxesA[i].mOrientation.GetTranslation()) });
+		}
+		for (int i = 0; i < cCount; ++i)
+			mBoxCastDirections.push_back(rng.CastToward(mOrientedBoxesA[i].mOrientation.GetTranslation(), mOrientedBoxesB[i].mOrientation.GetTranslation()));
 	}
 };
 
@@ -708,7 +733,8 @@ int main()
 	}
 
 	// A box grown by a convex radius against a box, as in the Swift
-	// benchmarks. One GJK is reused, and each query starts along x.
+	// benchmarks, then rays and shape casts between the same boxes. One GJK
+	// is reused, and each closest-point query starts along x.
 	{
 		constexpr float cConvexRadius = 0.05f, cTolerance = 1.0e-4f;
 		GJKClosestPoint gjk;
@@ -726,6 +752,20 @@ int main()
 			Vec3 v = Vec3::sAxisX();
 			GJKClosestPointsOutput r;
 			r.mDistanceSq = gjk.GetClosestPoints(rounded_a, core_b, cTolerance, FLT_MAX, v, r.mPointA, r.mPointB);
+			return r;
+		});
+		Sweep<RayInput, OrientedBox, float>("GJK.castRay", f.mBoxRays, f.mOrientedBoxesA, [&](const RayInput &ray, const OrientedBox &a) {
+			AABox box_a(-a.mHalfExtents, a.mHalfExtents);
+			TransformedConvexObject<AABox> core_a(a.mOrientation, box_a);
+			float fraction = 1.0f;
+			return gjk.CastRay(ray.mOrigin, ray.mDirection, cTolerance, core_a, fraction) ? fraction : FLT_MAX;
+		});
+		Sweep<OrientedBox, Vec3, OrientedBox, GJKShapeCastOutput>("GJK.castShape", f.mOrientedBoxesA, f.mBoxCastDirections, f.mOrientedBoxesB, [&](const OrientedBox &a, Vec3Arg direction, const OrientedBox &b) {
+			AABox box_a(-a.mHalfExtents, a.mHalfExtents), box_b(-b.mHalfExtents, b.mHalfExtents);
+			TransformedConvexObject<AABox> core_b(b.mOrientation, box_b);
+			GJKShapeCastOutput r { 1.0f, Vec3::sZero(), Vec3::sZero(), Vec3::sZero() };
+			if (!gjk.CastShape(a.mOrientation, direction, cTolerance, box_a, core_b, cConvexRadius, cConvexRadius, r.mFraction, r.mPointA, r.mPointB, r.mSeparatingAxis))
+				r.mFraction = FLT_MAX;
 			return r;
 		});
 	}
