@@ -12,6 +12,7 @@
 
 #include <Jolt/Core/Memory.h>
 #include <Jolt/Geometry/AABox.h>
+#include <Jolt/Geometry/AABox4.h>
 #include <Jolt/Geometry/RayAABox.h>
 #include <Jolt/Geometry/RayCapsule.h>
 #include <Jolt/Geometry/RayCylinder.h>
@@ -88,6 +89,14 @@ struct Triangle4Input
 	Vec4 mV0X, mV0Y, mV0Z;
 	Vec4 mV1X, mV1Y, mV1Z;
 	Vec4 mV2X, mV2Y, mV2Z;
+};
+
+// Four boxes as structure of arrays, laid out like Moonbounce's AABB4: 96
+// bytes, the six bounds arguments of AABox4VsBox and RayAABox4.
+struct AABox4Input
+{
+	Vec4 mMinX, mMinY, mMinZ;
+	Vec4 mMaxX, mMaxY, mMaxZ;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -228,6 +237,7 @@ struct Fixtures
 	std::vector<TriangleInput> mTriangles;
 	std::vector<RayInput> mTriangleRays;
 	std::vector<Triangle4Input> mTriangleGroups;
+	std::vector<AABox4Input> mBoxGroups;
 
 	Fixtures()
 	{
@@ -273,6 +283,19 @@ struct Fixtures
 				Vec4(t0.mV2.GetX(), t1.mV2.GetX(), t2.mV2.GetX(), t3.mV2.GetX()),
 				Vec4(t0.mV2.GetY(), t1.mV2.GetY(), t2.mV2.GetY(), t3.mV2.GetY()),
 				Vec4(t0.mV2.GetZ(), t1.mV2.GetZ(), t2.mV2.GetZ(), t3.mV2.GetZ())
+			});
+		}
+		// Same as boxGroups in Fixtures.swift: mBoxesA i to i + 3, wrapping.
+		for (int i = 0; i < cCount; ++i)
+		{
+			const AABox &b0 = mBoxesA[i], &b1 = mBoxesA[(i + 1) % cCount], &b2 = mBoxesA[(i + 2) % cCount], &b3 = mBoxesA[(i + 3) % cCount];
+			mBoxGroups.push_back({
+				Vec4(b0.mMin.GetX(), b1.mMin.GetX(), b2.mMin.GetX(), b3.mMin.GetX()),
+				Vec4(b0.mMin.GetY(), b1.mMin.GetY(), b2.mMin.GetY(), b3.mMin.GetY()),
+				Vec4(b0.mMin.GetZ(), b1.mMin.GetZ(), b2.mMin.GetZ(), b3.mMin.GetZ()),
+				Vec4(b0.mMax.GetX(), b1.mMax.GetX(), b2.mMax.GetX(), b3.mMax.GetX()),
+				Vec4(b0.mMax.GetY(), b1.mMax.GetY(), b2.mMax.GetY(), b3.mMax.GetY()),
+				Vec4(b0.mMax.GetZ(), b1.mMax.GetZ(), b2.mMax.GetZ(), b3.mMax.GetZ())
 			});
 		}
 	}
@@ -467,6 +490,8 @@ int main()
 	Sweep<RayInput, AxialInput, float>("Cylinder.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCylinder(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });
 	Sweep<RayInput, TriangleInput, float>("Triangle.rayDistance", f.mTriangleRays, f.mTriangles, [](const RayInput &r, const TriangleInput &t) { return RayTriangle(r.mOrigin, r.mDirection, t.mV0, t.mV1, t.mV2); });
 	Sweep<RayInput, Triangle4Input, Vec4>("Triangle4.rayDistance", f.mTriangleRays, f.mTriangleGroups, [](const RayInput &r, const Triangle4Input &t) { return RayTriangle4(r.mOrigin, r.mDirection, t.mV0X, t.mV0Y, t.mV0Z, t.mV1X, t.mV1Y, t.mV1Z, t.mV2X, t.mV2Y, t.mV2Z); });
+	Sweep<AABox4Input, AABox, UVec4>("AABB4.overlaps", f.mBoxGroups, f.mBoxesB, [](const AABox4Input &b, const AABox &box) { return AABox4VsBox(box, b.mMinX, b.mMinY, b.mMinZ, b.mMaxX, b.mMaxY, b.mMaxZ); });
+	Sweep<AABox4Input, Vec4>("AABB4.rayDistance", f.mBoxGroups, [&](const AABox4Input &b) { return RayAABox4(origin, inverse_direction, b.mMinX, b.mMinY, b.mMinZ, b.mMaxX, b.mMaxY, b.mMaxZ); });
 
 	std::printf("\n  }\n}\n");
 	return 0;

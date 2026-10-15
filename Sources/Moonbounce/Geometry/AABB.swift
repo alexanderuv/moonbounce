@@ -90,6 +90,14 @@ extension AABB {
     public func expanded(by margin: Vector3) -> AABB {
         AABB(min: min - margin, max: max + margin)
     }
+
+    /// The box around the corners scaled by `scale`, axis by axis. A negative
+    /// scale mirrors the box, so its min and max corners swap on that axis.
+    @inline(always)
+    public func scaled(by scale: Vector3) -> AABB {
+        let a = min.storage * scale.storage, b = max.storage * scale.storage
+        return AABB(min: Vector3(storage: minimum(a, b)), max: Vector3(storage: maximum(a, b)))
+    }
 }
 
 extension AABB: CustomStringConvertible {

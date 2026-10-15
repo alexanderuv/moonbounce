@@ -156,6 +156,8 @@ struct Fixtures: Sendable {
     /// `triangles[i]` to `triangles[i + 3]` (wrapping), so `triangleRays[i]`
     /// is aimed near lane x and passes the others by chance.
     let triangleGroups: [Triangle4]
+    /// `boxesA[i]` to `boxesA[i + 3]` (wrapping), with no further draws.
+    let boxGroups: [AABB4]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -190,6 +192,10 @@ struct Fixtures: Sendable {
         triangleGroups = triangles.indices.map { [triangles] i in
             func at(_ k: Int) -> Triangle { triangles[(i + k) % triangles.count] }
             return Triangle4(at(0), at(1), at(2), at(3))
+        }
+        boxGroups = boxesA.indices.map { [boxesA] i in
+            func at(_ k: Int) -> AABB { boxesA[(i + k) % boxesA.count] }
+            return AABB4(at(0), at(1), at(2), at(3))
         }
     }
 }

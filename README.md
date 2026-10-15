@@ -6,7 +6,7 @@ Moonbounce runs on macOS, Windows and Linux. It depends only on the Swift standa
 
 ## Status
 
-Early. The math core is in place: `Vector3`, `Vector4`, `UInt32Vector4`, `Quaternion`, `Matrix4x4`, deterministic trigonometry, `AABB`, `Ray`, `Sphere`, `Capsule`, `Cylinder`, `Triangle` and `Triangle4`. The [roadmap](docs/roadmap.md) lays out the path to a complete engine.
+Early. The math core is in place: `Vector3`, `Vector4`, `UInt32Vector4`, `Quaternion`, `Matrix4x4`, deterministic trigonometry, `AABB`, `AABB4`, `Ray`, `Sphere`, `Capsule`, `Cylinder`, `Triangle` and `Triangle4`. The [roadmap](docs/roadmap.md) lays out the path to a complete engine.
 
 ## Requirements
 
