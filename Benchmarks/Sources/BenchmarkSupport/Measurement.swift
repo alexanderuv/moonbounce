@@ -138,12 +138,13 @@ public func sweep<A, B, Output: BitwiseCopyable>(
 /// storage it reuses.
 ///
 /// `state` goes in as an argument rather than captured by `transform`, since
-/// Swift checks each access to a captured variable at run time.
+/// Swift checks each access to a captured variable at run time. It may be
+/// noncopyable, as storage too large to copy by accident is.
 ///
 /// - Precondition: `Output` is valid as all-zero bits, as for the
 ///   single-input `sweep`.
 @inline(always)
-public func sweep<A, B, State, Output: BitwiseCopyable>(
+public func sweep<A, B, State: ~Copyable, Output: BitwiseCopyable>(
     _ iteration: any MeasuredIteration,
     _ a: [A],
     _ b: [B],
@@ -197,7 +198,7 @@ public func sweep<A, B, C, Output: BitwiseCopyable>(
 /// - Precondition: `Output` is valid as all-zero bits, as for the
 ///   single-input `sweep`.
 @inline(always)
-public func sweep<A, B, C, State, Output: BitwiseCopyable>(
+public func sweep<A, B, C, State: ~Copyable, Output: BitwiseCopyable>(
     _ iteration: any MeasuredIteration,
     _ a: [A],
     _ b: [B],

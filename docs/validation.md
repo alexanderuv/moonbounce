@@ -22,10 +22,10 @@ A slower result blocks the feature. Find the cause and fix it; don't loosen the 
 | 2 | Linux, x86-64 and arm64 | Build and tests |
 | 2 | Windows, arm64 | Build and tests |
 
-CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`, and builds the benchmarks package on macOS. Three things are not covered yet:
+CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`, builds the benchmarks package on macOS, and builds the portable runner on Windows x86-64 at x86-64-v3, running one benchmark to check the build passes its level check. Three things are not covered yet:
 
 - **Windows Release tests.** Swift Testing finds no tests in Windows Release builds, so Windows is tested in Debug only ([#32](https://github.com/alexanderuv/moonbounce/issues/32), [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)).
-- **x86-64-v3.** CI builds x86-64 at the default baseline only, so the [x86-64-v3](#x86-64-instruction-set) build that Moonbounce is measured at is untested.
+- **x86-64-v3.** CI tests x86-64 at the default baseline only, so the [x86-64-v3](#x86-64-instruction-set) build that Moonbounce is measured at is built but untested.
 - **Benchmarks.** They are run by hand.
 
 ### x86-64 instruction set
@@ -42,13 +42,13 @@ swift build -c release -Xcc -march=x86-64-v3
 - **It must apply to the whole build.** The hot-path API is inlinable, so it compiles into the application's own modules. Flags on Moonbounce's targets alone would miss it.
 - **It stays out of the manifest.** A manifest can't condition a setting on the architecture, so a hard-coded level would break arm64 builds and require x86-64-v3 of every application's users.
 
-x86-64 benchmark figures count only from a build with this flag. The Windows runner will pass it ([#8](https://github.com/alexanderuv/moonbounce/issues/8), planned).
+x86-64 benchmark figures count only from a build with this flag. The portable runner refuses to measure a build without it, and `JoltComparison/compare.py` passes it.
 
 A build below x86-64-v3 is supported for correctness only. Without FMA, each vector fused multiply-add becomes four calls to the C library's `fmaf`: the same bits, but far slower.
 
 ### Measuring on Windows
 
-package-benchmark runs only on macOS and Linux, so Windows gets a portable runner over the same suite libraries and `MeasurementRules` ([#8](https://github.com/alexanderuv/moonbounce/issues/8)). It times with `QueryPerformanceCounter` and, lacking a retired-instruction counter, counts cycles with `QueryThreadCycleTime`. Measured threads run at high priority with power throttling off, which keeps them on performance cores. malloc can't be interposed on Windows, so the allocation rule is checked on macOS and Linux, and on Windows only through the temp allocator's counters.
+package-benchmark runs only on macOS and Linux, so Windows gets a portable runner, `Benchmarks/Sources/PortableRunner`, over the same suite libraries and `MeasurementRules`. It times with `QueryPerformanceCounter` and, lacking a retired-instruction counter, counts cycles with `QueryThreadCycleTime`. Those cycles tick at the time-stamp counter's fixed rate while the thread runs: they leave out time the thread waits, but unlike instructions they vary with the core's clock speed. Measured threads run at high priority with power throttling off, so Windows prefers performance cores for them. malloc can't be interposed on Windows, so the portable runner counts no allocations and the allocation rule is checked on macOS and Linux. On Windows it will be checked through a temp allocator's counters (planned).
 
 ## Benchmarks
 
@@ -67,7 +67,7 @@ Benchmarks live in the separate `Benchmarks/` package.
 The reference is [Jolt Physics](https://github.com/jrouwe/JoltPhysics) v5.6.0, a mature C++ engine with a similar scope. `JoltComparison/compare.py` fetches it, builds a harness in Jolt's Distribution configuration, runs both suites in alternating rounds on the same machine and prints the comparison. Each Moonbounce benchmark has a counterpart of the same name in `JoltComparison/Primitives.cpp`. Jolt's code is fetched into a git-ignored folder on each run and never committed. The [comparison README](../JoltComparison/README.md) covers the options and how the two sides are kept comparable.
 
 - **Build level.** Jolt's default x86-64 build uses the same instruction level as Moonbounce, so the comparison measures code, not compiler flags.
-- **Windows.** Jolt is built both with MSVC (`cmake_vs2022_cl.bat`) and with clang-cl (`cmake_vs2022_clang.bat`), and the faster of the two is the reference.
+- **Windows.** Jolt is built both with MSVC and with clang-cl, under the Visual Studio generator its `cmake_vs2022_cl.bat` and `cmake_vs2022_clang.bat` use, and the faster of the two is the reference for each benchmark.
 
 The comparison is temporary. As each part of the library is validated, the reference figures are recorded under [Reference results](#reference-results). `JoltComparison/` is deleted once everything is.
 

@@ -298,6 +298,24 @@ extension SuiteBenchmark {
                     iteration, fixtures.orientedBoxesA, fixtures.boxCastDirections, fixtures.orientedBoxesB, state: &gjk,
                     operation)
             },
+
+            SuiteBenchmark(name: "EPA.penetrationDepth") { iteration in
+                // Box B centered inside box A, both cores grown by a convex
+                // radius of 0.05, so every pair needs EPA, with Jolt's
+                // default tolerances. One EPA is reused, and each query
+                // starts along x; no penetration gives zeros.
+                var epa = EPA()
+                @inline(always) func operation(_ a: OrientedBox, _ b: OrientedBox, _ epa: inout EPA) -> EPA.Penetration {
+                    let coreA = a.convex, coreB = b.convex
+                    var axis = Vector3.axisX
+                    return epa.penetrationDepth(
+                        RoundedConvex(coreA, radius: 0.05), core: coreA, convexRadiusA: 0.05,
+                        RoundedConvex(coreB, radius: 0.05), core: coreB, convexRadiusB: 0.05, collisionTolerance: 1.0e-4,
+                        penetrationTolerance: 1.0e-4, axis: &axis)
+                        ?? EPA.Penetration(pointA: .zero, pointB: .zero, axis: .zero)
+                }
+                sweep(iteration, fixtures.orientedBoxesA, fixtures.penetratingBoxes, state: &epa, operation)
+            },
         ]
     }
 }

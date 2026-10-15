@@ -87,3 +87,25 @@ Problems outside Moonbounce that it works around or can't yet work around. Each 
   ```
 
   The second run prints 1 today. Once it prints 2, this entry can go.
+
+## Swift: temporary allocations over 1 KiB go to the heap
+
+- **Affects:** Swift 6.4, seen on macOS arm64 at `-O` and `-Onone`, on the main thread and others; other platforms not checked. Every `withUnsafeTemporaryAllocation` larger than 1,024 bytes, however much stack is free.
+- **Cause:** the standard library puts up to 1,024 bytes on the stack, and asks the runtime about anything larger. The runtime's answer, `swift_stdlib_isStackAllocationSafe`, is a stub that always says no, so the memory comes from `malloc`, on every call.
+- **Workaround (#19):** hot-path scratch that doesn't fit in 1,024 bytes is allocated once, by a value that the caller reuses across calls. `EPA` owns its hull's storage that way. The scratch rule under Hot paths in `CONTRIBUTING.md` gives the limit.
+- **Removal:** this program prints `stack heap` today, and `stack stack` once the runtime checks the stack:
+
+  ```swift
+  func place(_ byteCount: Int) -> String {
+      var marker = 0
+      return withUnsafeMutablePointer(to: &marker) { local in
+          withUnsafeTemporaryAllocation(byteCount: byteCount, alignment: 16) { buffer in
+              let distance = abs(Int(bitPattern: buffer.baseAddress!) - Int(bitPattern: local))
+              return distance < 1 << 20 ? "stack" : "heap"
+          }
+      }
+  }
+  print(place(1024), place(4096))
+  ```
+
+  Then EPA's storage could become a temporary allocation per query again, if that measures no slower, and the limit can leave the rule in `CONTRIBUTING.md`.

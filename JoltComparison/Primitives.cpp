@@ -17,6 +17,7 @@
 #include <Jolt/Geometry/ClipPoly.h>
 #include <Jolt/Geometry/ClosestPoint.h>
 #include <Jolt/Geometry/ConvexSupport.h>
+#include <Jolt/Geometry/EPAPenetrationDepth.h>
 #include <Jolt/Geometry/Ellipse.h>
 #include <Jolt/Geometry/GJKClosestPoint.h>
 #include <Jolt/Geometry/Indexify.h>
@@ -163,6 +164,13 @@ struct GJKShapeCastOutput
 {
 	float mFraction;
 	Vec3 mPointA, mPointB, mSeparatingAxis;
+};
+
+// Contact points and penetration axis, laid out like Moonbounce's
+// EPA.Penetration: 48 bytes.
+struct EPAPenetrationOutput
+{
+	Vec3 mPointA, mPointB, mAxis;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -407,6 +415,7 @@ struct Fixtures
 	TriangleList mSoup;
 	std::vector<RayInput> mBoxRays;
 	std::vector<Vec3> mBoxCastDirections;
+	std::vector<OrientedBox> mPenetratingBoxes;
 
 	Fixtures()
 	{
@@ -494,6 +503,12 @@ struct Fixtures
 		}
 		for (int i = 0; i < cCount; ++i)
 			mBoxCastDirections.push_back(rng.CastToward(mOrientedBoxesA[i].mOrientation.GetTranslation(), mOrientedBoxesB[i].mOrientation.GetTranslation()));
+		for (int i = 0; i < cCount; ++i)
+		{
+			OrientedBox b = mOrientedBoxesB[i];
+			b.mOrientation.SetTranslation(mOrientedBoxesA[i].mOrientation.GetTranslation() + rng.Vector(-0.28f, 0.28f));
+			mPenetratingBoxes.push_back(b);
+		}
 	}
 };
 
@@ -766,6 +781,23 @@ int main()
 			GJKShapeCastOutput r { 1.0f, Vec3::sZero(), Vec3::sZero(), Vec3::sZero() };
 			if (!gjk.CastShape(a.mOrientation, direction, cTolerance, box_a, core_b, cConvexRadius, cConvexRadius, r.mFraction, r.mPointA, r.mPointB, r.mSeparatingAxis))
 				r.mFraction = FLT_MAX;
+			return r;
+		});
+	}
+
+	// Box B centered inside box A, both cores grown by a convex radius, so
+	// every pair needs EPA, with Jolt's default tolerances. One EPA is
+	// reused, and each query starts along x; no penetration gives zeros.
+	{
+		constexpr float cConvexRadius = 0.05f, cTolerance = 1.0e-4f;
+		EPAPenetrationDepth epa;
+		Sweep<OrientedBox, OrientedBox, EPAPenetrationOutput>("EPA.penetrationDepth", f.mOrientedBoxesA, f.mPenetratingBoxes, [&](const OrientedBox &a, const OrientedBox &b) {
+			AABox box_a(-a.mHalfExtents, a.mHalfExtents), box_b(-b.mHalfExtents, b.mHalfExtents);
+			TransformedConvexObject<AABox> core_a(a.mOrientation, box_a), core_b(b.mOrientation, box_b);
+			AddConvexRadius<TransformedConvexObject<AABox>> rounded_a(core_a, cConvexRadius), rounded_b(core_b, cConvexRadius);
+			EPAPenetrationOutput r { Vec3::sZero(), Vec3::sZero(), Vec3::sAxisX() };
+			if (!epa.GetPenetrationDepth(core_a, rounded_a, cConvexRadius, core_b, rounded_b, cConvexRadius, cTolerance, cTolerance, r.mAxis, r.mPointA, r.mPointB))
+				r = { Vec3::sZero(), Vec3::sZero(), Vec3::sZero() };
 			return r;
 		});
 	}

@@ -286,6 +286,11 @@ struct Fixtures: Sendable {
     /// only 4 casts miss, and the 396 pairs that overlap hit at the start.
     let boxRays: [Ray]
     let boxCastDirections: [Vector3]
+    /// For EPA, one per box of `orientedBoxesA`: box B of the same index,
+    /// moved so that its center is within 0.485 of A's. A's half extents are
+    /// at least 0.5, so that center is inside A and every pair overlaps by
+    /// more than any convex radius.
+    let penetratingBoxes: [OrientedBox]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -347,6 +352,11 @@ struct Fixtures: Sendable {
         }
         boxCastDirections = zip(orientedBoxesA, orientedBoxesB).map { a, b in
             rng.cast(from: a.orientation.translation, toward: b.orientation.translation)
+        }
+        penetratingBoxes = zip(orientedBoxesA, orientedBoxesB).map { a, b in
+            var orientation = b.orientation
+            orientation.translation = a.orientation.translation + rng.vector3(-0.28, 0.28)
+            return OrientedBox(orientation: orientation, halfExtents: b.halfExtents)
         }
     }
 }

@@ -18,6 +18,9 @@ public struct SimplexFeature: OptionSet, Hashable, Sendable, BitwiseCopyable {
     @inline(always) public static var b: SimplexFeature { SimplexFeature(rawValue: 0b0010) }
     @inline(always) public static var c: SimplexFeature { SimplexFeature(rawValue: 0b0100) }
     @inline(always) public static var d: SimplexFeature { SimplexFeature(rawValue: 0b1000) }
+
+    // Combined with `union` rather than an array literal: inlined into
+    // EPA's query, `[.a, .b]` stayed an array, allocated on every call.
 }
 
 /// The point of a segment, triangle or tetrahedron nearest the origin, and
@@ -140,7 +143,7 @@ extension ClosestPoint {
         let (u, v, _) = barycentricCoordinates(a, b)
         if v <= 0 { return ClosestPoint(point: a, feature: .a) }
         if u <= 0 { return ClosestPoint(point: b, feature: .b) }
-        return ClosestPoint(point: a * u + b * v, feature: [.a, .b])
+        return ClosestPoint(point: a * u + b * v, feature: SimplexFeature.a.union(.b))
     }
 
     /// The point of the triangle `a`, `b`, `c` nearest the origin.
@@ -269,10 +272,10 @@ extension ClosestPoint {
             consider(a, .a)
             consider(b, .b)
         }
-        considerEdge(a, c, [.a, .c])
-        considerEdge(b, c, [.b, .c])
+        considerEdge(a, c, SimplexFeature.a.union(.c))
+        considerEdge(b, c, SimplexFeature.b.union(.c))
         if !includesC {
-            considerEdge(a, b, [.a, .b])
+            considerEdge(a, b, SimplexFeature.a.union(.b))
         }
         return closest
     }
@@ -364,7 +367,7 @@ extension ClosestPoint {
     public static func onTetrahedron(
         _ a: Vector3, _ b: Vector3, _ c: Vector3, _ d: Vector3, includesD: Bool = false
     ) -> ClosestPoint {
-        var closest = ClosestPoint(point: .zero, feature: [.a, .b, .c, .d])
+        var closest = ClosestPoint(point: .zero, feature: SimplexFeature.a.union(.b).union(.c).union(.d))
         var bestDistanceSquared = Float.greatestFiniteMagnitude
         let outside = originOutsideFaces(a, b, c, d)
 
