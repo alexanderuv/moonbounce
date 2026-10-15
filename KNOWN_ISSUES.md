@@ -69,3 +69,21 @@ Problems outside Moonbounce that it works around or can't yet work around. Each 
   ```
 
   Then the comments that cite this entry in `VertexWelder.swift` and `VertexWelderTests.swift` can go, and this entry with them.
+
+## Swift: incremental Debug builds keep stale `@inline(always)` bodies
+
+- **Affects:** Swift 6.4, seen on macOS arm64 with both SwiftPM build systems; other platforms not checked. Any module that calls a public `@inline(always)` function of another, such as the test target calling Moonbounce's hot paths. The bodies that reach the caller are that function's and those of every `@inline(always)` helper it inlines, internal `@inlinable @inline(always)` ones included.
+- **Symptom:** after a change to any of those bodies, an incremental Debug build relinks without recompiling the caller, even when the public function itself is unchanged. Debug inlines `@inline(always)` bodies even at `-Onone`, so the caller keeps running the old code, and tests can pass or fail against code that no longer exists. An `@inlinable` body without `@inline(always)` isn't inlined at `-Onone`, so its change shows up. Release builds were not affected in the same check.
+- **Workaround:** after changing any `@inline(always)` body, public or internal, run `swift package clean` before testing. CI builds from scratch and isn't affected.
+- **Removal:** in a package with a library target `Lib` and an executable target `App`, build and run this, change the 1 to 2, then build and run again:
+
+  ```swift
+  // Lib
+  @inline(always) public func value() -> Int { 1 }
+
+  // App
+  import Lib
+  print(value())
+  ```
+
+  The second run prints 1 today. Once it prints 2, this entry can go.
