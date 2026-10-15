@@ -28,4 +28,4 @@ Problems outside Moonbounce that it works around or can't yet work around. Each 
   - `/OPT:NOREF` changes nothing.
 - **Workaround:** none. CI builds Windows in Release but tests it only in Debug, so the optimized code is untested on Windows.
   - Every CI test step goes through `.github/scripts/swift-test.sh`, which fails a run that finds no tests.
-- **Removal:** once a Release run on Windows finds the tests, add the "Test release" step back to the `windows` job in `.github/workflows/ci.yml`, and remove this entry and the matching gap in the roadmap's Platforms section.
+- **Removal:** once a Release run on Windows finds the tests, add the "Test release" step back to the `windows` job in `.github/workflows/ci.yml`, and remove this entry and the matching gap in the Platforms section of `docs/validation.md`.

@@ -1,5 +1,22 @@
 # Contributing
 
+## Code
+
+### Naming
+
+Types use full words, per the Swift API Design Guidelines: `Vector3`, `Quaternion`. A vector of something other than `Float` puts the element type first: `UInt32Vector4`. Terms of art keep their usual names: `AABB`, `Ray`.
+
+### Hot paths
+
+A hot path is anything a simulation step can call per body or per constraint. Each rule below closed a gap that a benchmark measured; the comment cited for it explains why.
+
+- **3D vectors are `SIMD4<Float>` with z repeated in w,** never `SIMD3<Float>` (`Vector3`; `StorageInvariantTests` pins the invariant).
+- **Vector math goes through `SIMDPrimitives.swift`:** min/max, reductions, shuffles, fused multiply-adds and negation, backed by `_MoonbounceShims` (the file's header comment).
+- **Public hot-path API is `@inline(always)` on `@frozen` types** (`Vector3`). On a public declaration that implies `@inlinable`, so write `@inline(always)` alone. An internal helper called from inlined code is `@inlinable @inline(always)`. Setup and serialization API, such as Euler angles or compression, is `@inlinable` and leaves inlining to the optimizer.
+- **SIMD constants are computed properties** (`signMask` in `Trigonometry.swift`). Scalar constants stay `let`.
+
+Benchmarks have their own conventions, in [validation](docs/validation.md#benchmarks).
+
 ## Commits
 
 Commit messages follow [Conventional Commits 1.0](https://www.conventionalcommits.org/en/v1.0.0/):

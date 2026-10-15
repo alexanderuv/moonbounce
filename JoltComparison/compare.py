@@ -52,7 +52,7 @@ def check_prerequisites():
     """Fail before fetching anything, rather than halfway through a build."""
     if sys.platform != "darwin":
         sys.exit("compare.py: the Jolt harness uses macOS timing and instruction-counting APIs; "
-                 "other platforms are not supported yet (see docs/roadmap.md, Platforms)")
+                 "other platforms are not supported yet (see docs/validation.md, Platforms)")
     missing = [tool for tool in REQUIRED_TOOLS if shutil.which(tool) is None]
     if missing:
         sys.exit(f"compare.py: missing required tools: {', '.join(missing)}")
