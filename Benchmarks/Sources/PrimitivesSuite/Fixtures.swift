@@ -291,6 +291,8 @@ struct Fixtures: Sendable {
     /// at least 0.5, so that center is inside A and every pair overlaps by
     /// more than any convex radius.
     let penetratingBoxes: [OrientedBox]
+    /// Points in the square [-10, 10)², for the 2D hull.
+    let hullPoints: [SIMD2<Float>]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -357,6 +359,11 @@ struct Fixtures: Sendable {
             var orientation = b.orientation
             orientation.translation = a.orientation.translation + rng.vector3(-0.28, 0.28)
             return OrientedBox(orientation: orientation, halfExtents: b.halfExtents)
+        }
+        hullPoints = (0..<Self.count).map { _ in
+            let x = rng.uniform(-10, 10)
+            let y = rng.uniform(-10, 10)
+            return SIMD2(x, y)
         }
     }
 }
