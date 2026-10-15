@@ -48,7 +48,7 @@ On Windows, cycles take the place of instructions, the last column names the Jol
 ```text
 Benchmark    Swift ns  Jolt ns  Moonbounce is  Swift cycles  Jolt cycles  Mallocs S/J  Jolt compiler
 -----------  --------  -------  -------------  ------------  -----------  -----------  -------------
-Vector3.dot       396      615  55% faster             1261         1958          -/0  MSVC
+Vector3.dot       405      612  51% faster             1290         1949          -/0  clang-cl
 ...
 ```
 
