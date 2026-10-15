@@ -8,21 +8,38 @@ public import _MoonbounceShims
 /// each lane, so a mask can also come from a sign bit or a shift.
 @frozen
 public struct UInt32Vector4: Equatable, Sendable, BitwiseCopyable {
+    #if os(Windows) && arch(x86_64)
+    // TODO: Remove this branch once the x86-64 Windows codegen bug is fixed;
+    // see `UInt32LaneStorage`.
+    @usableFromInline var lanes: UInt32LaneStorage
+
+    @inline(always)
+    public var simd: SIMD4<UInt32> {
+        get { lanes.simd }
+        set { lanes = UInt32LaneStorage(newValue) }
+    }
+
+    @inline(always)
+    public init(_ simd: SIMD4<UInt32>) {
+        lanes = UInt32LaneStorage(simd)
+    }
+    #else
     public var simd: SIMD4<UInt32>
 
     @inline(always)
     public init(_ simd: SIMD4<UInt32>) {
         self.simd = simd
     }
+    #endif
 
     @inline(always)
     public init(_ x: UInt32, _ y: UInt32, _ z: UInt32, _ w: UInt32) {
-        simd = SIMD4(x, y, z, w)
+        self.init(SIMD4(x, y, z, w))
     }
 
     @inline(always)
     public init(repeating value: UInt32) {
-        simd = SIMD4(repeating: value)
+        self.init(SIMD4(repeating: value))
     }
 
     @inline(always) public var x: UInt32 { get { simd.x } set { simd.x = newValue } }

@@ -12,6 +12,31 @@ public import _MoonbounceShims
 /// four fused multiply-adds of a column by a splatted lane.
 @frozen
 public struct Matrix4x4: Equatable, Sendable, BitwiseCopyable {
+    #if os(Windows) && arch(x86_64)
+    // TODO: Remove this branch once the x86-64 Windows codegen bug is fixed;
+    // see `FloatLaneStorage`.
+    @usableFromInline var lanes0: FloatLaneStorage
+    @usableFromInline var lanes1: FloatLaneStorage
+    @usableFromInline var lanes2: FloatLaneStorage
+    @usableFromInline var lanes3: FloatLaneStorage
+
+    @inlinable @inline(always)
+    var c0: SIMD4<Float> { get { lanes0.simd } set { lanes0 = FloatLaneStorage(newValue) } }
+    @inlinable @inline(always)
+    var c1: SIMD4<Float> { get { lanes1.simd } set { lanes1 = FloatLaneStorage(newValue) } }
+    @inlinable @inline(always)
+    var c2: SIMD4<Float> { get { lanes2.simd } set { lanes2 = FloatLaneStorage(newValue) } }
+    @inlinable @inline(always)
+    var c3: SIMD4<Float> { get { lanes3.simd } set { lanes3 = FloatLaneStorage(newValue) } }
+
+    @inlinable @inline(always)
+    init(_ c0: SIMD4<Float>, _ c1: SIMD4<Float>, _ c2: SIMD4<Float>, _ c3: SIMD4<Float>) {
+        lanes0 = FloatLaneStorage(c0)
+        lanes1 = FloatLaneStorage(c1)
+        lanes2 = FloatLaneStorage(c2)
+        lanes3 = FloatLaneStorage(c3)
+    }
+    #else
     @usableFromInline var c0: SIMD4<Float>
     @usableFromInline var c1: SIMD4<Float>
     @usableFromInline var c2: SIMD4<Float>
@@ -24,6 +49,7 @@ public struct Matrix4x4: Equatable, Sendable, BitwiseCopyable {
         self.c2 = c2
         self.c3 = c3
     }
+    #endif
 
     /// The matrix with these four columns.
     @inline(always)

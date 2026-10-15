@@ -7,23 +7,41 @@ public import _MoonbounceShims
 /// many products to keep drift in check. `q` and `-q` encode the same rotation.
 @frozen
 public struct Quaternion: Equatable, Sendable, BitwiseCopyable {
+    #if os(Windows) && arch(x86_64)
+    // TODO: Remove this branch once the x86-64 Windows codegen bug is fixed;
+    // see `FloatLaneStorage`.
+    @usableFromInline var lanes: FloatLaneStorage
+
+    @inline(always)
+    public var simd: SIMD4<Float> {
+        get { lanes.simd }
+        set { lanes = FloatLaneStorage(newValue) }
+    }
+
+    @inline(always)
+    public init(_ simd: SIMD4<Float>) {
+        lanes = FloatLaneStorage(simd)
+    }
+    #else
     public var simd: SIMD4<Float>
 
     @inline(always)
     public init(_ simd: SIMD4<Float>) {
         self.simd = simd
     }
+    #endif
 
     @inline(always)
     public init(x: Float, y: Float, z: Float, w: Float) {
-        simd = SIMD4(x, y, z, w)
+        self.init(SIMD4(x, y, z, w))
     }
 
     /// The quaternion with vector part `xyz` and scalar part `w`.
     @inline(always)
     public init(xyz: Vector3, w: Float) {
-        simd = xyz.storage
+        var simd = xyz.storage
         simd.w = w
+        self.init(simd)
     }
 
     /// A rotation of `angle` radians around the unit vector `axis`.

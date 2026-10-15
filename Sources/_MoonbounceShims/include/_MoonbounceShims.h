@@ -91,8 +91,58 @@ MB_INLINE mb_uint4 mb_umin(mb_uint4 a, mb_uint4 b) { return __builtin_elementwis
 /// Lane-wise unsigned maximum.
 MB_INLINE mb_uint4 mb_umax(mb_uint4 a, mb_uint4 b) { return __builtin_elementwise_max(a, b); }
 
+/// Each lane rounded to the nearest integer, ties to even, using only
+/// arithmetic: no rounding instruction and no libm call.
+///
+/// Adding and subtracting 2^23 rounds a magnitude below 2^23 to an integer:
+/// from 2^23 on, a float has no fractional bits, so the add rounds away the
+/// fraction, ties to even in the default rounding mode. Like the rest of
+/// Moonbounce's arithmetic, this assumes the default mode; a host that
+/// switches the FPU to another mode gets that mode's rounding here, unlike the
+/// `roundeven` builtin. Or-ing the sign bit back in keeps the sign of results
+/// that round to zero. Larger magnitudes and infinities are already integral,
+/// and `v + 0` returns them unchanged while quieting a signaling NaN, as the
+/// rounding instructions do.
+///
+/// The sign and magnitude come from bit masks and the range test compares
+/// bits, so `-ffast-math`'s no-NaN and no-signed-zero assumptions have no
+/// floating-point operation to act on; the pragma keeps the arithmetic itself
+/// from being folded away.
+///
+/// `mb_round` uses this on x86-64 Windows without SSE4.1, the default target
+/// there. It is defined on every target so the tests can check it everywhere.
+#pragma float_control(precise, on, push)
+MB_INLINE mb_float4 mb_round_portable(mb_float4 v) {
+    mb_uint4 bits = (mb_uint4)v;
+    mb_uint4 magnitudeBits = bits & 0x7FFFFFFFu;
+    mb_float4 rounded = ((mb_float4)magnitudeBits + 0x1p23f) - 0x1p23f;
+    mb_float4 signedRounded = (mb_float4)((mb_uint4)rounded | (bits & 0x80000000u));
+    // 0x4B000000 is the bit pattern of 2^23.
+    return magnitudeBits < 0x4B000000u ? signedRounded : v + 0.0f;
+}
+#pragma float_control(pop)
+
+#if defined(_WIN32) && defined(__x86_64__) && !defined(__SSE4_1__)
+// TODO: Use the builtin in the #else branch on every target once the
+// toolchain stops lowering it to calls to `roundevenf` on Windows. Without
+// SSE4.1, x86-64 has no rounding instruction, so LLVM calls the C23 function
+// `roundevenf`, which the Microsoft C runtime does not provide, and linking
+// fails. (Swift's `.rounded(.toNearestOrEven)` is unaffected: it lowers to
+// `rint`, and the runtime has `rintf`.)
+//
+// No upstream issue tracks this lowering (llvm/llvm-project#188898 changes
+// only the optimizer's library info, not the backend's calls). Recheck it
+// with each new toolchain, and together with the SIMD4 carve-out in
+// Moonbounce's LaneStorage.swift: replace this condition with `0`, then run
+// `swift build --build-tests` on x86-64 Windows. If the tests link, delete
+// this branch.
+
+/// Each lane rounded to the nearest integer, ties to even.
+MB_INLINE mb_float4 mb_round(mb_float4 v) { return mb_round_portable(v); }
+#else
 /// Each lane rounded to the nearest integer, ties to even.
 MB_INLINE mb_float4 mb_round(mb_float4 v) { return __builtin_elementwise_roundeven(v); }
+#endif
 
 // MARK: - Bit casts and conversions
 

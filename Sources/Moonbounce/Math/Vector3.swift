@@ -15,6 +15,24 @@ public import _MoonbounceShims
 /// so the hot paths force inlining the way C++ engines use `always_inline`.
 @frozen
 public struct Vector3: Equatable, Sendable, BitwiseCopyable {
+    #if os(Windows) && arch(x86_64)
+    // TODO: Remove this branch once the x86-64 Windows codegen bug is fixed;
+    // see `FloatLaneStorage`.
+    @usableFromInline var lanes: FloatLaneStorage
+
+    /// `(x, y, z, z)`.
+    @inlinable @inline(always)
+    var storage: SIMD4<Float> {
+        get { lanes.simd }
+        set { lanes = FloatLaneStorage(newValue) }
+    }
+
+    /// Wraps a vector that already satisfies `storage.w == storage.z`.
+    @inlinable @inline(always)
+    init(storage: SIMD4<Float>) {
+        lanes = FloatLaneStorage(storage)
+    }
+    #else
     /// `(x, y, z, z)`.
     @usableFromInline var storage: SIMD4<Float>
 
@@ -23,20 +41,21 @@ public struct Vector3: Equatable, Sendable, BitwiseCopyable {
     init(storage: SIMD4<Float>) {
         self.storage = storage
     }
+    #endif
 
     @inline(always)
     public init(_ simd: SIMD3<Float>) {
-        storage = SIMD4(simd, simd.z)
+        self.init(storage: SIMD4(simd, simd.z))
     }
 
     @inline(always)
     public init(_ x: Float, _ y: Float, _ z: Float) {
-        storage = SIMD4(x, y, z, z)
+        self.init(storage: SIMD4(x, y, z, z))
     }
 
     @inline(always)
     public init(repeating value: Float) {
-        storage = SIMD4(repeating: value)
+        self.init(storage: SIMD4(repeating: value))
     }
 
     @inline(always)
@@ -173,13 +192,13 @@ extension Vector3 {
     /// The x, y and z lanes of `v`.
     @inline(always)
     public init(_ v: Vector4) {
-        storage = mb_xyzz(v.simd)
+        self.init(storage: mb_xyzz(v.simd))
     }
 
     /// The floats whose bit patterns are the x, y and z lanes of `bits`.
     @inline(always)
     public init(bitPattern bits: UInt32Vector4) {
-        storage = mb_xyzz(mb_float4_from_bits(bits.simd))
+        self.init(storage: mb_xyzz(mb_float4_from_bits(bits.simd)))
     }
 
     @inline(always) public static var nan: Vector3 { Vector3(repeating: .nan) }

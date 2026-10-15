@@ -392,5 +392,12 @@ import Testing
 
     @Test func occupiesOneSIMDRegister() {
         #expect(MemoryLayout<Quaternion>.size == 16)
+        #if os(Windows) && arch(x86_64)
+        // TODO: Remove this branch with the codegen-bug carve-out in
+        // `FloatLaneStorage`, which stores the lanes as two `UInt64`s.
+        #expect(MemoryLayout<Quaternion>.alignment == 8)
+        #else
+        #expect(MemoryLayout<Quaternion>.alignment == 16)
+        #endif
     }
 }

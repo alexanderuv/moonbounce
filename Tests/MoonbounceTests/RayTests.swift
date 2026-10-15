@@ -57,4 +57,15 @@ import Testing
         let inverse = RayInverseDirection(ray.direction)
         #expect(box.rayDistance(origin: ray.origin, inverseDirection: inverse) == box.rayDistance(ray))
     }
+
+    @Test func inverseDirectionOccupiesTwoSIMDRegisters() {
+        #expect(MemoryLayout<RayInverseDirection>.size == 32)
+        #if os(Windows) && arch(x86_64)
+        // TODO: Remove this branch with the codegen-bug carve-out in
+        // `FloatLaneStorage`, which stores the lanes as two `UInt64`s.
+        #expect(MemoryLayout<RayInverseDirection>.alignment == 8)
+        #else
+        #expect(MemoryLayout<RayInverseDirection>.alignment == 16)
+        #endif
+    }
 }

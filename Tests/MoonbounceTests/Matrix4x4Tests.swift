@@ -449,6 +449,12 @@ import Testing
 
     @Test func occupiesFourSIMDRegisters() {
         #expect(MemoryLayout<Matrix4x4>.size == 64)
+        #if os(Windows) && arch(x86_64)
+        // TODO: Remove this branch with the codegen-bug carve-out in
+        // `FloatLaneStorage`, which stores the lanes as two `UInt64`s.
+        #expect(MemoryLayout<Matrix4x4>.alignment == 8)
+        #else
         #expect(MemoryLayout<Matrix4x4>.alignment == 16)
+        #endif
     }
 }
