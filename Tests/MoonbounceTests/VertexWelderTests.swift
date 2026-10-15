@@ -72,6 +72,36 @@ import Testing
         #expect(mesh.triangles == [IndexedTriangle(0, 1, 2), IndexedTriangle(0, 3, 4)])
     }
 
+    @Test func aVertexCloseToTwoOthersJoinsBoth() {
+        // a is within the distance of b and of c, which are 1.8 times the
+        // distance apart: all three weld, and so a chain welds whole.
+        let distance: Float = 0.01
+        let a = Vector3.zero, b = Vector3(0.9 * distance, 0, 0), c = Vector3(-0.9 * distance, 0, 0)
+        let x = Vector3(5, 0, 0), y = Vector3(0, 5, 0), z = Vector3(0, 0, 5)
+        let mesh = Self.weld([Triangle(a, b, x), Triangle(c, y, z)], distance: distance)
+        #expect(mesh.vertices == [a, x, y, z])
+        // The first triangle collapses; c is now a.
+        #expect(mesh.triangles == [IndexedTriangle(0, 2, 3)])
+    }
+
+    @Test func groupsDontDependOnTheSoupOrder() {
+        // A chain of vertices 0.9 of the distance apart along x, each also
+        // repeated, welds to one vertex in any order; far corners keep the
+        // triangles from collapsing.
+        let distance: Float = 0.01
+        let chain = (0..<12).map { Vector3(Float($0) * 0.9 * distance, 0, 0) }
+        var soup = chain.enumerated().map { i, p in Triangle(p, Vector3(Float(i), 10, 0), Vector3(Float(i), 0, 10)) }
+        soup += chain.reversed().map { Triangle($0, Vector3(-5, -5, -5), Vector3(-5, 5, -5)) }
+        var rng = SplitMix64()
+        for _ in 0..<20 {
+            soup.shuffle(using: &rng)
+            let mesh = Self.weld(soup, distance: distance)
+            let chainVertices = mesh.vertices.filter { $0.y == 0 && $0.z == 0 }
+            #expect(chainVertices.count == 1)
+            #expect(mesh.vertices.count == 1 + 2 * chain.count + 2)
+        }
+    }
+
     @Test func zeroDistanceWeldsOnlyEqualPositions() {
         let nudged = Vector3(1, Float(1).nextUp, 0)
         let soup = [Triangle(Self.p0, Self.p1, Self.p2), Triangle(Self.p0, nudged, Self.p3)]

@@ -1,3 +1,5 @@
+import _MoonbounceShims
+
 /// Turns a triangle soup into an indexed mesh, merging vertices closer than a
 /// distance, and turns an indexed mesh back into a soup.
 ///
@@ -5,6 +7,10 @@
 /// arrays the caller passes in, which are cleared and refilled in place. So
 /// once a welder and its outputs have handled a soup, welding another no
 /// larger allocates nothing.
+///
+/// Its API is not `@inlinable`, unlike other setup API: a call welds a whole
+/// soup, so the call itself costs nothing measurable, and the search stays
+/// internal.
 public struct VertexWelder: Sendable {
     /// One `UInt32` per soup vertex, three times over, back to back: the
     /// vertex indices that splitting partitions, a link from each vertex
@@ -34,14 +40,16 @@ extension VertexWelder {
     /// - `triangles` gets the soup's triangles in order, minus those that
     ///   welding leaves degenerate (``IndexedTriangle/isDegenerate(in:)``).
     ///
-    /// Vertices weld in groups: one welds to another within `distance`, and
-    /// to whatever that one welds to. A group joined only through a chain of
-    /// close pairs, its ends further apart than `distance`, may weld in part.
+    /// Vertices weld in groups: two vertices within `distance` of each other
+    /// are in the same group, and so is a chain of such pairs, even when its
+    /// ends are further apart. The groups don't depend on the order of the
+    /// soup.
     ///
     /// The search splits the vertices in half along the longest side of
     /// their bounds, sending those within `distance` of the split to both
-    /// halves, until a group has 8 vertices or fewer, every vertex lies near
-    /// the split, or 32 splits deep; then it compares each pair in the group.
+    /// halves, so every close pair stays together in one half. It stops when
+    /// a group has 8 vertices or fewer, every vertex lies near the split, or
+    /// it is 32 splits deep; then it compares every pair in the group.
     ///
     /// `materialIndices` has one entry per triangle of `soup`, and `distance`
     /// is at least 0.
@@ -168,10 +176,22 @@ struct WeldSearch {
             return
         }
 
-        var bounds = AABB.empty
-        for i in 0..<count {
-            unsafe bounds.encapsulate(positions[Int(indices[i])])
+        // Four boxes, each over every fourth vertex, so four minimum and
+        // maximum chains run at once rather than one waiting on the last.
+        var boxes = (AABB.empty, AABB.empty, AABB.empty, AABB.empty)
+        var i = 0
+        while i &+ 4 <= count {
+            unsafe boxes.0.encapsulate(positions[Int(indices[i])])
+            unsafe boxes.1.encapsulate(positions[Int(indices[i &+ 1])])
+            unsafe boxes.2.encapsulate(positions[Int(indices[i &+ 2])])
+            unsafe boxes.3.encapsulate(positions[Int(indices[i &+ 3])])
+            i &+= 4
         }
+        while i < count {
+            unsafe boxes.0.encapsulate(positions[Int(indices[i])])
+            i &+= 1
+        }
+        let bounds = boxes.0.union(boxes.1).union(boxes.2.union(boxes.3))
         let axis = bounds.size.highestComponentIndex
         let middle = bounds.center.storage[axis]
 
@@ -208,8 +228,13 @@ struct WeldSearch {
         unsafe split(indices + write, count: count &- write, scratch: scratch, depth: depth &- 1)
     }
 
-    /// Welds each of the first `count` of `indices` to the first vertex after
-    /// it, in that order, within `distance`.
+    /// Welds every pair among the first `count` of `indices` within
+    /// `distance`. Every pair, not only each vertex's first match: a vertex
+    /// close to two others that are far apart joins both.
+    ///
+    /// Two vertices that link to the same vertex are in one group already,
+    /// the common case once the copies of a corner have met, so that check
+    /// comes before the distance.
     func compareEachPair(_ indices: UnsafeMutablePointer<UInt32>, count: Int) {
         for i in 0..<count {
             let vertex = unsafe indices[i]
@@ -217,9 +242,10 @@ struct WeldSearch {
             var j = i &+ 1
             while j < count {
                 let other = unsafe indices[j]
-                if unsafe (positions[Int(other)] - position).lengthSquared <= distanceSquared {
+                if unsafe links[Int(other)] != links[Int(vertex)]
+                    && (positions[Int(other)] - position).lengthSquared <= distanceSquared
+                {
                     unsafe link(vertex, other)
-                    break
                 }
                 j &+= 1
             }
