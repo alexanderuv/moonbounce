@@ -192,6 +192,16 @@ extension SuiteBenchmark {
                 }
                 sweep(iteration, fixtures.ellipses, fixtures.ellipsePoints, operation)
             },
+
+            SuiteBenchmark(name: "ClosestPoint.onTriangle") { iteration in
+                @inline(always) func operation(_ t: Triangle) -> ClosestPoint { ClosestPoint.onTriangle(t.a, t.b, t.c) }
+                sweep(iteration, fixtures.simplexTriangles, operation)
+            },
+
+            SuiteBenchmark(name: "ClosestPoint.onTetrahedron") { iteration in
+                @inline(always) func operation(_ t: Tetrahedron) -> ClosestPoint { ClosestPoint.onTetrahedron(t.a, t.b, t.c, t.d) }
+                sweep(iteration, fixtures.tetrahedra, operation)
+            },
         ]
     }
 }

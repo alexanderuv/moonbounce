@@ -23,6 +23,7 @@ import Testing
         triangle, Triangle(triangle.b, triangle.c, triangle.a), Triangle(triangle.c, triangle.a, triangle.b), triangle)
     static let plane = Plane(normal: Vector3(0.6, 0, -0.8), constant: 3.5)
     static let orientedBox = OrientedBox(orientation: matrix, halfExtents: Vector3(1, 2, 0.5))
+    static let closestPoint = ClosestPoint(point: vector3, feature: [.a, .c])
 
     @Test(arguments: [("Vector3", vector3, vector3)])
     func vector3Arrives(_ label: String, _ a: Vector3, _ b: Vector3) {
@@ -100,6 +101,12 @@ import Testing
     func orientedBoxArrives(_ label: String, _ a: OrientedBox, _ b: OrientedBox) {
         #expect(a == Self.orientedBox)
         #expect(b == Self.orientedBox)
+    }
+
+    @Test(arguments: [("ClosestPoint", closestPoint, closestPoint)])
+    func closestPointArrives(_ label: String, _ a: ClosestPoint, _ b: ClosestPoint) {
+        #expect(a == Self.closestPoint)
+        #expect(b == Self.closestPoint)
     }
 
     @Test(arguments: [("RayInverseDirection", inverseDirection, inverseDirection)])

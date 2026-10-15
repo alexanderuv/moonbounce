@@ -35,6 +35,16 @@ import Testing
         ("Sphere.center", Sphere(center: a, radius: 2).center),
         ("Sphere.support", Sphere(center: a, radius: 2).support(b)),
         ("Triangle.centroid", Triangle(a, b, a + .one).centroid),
+        ("ClosestPoint.onSegment", ClosestPoint.onSegment(a, b).point),
+        // A right triangle in the plane z = 1, with the origin's projection
+        // in each of its regions.
+        ("ClosestPoint.onTriangle face", ClosestPoint.onTriangle(Vector3(-1, -1, 1), Vector3(3, -1, 1), Vector3(-1, 3, 1)).point),
+        ("ClosestPoint.onTriangle vertex", ClosestPoint.onTriangle(Vector3(1, 1, 1), Vector3(3, 1, 1), Vector3(1, 3, 1)).point),
+        ("ClosestPoint.onTriangle edge ab", ClosestPoint.onTriangle(Vector3(-1, 1, 1), Vector3(3, 1, 1), Vector3(-1, 5, 1)).point),
+        ("ClosestPoint.onTriangle edge ac", ClosestPoint.onTriangle(Vector3(1, -1, 1), Vector3(5, -1, 1), Vector3(1, 3, 1)).point),
+        ("ClosestPoint.onTriangle edge bc", ClosestPoint.onTriangle(Vector3(-4, -1, 1), Vector3(0, -1, 1), Vector3(-4, 3, 1)).point),
+        ("ClosestPoint.onTriangle degenerate", ClosestPoint.onTriangle(a, b, a * 2 - b).point),
+        ("ClosestPoint.onTetrahedron", ClosestPoint.onTetrahedron(a, b, Vector3(0, 0, 9), Vector3(1, 7, -2)).point),
         ("Plane.normal", Plane(point: a, normal: b.normalized()).normal),
         ("Plane.projection", Plane(point: a, normal: b.normalized()).projection(of: b)),
         ("Plane.intersection", Plane.intersection(
