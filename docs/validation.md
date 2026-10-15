@@ -25,12 +25,24 @@ A slower result blocks the feature. Find the cause and fix it; don't loosen the 
 CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`, and builds the benchmarks package on macOS. Three things are not covered yet:
 
 - **Windows Release tests.** Swift Testing finds no tests in Windows Release builds, so Windows is tested in Debug only ([#32](https://github.com/alexanderuv/moonbounce/issues/32), [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)).
-- **x86-64-v3.** CI builds x86-64 at the default baseline. The x86-64-v3 build that Moonbounce targets is untested until [#7](https://github.com/alexanderuv/moonbounce/issues/7) decides how clients select it.
+- **x86-64-v3.** CI builds x86-64 at the default baseline only, so the [x86-64-v3](#x86-64-instruction-set) build that Moonbounce is measured at is untested.
 - **Benchmarks.** They are run by hand.
 
 ### x86-64 instruction set
 
-Moonbounce targets x86-64-v3 (AVX2, FMA, F16C, BMI, LZCNT), supported by Intel CPUs since Haswell (2013) and AMD CPUs since Excavator (2015). Its hot paths rely on fused multiply-add. The Swift code (`-target-cpu`) and the shim (`-march`) are both built at that level. SwiftPM forbids `unsafeFlags` in dependencies, so how a client application selects the level is an open decision ([#7](https://github.com/alexanderuv/moonbounce/issues/7)).
+Moonbounce targets x86-64-v3 (AVX2, FMA, F16C, BMI, LZCNT), supported by Intel CPUs since Haswell (2013) and AMD CPUs since Excavator (2015). Its hot paths rely on fused multiply-add.
+
+`Package.swift` sets no instruction-set flags, so a default build is baseline x86-64. An application selects x86-64-v3 for its whole build:
+
+```bash
+swift build -c release -Xcc -march=x86-64-v3
+```
+
+- **One flag covers both languages.** The Swift compiler takes its instruction-set features from its C importer, so `-Xcc -march` sets the level for the Swift code and the shim alike. Swift's `-target-cpu` takes only CPU names such as `haswell` and rejects `x86-64-v3`.
+- **It must apply to the whole build.** The hot-path API is inlinable, so it compiles into the application's own modules. Flags on Moonbounce's targets alone would miss it.
+- **It stays out of the manifest.** A manifest can't condition a setting on the architecture, so a hard-coded level would break arm64 builds and require x86-64-v3 of every application's users.
+
+x86-64 benchmark figures count only from a build with this flag. The Windows runner will pass it ([#8](https://github.com/alexanderuv/moonbounce/issues/8), planned).
 
 A build below x86-64-v3 is supported for correctness only. Without FMA, each vector fused multiply-add becomes four calls to the C library's `fmaf`: the same bits, but far slower.
 
