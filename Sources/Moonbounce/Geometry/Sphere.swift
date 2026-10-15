@@ -68,12 +68,8 @@ extension Sphere {
     ///
     /// With `d` the direction and `m = origin - center`, the ray meets the
     /// sphere where `(d·d) t² + 2 (d·m) t + (m·m - r²) = 0`. Writing `a = d·d`,
-    /// `h = d·m` and `c = m·m - r²`, the origin is outside when `c > 0`. Then
-    /// both roots share a sign, and they are ahead of the origin only when
-    /// `h < 0`. The nearer one is `(-h - √(h² - ac)) / a`. It is computed as
-    /// `c / (√(h² - ac) - h)` instead, which is the same value. That form
-    /// adds two positive numbers where the other subtracts nearly equal ones,
-    /// and it needs no division by `a`.
+    /// `h = d·m` and `c = m·m - r²`, `nearestRootAhead` picks the root, in a
+    /// form that avoids cancellation.
     @inline(always)
     public func rayDistance(origin: Vector3, direction: Vector3) -> Float {
         // The three dot products at once. With lane w of each product cleared,
@@ -88,10 +84,7 @@ extension Sphere {
         let h = sums.x, a = sums.z
         let radius = storage.w
         let c = sums.y.addingProduct(-radius, radius)
-        let discriminant = Float.differenceOfProducts(h, h, a, c)
-        let entry = c / (discriminant.squareRoot() - h)
-        let hit = h < 0 && discriminant >= 0
-        return c <= 0 ? 0 : hit ? entry : .infinity
+        return nearestRootAhead(a: a, h: h, c: c)
     }
 
     /// The distance along `ray` to the sphere, as in
