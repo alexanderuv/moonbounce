@@ -29,3 +29,29 @@ Problems outside Moonbounce that it works around or can't yet work around. Each 
 - **Workaround:** none. CI builds Windows in Release but tests it only in Debug, so the optimized code is untested on Windows.
   - Every CI test step goes through `.github/scripts/swift-test.sh`, which fails a run that finds no tests.
 - **Removal:** once a Release run on Windows finds the tests, add the "Test release" step back to the `windows` job in `.github/workflows/ci.yml`, and remove this entry and the matching gap in the Platforms section of `docs/validation.md`.
+
+## Swift: indexing a borrowed `InlineArray` copies the whole value
+
+- **Affects:** every platform, Swift 6.4, at every optimization level that matters (`-O`).
+- **Cause:** `InlineArray`'s subscript and `span` depend on the array's address.
+  - Swift doesn't let them depend on the address of a borrowed value, such as a parameter or an element read from an array, even one passed by address. It copies the whole value that holds the array to the stack first: 520 bytes for a `Polygon`, its count included.
+  - A getter that takes a span copies on every call, even when the value is a local variable.
+  - `borrowing` and `~Copyable` parameters copy too. A local variable read through the array's own subscript is read in place.
+- **Workaround (#15):** `Polygon`'s clips take their input as a span, and a polygon's own clip methods take one span of it per call. Its element getter uses the storage's subscript. The rule is under Hot paths in `CONTRIBUTING.md`.
+- **Removal:** compile this with `swiftc -O -parse-as-library -c` and disassemble `sum`:
+
+  ```swift
+  public struct P {
+      var storage: InlineArray<32, SIMD4<Float>>
+      var count: Int
+  }
+
+  @inline(never) public func sum(_ p: P) -> SIMD4<Float> {
+      let vertices = p.storage.span
+      var total = SIMD4<Float>()
+      for i in 0..<p.count { total += vertices[i] }
+      return total
+  }
+  ```
+
+  It calls `memcpy` with 520 bytes, the whole of `P`, today. Once it reads `p` in place, the copy note on `Polygon` and the `CONTRIBUTING.md` rule can go, and this entry with them.

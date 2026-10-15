@@ -202,6 +202,24 @@ extension SuiteBenchmark {
                 @inline(always) func operation(_ t: Tetrahedron) -> ClosestPoint { ClosestPoint.onTetrahedron(t.a, t.b, t.c, t.d) }
                 sweep(iteration, fixtures.tetrahedra, operation)
             },
+
+            SuiteBenchmark(name: "Polygon.clipAgainstPolygon") { iteration in
+                // Both faces are built from their corners in local storage
+                // sized to them, as a contact manifold will build box faces,
+                // then clipped into one output polygon, reused. The result is
+                // its vertex sum and count, which reads every vertex as the
+                // C++ harness does.
+                var clipped = Polygon()
+                @inline(always) func operation(_ face: Square, _ clipping: Square, _ clipped: inout Polygon) -> PolygonSummary {
+                    let faceVertices: InlineArray<4, Vector3> = [face.a, face.b, face.c, face.d]
+                    let clippingVertices: InlineArray<4, Vector3> = [clipping.a, clipping.b, clipping.c, clipping.d]
+                    Polygon.clip(faceVertices.span, against: clippingVertices.span, normal: .axisZ, into: &clipped)
+                    var sum = Vector3.zero
+                    for i in clipped.indices { sum += clipped[i] }
+                    return PolygonSummary(sum: sum, count: UInt32(clipped.count))
+                }
+                sweep(iteration, fixtures.facesToClip, fixtures.clippingFaces, state: &clipped, operation)
+            },
         ]
     }
 }

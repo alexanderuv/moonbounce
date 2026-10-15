@@ -14,6 +14,8 @@ A hot path is anything a simulation step can call per body or per constraint. Ea
 - **Vector math goes through `SIMDPrimitives.swift`:** min/max, reductions, shuffles, fused multiply-adds and negation, backed by `_MoonbounceShims` (the file's header comment).
 - **Public hot-path API is `@inline(always)` on `@frozen` types** (`Vector3`). On a public declaration that implies `@inlinable`, so write `@inline(always)` alone. An internal helper called from inlined code is `@inlinable @inline(always)`. Setup and serialization API, such as Euler angles or compression, is `@inlinable` and leaves inlining to the optimizer.
 - **SIMD constants are computed properties** (`signMask` in `Trigonometry.swift`). Scalar constants stay `let`.
+- **`InlineArray` storage is read in place only from a variable** (`Polygon`; [known issue](KNOWN_ISSUES.md#swift-indexing-a-borrowed-inlinearray-copies-the-whole-value)). To read a parameter or other borrowed value by index, Swift first copies the whole value to the stack. So an operation over a list of values takes it as a span, a loop over a borrowed one takes a single span up front, and an element getter uses the storage's own subscript, which reads a variable in place, rather than a span, which copies even then.
+- **Scratch that starts empty is a temporary allocation** (`Polygon.clip`). A new `InlineArray` fills every slot, which costs more than the work for a few vertices; `withUnsafeTemporaryAllocation` gives uninitialized stack memory instead.
 
 Benchmarks have their own conventions, in [validation](docs/validation.md#benchmarks).
 
