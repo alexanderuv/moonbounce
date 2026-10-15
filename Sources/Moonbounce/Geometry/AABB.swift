@@ -1,3 +1,5 @@
+public import _MoonbounceShims
+
 /// An axis-aligned bounding box spanning `min` to `max`, inclusive.
 @frozen
 public struct AABB: Equatable, Sendable, BitwiseCopyable {
@@ -83,6 +85,14 @@ extension AABB {
     @inline(always)
     public func union(_ other: AABB) -> AABB {
         AABB(min: Vector3.min(min, other.min), max: Vector3.max(max, other.max))
+    }
+
+    /// The corner furthest along `direction`: the support function that GJK
+    /// queries. On an axis where `direction` is 0, either sign, the corner is
+    /// on the `max` side.
+    @inline(always)
+    public func support(_ direction: Vector3) -> Vector3 {
+        Vector3(storage: mb_select_float4(max.storage, min.storage, mb_less(direction.storage, .zero)))
     }
 
     /// The point of the box nearest `point`: `point` itself when inside.

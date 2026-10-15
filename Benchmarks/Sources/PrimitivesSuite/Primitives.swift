@@ -245,6 +245,40 @@ extension SuiteBenchmark {
                 }
                 iteration.stopMeasurement()
             },
+
+            SuiteBenchmark(name: "GJK.intersects") { iteration in
+                // A box grown by a convex radius against a box, as a narrow
+                // phase tests shape cores. One GJK is reused, and each query
+                // starts along x.
+                var gjk = GJK()
+                @inline(always) func operation(_ a: OrientedBox, _ b: OrientedBox, _ gjk: inout GJK) -> Bool {
+                    var axis = Vector3.axisX
+                    return gjk.intersects(RoundedConvex(a.convex, radius: 0.05), b.convex, tolerance: 1.0e-4, axis: &axis)
+                }
+                sweep(iteration, fixtures.orientedBoxesA, fixtures.orientedBoxesB, state: &gjk, operation)
+            },
+
+            SuiteBenchmark(name: "GJK.closestPoints") { iteration in
+                // The same pairs, with no limit on the distance.
+                var gjk = GJK()
+                @inline(always) func operation(_ a: OrientedBox, _ b: OrientedBox, _ gjk: inout GJK) -> GJK.ClosestPoints {
+                    var axis = Vector3.axisX
+                    return gjk.closestPoints(
+                        RoundedConvex(a.convex, radius: 0.05), b.convex, tolerance: 1.0e-4,
+                        maxDistanceSquared: .greatestFiniteMagnitude, axis: &axis)
+                        ?? GJK.ClosestPoints(distanceSquared: .greatestFiniteMagnitude, pointA: .zero, pointB: .zero)
+                }
+                sweep(iteration, fixtures.orientedBoxesA, fixtures.orientedBoxesB, state: &gjk, operation)
+            },
         ]
+    }
+}
+
+extension OrientedBox {
+    /// The box as GJK sees it: the box around its local origin, carried into
+    /// place, as the C++ harness builds it.
+    @inline(always)
+    var convex: TransformedConvex<AABB> {
+        TransformedConvex(AABB(min: -halfExtents, max: halfExtents), transform: orientation)
     }
 }

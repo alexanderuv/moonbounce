@@ -289,19 +289,7 @@ extension ClosestPoint {
     /// exactly 0 agrees and gets the ordinary test.
     @inline(always)
     public static func originOutsideFaces(_ a: Vector3, _ b: Vector3, _ c: Vector3, _ d: Vector3) -> UInt32Vector4 {
-        let a = a.storage, b = b.storage
-        let ab = b - a, ac = c.storage - a, ad = d.storage - a, bd = d.storage - b, bc = c.storage - b
-        let abc = preciseCross3(ab, ac), acd = preciseCross3(ac, ad), adb = preciseCross3(ad, ab), bdc = preciseCross3(bd, bc)
-
-        // The origin's side of each face, and the opposite vertex's: dot
-        // products with the face normals, whose lane w is 0, so two rounds of
-        // pairwise sums give all four at once. `a - b` is -ab exactly.
-        @inline(always)
-        func dots(_ p0: SIMD4<Float>, _ p1: SIMD4<Float>, _ p2: SIMD4<Float>, _ p3: SIMD4<Float>) -> Vector4 {
-            Vector4(mb_pairwise_add(mb_pairwise_add(p0 * abc, p1 * acd), mb_pairwise_add(p2 * adb, p3 * bdc)))
-        }
-        let origin = dots(a, a, a, b)
-        let opposite = dots(ad, ab, ac, a - b)
+        let (origin, opposite) = faceSides(a, b, c, d)
 
         // The faces wind so that every vertex lands on the same side; when
         // they don't, the tetrahedron is degenerate.
@@ -313,6 +301,50 @@ extension ClosestPoint {
         default:
             return UInt32Vector4(repeating: 0xFFFF_FFFF)
         }
+    }
+
+    /// The barycentric coordinates `(u, v, w, x)` of the origin in the
+    /// tetrahedron `a`, `b`, `c`, `d`, so that `u a + v b + w c + x d` is the
+    /// origin: each vertex's weight is the signed volume of the tetrahedron
+    /// with the origin in its place, over the sum of all four.
+    ///
+    /// The volumes are the products ``originOutsideFaces(_:_:_:_:)`` tests,
+    /// bit for bit. When it finds the origin inside all four faces, they share
+    /// a sign, so the coordinates are positive and sum to 1. Otherwise some
+    /// are negative, and when the volumes sum to 0 they are not finite.
+    @inline(always)
+    public static func barycentricCoordinates(
+        _ a: Vector3, _ b: Vector3, _ c: Vector3, _ d: Vector3
+    ) -> (u: Float, v: Float, w: Float, x: Float) {
+        let volumes = faceSides(a, b, c, d).origin
+        let total = (volumes.x + volumes.y) + (volumes.z + volumes.w)
+        // Lanes are the faces abc, acd, adb and bdc, each opposite d, b, c
+        // and a.
+        return (volumes.w / total, volumes.y / total, volumes.z / total, volumes.x / total)
+    }
+
+    /// For the faces `abc`, `acd`, `adb` and `bdc`: the origin's side of
+    /// each and the opposite vertex's, as dot products with the face normals
+    /// relative to a vertex of the face. `origin` is -6 times the signed
+    /// volume of the tetrahedron with the origin in place of the opposite
+    /// vertex; each lane of `opposite` is 6 times that of the whole
+    /// tetrahedron, up to rounding.
+    @inlinable @inline(always)
+    static func faceSides(
+        _ a: Vector3, _ b: Vector3, _ c: Vector3, _ d: Vector3
+    ) -> (origin: Vector4, opposite: Vector4) {
+        let a = a.storage, b = b.storage
+        let ab = b - a, ac = c.storage - a, ad = d.storage - a, bd = d.storage - b, bc = c.storage - b
+        let abc = preciseCross3(ab, ac), acd = preciseCross3(ac, ad), adb = preciseCross3(ad, ab), bdc = preciseCross3(bd, bc)
+
+        // Dot products with the face normals, whose lane w is 0, so two
+        // rounds of pairwise sums give all four at once. `a - b` is -ab
+        // exactly.
+        @inline(always)
+        func dots(_ p0: SIMD4<Float>, _ p1: SIMD4<Float>, _ p2: SIMD4<Float>, _ p3: SIMD4<Float>) -> Vector4 {
+            Vector4(mb_pairwise_add(mb_pairwise_add(p0 * abc, p1 * acd), mb_pairwise_add(p2 * adb, p3 * bdc)))
+        }
+        return (dots(a, a, a, b), dots(ad, ab, ac, a - b))
     }
 
     /// The point of the tetrahedron `a`, `b`, `c`, `d` nearest the origin:

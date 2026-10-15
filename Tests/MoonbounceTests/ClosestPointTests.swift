@@ -194,6 +194,35 @@ import Testing
         #expect(ClosestPoint.onTetrahedron(a, c, b, d).feature == [.a, .b, .c, .d])
     }
 
+    @Test func tetrahedronCoordinates() {
+        // (0.3, 0.4, 0.5) is 0.15 of the way to b, 0.2 to c and 0.25 to d.
+        let (a, b, c, d) = corner(from: Vector3(0.3, 0.4, 0.5))
+        let expected: [Float] = [0.4, 0.15, 0.2, 0.25]
+        let (u, v, w, x) = ClosestPoint.barycentricCoordinates(a, b, c, d)
+        #expect(zip([u, v, w, x], expected).allSatisfy { Swift.abs($0 - $1) <= 1.0e-6 })
+        // Either winding, and any vertex first.
+        let (u2, w2, v2, x2) = ClosestPoint.barycentricCoordinates(a, c, b, d)
+        #expect(zip([u2, v2, w2, x2], expected).allSatisfy { Swift.abs($0 - $1) <= 1.0e-6 })
+        let (x3, u3, v3, w3) = ClosestPoint.barycentricCoordinates(d, a, b, c)
+        #expect(zip([u3, v3, w3, x3], expected).allSatisfy { Swift.abs($0 - $1) <= 1.0e-6 })
+
+        // Outside, the coordinates still sum to 1 but some are negative.
+        let (p, q, r, s) = corner(from: Vector3(3, 0.5, 0.5))
+        let outside = ClosestPoint.barycentricCoordinates(p, q, r, s)
+        #expect(outside.u < 0)
+        #expect(Swift.abs(outside.u + outside.v + outside.w + outside.x - 1) <= 1.0e-6)
+    }
+
+    @Test func flatTetrahedronAroundTheOriginHasPositiveCoordinates() {
+        // A sliver 10⁻⁴ thick, with the origin inside it.
+        let a = Vector3(-1, -1, -5.0e-5), b = Vector3(2, -1, 5.0e-5), c = Vector3(-1, 2, 5.0e-5), d = Vector3(0.1, 0.1, -5.0e-5)
+        #expect(ClosestPoint.originOutsideFaces(a, b, c, d) == UInt32Vector4(repeating: 0))
+        let (u, v, w, x) = ClosestPoint.barycentricCoordinates(a, b, c, d)
+        #expect(Swift.min(u, v, w, x) > 0)
+        #expect(Swift.abs(u + v + w + x - 1) <= 1.0e-6)
+        #expect((a * u + b * v + c * w + d * x).length <= 1.0e-5)
+    }
+
     @Test func tetrahedronRegions() {
         let cases: [(from: Vector3, closest: Vector3, feature: SimplexFeature)] = [
             // Faces abc (z = 0), acd (x = 0), abd (y = 0) and bcd.
@@ -400,6 +429,12 @@ import Testing
             if expectInside {
                 inside += 1
                 #expect(closest.point == .zero)
+                // The coordinates of the origin are positive, sum to 1 and
+                // weigh the vertices back to it.
+                let (u, v, w, x) = ClosestPoint.barycentricCoordinates(a, b, c, d)
+                #expect(Swift.min(u, v, w, x) > 0, "\(a) \(b) \(c) \(d)")
+                #expect(Swift.abs(u + v + w + x - 1) <= 1.0e-5)
+                #expect((a * u + b * v + c * w + d * x).length <= 1.0e-5 * 8, "\(a) \(b) \(c) \(d)")
             } else {
                 outside += 1
                 // Outside, the nearest point of the solid is the nearest of

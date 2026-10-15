@@ -16,7 +16,9 @@
 #include <Jolt/Geometry/AABox4.h>
 #include <Jolt/Geometry/ClipPoly.h>
 #include <Jolt/Geometry/ClosestPoint.h>
+#include <Jolt/Geometry/ConvexSupport.h>
 #include <Jolt/Geometry/Ellipse.h>
+#include <Jolt/Geometry/GJKClosestPoint.h>
 #include <Jolt/Geometry/Indexify.h>
 #include <Jolt/Geometry/MortonCode.h>
 #include <Jolt/Geometry/OrientedBox.h>
@@ -145,6 +147,14 @@ struct PolygonSummary
 {
 	Vec3 mSum;
 	uint32 mCount;
+};
+
+// A squared distance and the closest points, laid out like Moonbounce's
+// GJK.ClosestPoints: 48 bytes.
+struct GJKClosestPointsOutput
+{
+	float mDistanceSq;
+	Vec3 mPointA, mPointB;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -694,6 +704,29 @@ int main()
 				BlackHole(vertices.data());
 				BlackHole(triangles.data());
 			}
+		});
+	}
+
+	// A box grown by a convex radius against a box, as in the Swift
+	// benchmarks. One GJK is reused, and each query starts along x.
+	{
+		constexpr float cConvexRadius = 0.05f, cTolerance = 1.0e-4f;
+		GJKClosestPoint gjk;
+		Sweep<OrientedBox, OrientedBox, uint8_t>("GJK.intersects", f.mOrientedBoxesA, f.mOrientedBoxesB, [&](const OrientedBox &a, const OrientedBox &b) {
+			AABox box_a(-a.mHalfExtents, a.mHalfExtents), box_b(-b.mHalfExtents, b.mHalfExtents);
+			TransformedConvexObject<AABox> core_a(a.mOrientation, box_a), core_b(b.mOrientation, box_b);
+			AddConvexRadius<TransformedConvexObject<AABox>> rounded_a(core_a, cConvexRadius);
+			Vec3 v = Vec3::sAxisX();
+			return uint8_t(gjk.Intersects(rounded_a, core_b, cTolerance, v));
+		});
+		Sweep<OrientedBox, OrientedBox, GJKClosestPointsOutput>("GJK.closestPoints", f.mOrientedBoxesA, f.mOrientedBoxesB, [&](const OrientedBox &a, const OrientedBox &b) {
+			AABox box_a(-a.mHalfExtents, a.mHalfExtents), box_b(-b.mHalfExtents, b.mHalfExtents);
+			TransformedConvexObject<AABox> core_a(a.mOrientation, box_a), core_b(b.mOrientation, box_b);
+			AddConvexRadius<TransformedConvexObject<AABox>> rounded_a(core_a, cConvexRadius);
+			Vec3 v = Vec3::sAxisX();
+			GJKClosestPointsOutput r;
+			r.mDistanceSq = gjk.GetClosestPoints(rounded_a, core_b, cTolerance, FLT_MAX, v, r.mPointA, r.mPointB);
+			return r;
 		});
 	}
 
