@@ -37,7 +37,7 @@ BUILD = HERE / ".build"
 SWIFT_RESULTS = BUILD / "swift-results"
 
 DEFAULT_JOLT_VERSION = "v5.6.0"
-# Benchmarks/Sources/PrimitivesSuite/Measurement.swift: `MeasurementRules.sweepsPerIteration`
+# Benchmarks/Sources/BenchmarkSupport/Measurement.swift: `MeasurementRules.sweepsPerIteration`
 # (1,000) sweeps of `Fixtures.count` (1,000) operations per measured iteration.
 SWIFT_OPERATIONS_PER_ITERATION = 1_000_000
 SWIFT_TARGET = "Primitives"

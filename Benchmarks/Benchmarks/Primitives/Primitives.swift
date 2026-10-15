@@ -1,4 +1,5 @@
 import Benchmark
+import BenchmarkSupport
 #if canImport(Darwin)
 import Darwin
 #endif
@@ -9,8 +10,9 @@ import PrimitivesSuite
 // registers them with package-benchmark's configuration and measurement.
 
 let benchmarks: @Sendable () -> Void = {
-    // The suite's sweeps per iteration, so package-benchmark divides its
-    // per-iteration figures into per-sweep ones.
+    // The suite's sweeps per iteration, so package-benchmark's tables show
+    // per-sweep figures. Its raw exports, such as the influx CSV that
+    // compare.py reads, stay per iteration.
     guard let scalingFactor = BenchmarkScalingFactor(rawValue: MeasurementRules.sweepsPerIteration) else {
         fatalError("package-benchmark has no scaling factor of \(MeasurementRules.sweepsPerIteration)")
     }
@@ -22,7 +24,7 @@ let benchmarks: @Sendable () -> Void = {
         maxIterations: MeasurementRules.maxIterations
     )
 
-    for suiteBenchmark in PrimitivesSuite.benchmarks() {
+    for suiteBenchmark in SuiteBenchmark.primitives() {
         Benchmark(suiteBenchmark.name) { benchmark in
             suiteBenchmark.run(PackageBenchmarkIteration(benchmark: benchmark))
         }

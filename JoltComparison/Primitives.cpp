@@ -1,4 +1,4 @@
-// Jolt counterpart of Benchmarks/Sources/PrimitivesSuite/PrimitivesSuite.swift.
+// Jolt counterpart of Benchmarks/Sources/PrimitivesSuite/Primitives.swift.
 //
 // Same inputs (SplitMix64 with the same seed, consumed in the same order),
 // same sweep structure (1,000 operations per sweep, 1,000 sweeps per measured
@@ -313,7 +313,7 @@ struct SwingTwist { Quat mSwing, mTwist; };
 
 int main()
 {
-	// Same as the package-benchmark runner (Benchmarks/Benchmarks/Primitives): stay on performance cores.
+	// Same as PackageBenchmarkIteration in the Primitives runner: stay on performance cores.
 	pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
 
 	Allocate = CountingAllocate;

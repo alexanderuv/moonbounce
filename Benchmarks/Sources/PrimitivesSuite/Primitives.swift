@@ -1,11 +1,12 @@
+import BenchmarkSupport
 import Moonbounce
 
-/// The `Primitives` benchmarks: Moonbounce's math and geometry operations,
-/// each swept over the seeded fixtures. Every runner registers these bodies
-/// as they are, under their names.
-public enum PrimitivesSuite {
-    /// Builds the fixtures once and returns every benchmark, in registration order.
-    public static func benchmarks() -> [SuiteBenchmark] {
+extension SuiteBenchmark {
+    /// The `Primitives` benchmarks: Moonbounce's math and geometry operations,
+    /// each swept over the seeded fixtures. Every runner registers these
+    /// bodies as they are, under their names. Builds the fixtures once and
+    /// returns the benchmarks in registration order.
+    public static func primitives() -> [SuiteBenchmark] {
         let fixtures = Fixtures()
 
         // Each operation is a local `@inline(always)` function rather than a

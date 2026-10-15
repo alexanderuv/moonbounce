@@ -38,7 +38,7 @@ Instruction counts are deterministic. Wall times on a busy machine are not, so t
 
 - **Same inputs:** `Primitives.cpp` uses the same SplitMix64 generator as `Benchmarks/Sources/PrimitivesSuite/Fixtures.swift`, with the same seed, consumed in the same order.
 - **Same loop shape:** 1,000 operations per sweep, 1,000 sweeps per measured iteration, results written to an output array, and one opaque black-hole call per sweep.
-- **Same measurement as package-benchmark,** with the rules in `MeasurementRules` (`Benchmarks/Sources/PrimitivesSuite/Measurement.swift`):
+- **Same measurement as package-benchmark,** with the rules in `MeasurementRules` (`Benchmarks/Sources/BenchmarkSupport/Measurement.swift`):
   - `CLOCK_UPTIME_RAW` wall time.
   - Retired instructions from `proc_pid_rusage`.
   - 5 warm-up iterations, then up to 1,000 iterations or 2 seconds.
@@ -48,7 +48,7 @@ Instruction counts are deterministic. Wall times on a busy machine are not, so t
 
 ## Adding a benchmark
 
-1. Add it to `Benchmarks/Sources/PrimitivesSuite/PrimitivesSuite.swift` first, as a normal Moonbounce benchmark. The `Primitives` runner registers every benchmark in the suite, so nothing else changes on the Swift side.
+1. Add it to `Benchmarks/Sources/PrimitivesSuite/Primitives.swift` first, as a normal Moonbounce benchmark. The `Primitives` runner registers every benchmark in the suite, so nothing else changes on the Swift side.
 2. Mirror it in `Primitives.cpp` under the same name.
 
 `compare.py` matches the two by name and lists any benchmark that has no counterpart.
