@@ -61,6 +61,12 @@ Windows matters more than Linux, so it is tier 1 with macOS.
 | 2 | Linux, x86-64 and arm64 | Build and tests |
 | 2 | Windows, arm64 | Build and tests (Jolt supports it) |
 
+CI (`.github/workflows/ci.yml`) builds the library and runs its tests on every platform in the table, in Debug and in Release, for each pull request and each push to `main`. It also builds the benchmarks package on macOS. It does not cover:
+
+- **Windows Release tests.** Swift Testing finds no tests in Windows Release builds, so CI builds Windows in Release but tests it only in Debug ([#32](https://github.com/alexanderuv/moonbounce/issues/32), [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)).
+- **x86-64-v3.** x86-64 builds run at the default baseline, without SSE4.1 or FMA, until the instruction-set ADR decides how a client selects x86-64-v3 (see [What Windows changes](#what-windows-changes)). The x86-64-v3 build that tier 1 Windows is measured at is therefore not tested yet.
+- **Benchmarks and the Jolt comparison.** They are run by hand.
+
 ### What Windows changes
 
 - **Instruction set.** Jolt's default x86-64 build turns on AVX2, FMA, F16C, LZCNT and TZCNT (`USE_AVX2`, `USE_FMADD`, … in `Build/CMakeLists.txt`). Swift and clang target baseline x86-64 (SSE2) unless told otherwise.
