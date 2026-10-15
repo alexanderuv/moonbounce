@@ -55,3 +55,17 @@ Problems outside Moonbounce that it works around or can't yet work around. Each 
   ```
 
   It calls `memcpy` with 520 bytes, the whole of `P`, today. Once it reads `p` in place, the copy note on `Polygon` and the `CONTRIBUTING.md` rule can go, and this entry with them.
+
+## Swift: the span of an empty array of vectors traps
+
+- **Affects:** Swift 6.4, seen on macOS arm64; other platforms not checked. Any `Array` or `ContiguousArray` with no storage of its own whose element is aligned to 16 bytes, such as `Vector3`, `Triangle` or `SIMD4<Float>`.
+- **Cause:** every empty array without storage shares one empty buffer, whose element address is 8 bytes past a 16-byte boundary. `span` checks the alignment and stops with "baseAddress must be properly aligned to access Element". An array emptied with `removeAll(keepingCapacity: true)` keeps its own storage and is not affected.
+- **Workaround (#16):** `VertexWelder.weld` takes the span of its vertex output only once it holds a vertex. A caller with nothing to pass can pass `Span()`, which is empty and works; `VertexWelderTests.emptySoupClearsTheOutputs` does.
+- **Removal:** this program stops today, and prints 0 once the bug is fixed:
+
+  ```swift
+  let empty: [SIMD4<Float>] = []
+  print(empty.span.count)
+  ```
+
+  Then the comments that cite this entry in `VertexWelder.swift` and `VertexWelderTests.swift` can go, and this entry with them.

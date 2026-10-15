@@ -220,6 +220,31 @@ extension SuiteBenchmark {
                 }
                 sweep(iteration, fixtures.facesToClip, fixtures.clippingFaces, state: &clipped, operation)
             },
+
+            SuiteBenchmark(name: "MortonCode.interleave") { iteration in
+                // The box around every point in `vectorsA`.
+                let bounds = AABB(min: Vector3(repeating: -100), max: Vector3(repeating: 100))
+                @inline(always) func operation(_ point: Vector3) -> UInt32 { MortonCode.interleave(point, in: bounds) }
+                sweep(iteration, fixtures.vectorsA, operation)
+            },
+
+            SuiteBenchmark(name: "VertexWelder.weld") { iteration in
+                // One weld of the whole soup per sweep, so an operation is a
+                // triangle. The welder and its outputs are reused, as by a
+                // mesh builder: one weld before the clock starts sizes them.
+                let soup = fixtures.soup, materials = fixtures.soupMaterials
+                var welder = VertexWelder()
+                var vertices: [Vector3] = []
+                var triangles: [IndexedTriangle] = []
+                welder.weld(soup.span, materialIndices: materials.span, vertices: &vertices, triangles: &triangles)
+                iteration.startMeasurement()
+                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                    welder.weld(soup.span, materialIndices: materials.span, vertices: &vertices, triangles: &triangles)
+                    blackHole(vertices)
+                    blackHole(triangles)
+                }
+                iteration.stopMeasurement()
+            },
         ]
     }
 }
