@@ -330,6 +330,13 @@ import Testing
         #expect(matches(cut, [Vector3(-0.5, 0, 0), Vector3(1, 0, 0)]))
     }
 
+    @Test func degenerateEdgeGivesNothing() {
+        // A point for an edge, or an edge along its own normal, spans no
+        // plane: every distance is 0, so nothing crosses.
+        #expect(clipped(unit, edgeFrom: Vector3(0, 0, 1), to: Vector3(0, 0, 1), normal: -.axisZ).isEmpty)
+        #expect(clipped(unit, edgeFrom: Vector3(0, 0, 1), to: Vector3(0, 0, 3), normal: -.axisZ).isEmpty)
+    }
+
     // MARK: Spans
 
     /// Vertices kept outside a polygon, in an array or in storage sized to
@@ -390,6 +397,18 @@ import Testing
     @Test func polygonOnABoxFaceIsCutAway() {
         // In the plane z = 1, the box's top face.
         #expect(clipped(Polygon(unit.map { $0 * 0.5 + Vector3(0, 0, 1) }), against: box).isEmpty)
+    }
+
+    @Test func colinearPolygonClipsAgainstABox() {
+        // Three points on the x axis inside the box are kept as they are.
+        let inside = Polygon([Vector3(-0.5, 0, 0), Vector3(0, 0, 0), Vector3(0.5, 0, 0)])
+        #expect(clipped(inside, against: box) == inside)
+        // Through the side x = 1, the two edges crossing it each give their
+        // crossing, and the vertex inside stays between them.
+        let through = Polygon([Vector3(0, 0, 0), Vector3(1.5, 0, 0), Vector3(3, 0, 0)])
+        #expect(matches(clipped(through, against: box), [Vector3(1, 0, 0), Vector3(0, 0, 0), Vector3(1, 0, 0)]))
+        // A segment is fewer than 3 vertices, so nothing remains.
+        #expect(clipped(Polygon([Vector3(-0.5, 0, 0), Vector3(0.5, 0, 0)]), against: box).isEmpty)
     }
 
     @Test func degenerateBoxCutsEverything() {
