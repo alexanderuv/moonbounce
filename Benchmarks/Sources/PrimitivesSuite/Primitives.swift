@@ -333,6 +333,48 @@ extension SuiteBenchmark {
                 }
                 iteration.stopMeasurement()
             },
+
+            SuiteBenchmark(name: "ConvexHullBuilder.build") { iteration in
+                // The hull of each of 1,000 game models per sweep, so an
+                // operation is a hull, with Jolt's default hull tolerance.
+                // The builder and its outputs are reused: one sweep before
+                // the clock starts sizes them.
+                let points = fixtures.gameCloudPoints, clouds = fixtures.gameClouds
+                var builder = ConvexHullBuilder()
+                var faces: [Range<Int>] = []
+                var indices: [Int] = []
+                func buildEach() {
+                    let span = points.span
+                    for cloud in clouds {
+                        blackHole(builder.build(span.extracting(cloud), tolerance: 1.0e-3, faces: &faces, indices: &indices))
+                        blackHole(indices)
+                    }
+                }
+                buildEach()
+                iteration.startMeasurement()
+                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                    buildEach()
+                }
+                iteration.stopMeasurement()
+            },
+
+            SuiteBenchmark(name: "ConvexHullBuilder.buildRandomPoints") { iteration in
+                // One hull of all the points per sweep, so an operation is a
+                // point, with Jolt's default hull tolerance. The builder and
+                // its outputs are reused: one build before the clock starts
+                // sizes them.
+                let points = fixtures.hullPoints3D
+                var builder = ConvexHullBuilder()
+                var faces: [Range<Int>] = []
+                var indices: [Int] = []
+                _ = builder.build(points.span, tolerance: 1.0e-3, faces: &faces, indices: &indices)
+                iteration.startMeasurement()
+                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                    blackHole(builder.build(points.span, tolerance: 1.0e-3, faces: &faces, indices: &indices))
+                    blackHole(indices)
+                }
+                iteration.stopMeasurement()
+            },
         ]
     }
 }

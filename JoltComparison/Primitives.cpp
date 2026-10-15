@@ -20,6 +20,7 @@
 #include <Jolt/Geometry/AABox4.h>
 #include <Jolt/Geometry/ClipPoly.h>
 #include <Jolt/Geometry/ClosestPoint.h>
+#include <Jolt/Geometry/ConvexHullBuilder.h>
 #include <Jolt/Geometry/ConvexHullBuilder2D.h>
 #include <Jolt/Geometry/ConvexSupport.h>
 #include <Jolt/Geometry/EPAPenetrationDepth.h>
@@ -439,6 +440,9 @@ struct Fixtures
 	std::vector<OrientedBox> mPenetratingBoxes;
 	// Same as hullPoints in Fixtures.swift, in the plane z = 0.
 	Array<Vec3> mHullPoints;
+	// Same as hullPoints3D and gameClouds in Fixtures.swift.
+	Array<Vec3> mHullPoints3D;
+	std::vector<Array<Vec3>> mGameClouds;
 
 	Fixtures()
 	{
@@ -538,6 +542,33 @@ struct Fixtures
 			float y = rng.Uniform(-10, 10);
 			mHullPoints.push_back(Vec3(x, y, 0));
 		}
+		for (int i = 0; i < cCount; ++i) mHullPoints3D.push_back(rng.Vector(-10, 10));
+
+		// Same as convexHullClouds() and gameClouds in Fixtures.swift: the
+		// clouds in the format Assets/README.md gives, and every 6.755th one.
+		std::vector<Array<Vec3>> clouds;
+		FILE *file = std::fopen(MOONBOUNCE_ASSETS "/convex_hulls.bin", "rb");
+		if (file == nullptr)
+		{
+			std::fprintf(stderr, "Cannot read %s\n", MOONBOUNCE_ASSETS "/convex_hulls.bin");
+			std::exit(1);
+		}
+		uint32 count;
+		while (std::fread(&count, sizeof(count), 1, file) == 1)
+		{
+			Array<Vec3> cloud;
+			for (uint32 i = 0; i < count; ++i)
+			{
+				Float3 v;
+				if (std::fread(&v, sizeof(v), 1, file) != 1)
+					std::exit(1);
+				cloud.push_back(Vec3(v));
+			}
+			clouds.push_back(std::move(cloud));
+		}
+		std::fclose(file);
+		for (int k = 0; k < cCount; ++k)
+			mGameClouds.push_back(clouds[size_t(k) * clouds.size() / cCount]);
 	}
 };
 
@@ -933,6 +964,35 @@ int main()
 				ConvexHullBuilder2D::EResult result = builder.Initialize(idx1, idx2, idx3, INT_MAX, 1.0e-3f, hull);
 				BlackHole(&result);
 				BlackHole(hull.data());
+			}
+		});
+	}
+
+	// The hull of each of 1,000 game models per sweep, then one hull of
+	// 1,000 random points per sweep, as in the Swift benchmarks, with the
+	// default hull tolerance. The builder allocates its faces and edges each
+	// call, and keeps them as its output.
+	{
+		constexpr float cHullTolerance = 1.0e-3f;
+		Measure("ConvexHullBuilder.build", [&] {
+			for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+				for (const Array<Vec3> &cloud : f.mGameClouds)
+				{
+					ConvexHullBuilder builder(cloud);
+					const char *error = nullptr;
+					ConvexHullBuilder::EResult result = builder.Initialize(INT_MAX, cHullTolerance, error);
+					BlackHole(&result);
+					BlackHole(builder.GetFaces().data());
+				}
+		});
+		Measure("ConvexHullBuilder.buildRandomPoints", [&] {
+			for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+			{
+				ConvexHullBuilder builder(f.mHullPoints3D);
+				const char *error = nullptr;
+				ConvexHullBuilder::EResult result = builder.Initialize(INT_MAX, cHullTolerance, error);
+				BlackHole(&result);
+				BlackHole(builder.GetFaces().data());
 			}
 		});
 	}

@@ -18,7 +18,8 @@ Early: there are no bodies or simulation yet. What exists is the math and geomet
 | Convex queries | `ConvexSupport`, `TransformedConvex`, `RoundedConvex`, `MinkowskiDifference`, `GJK`, `EPA`, `ClosestPoint` | Whether two convex shapes overlap, how far apart they are or how deep they penetrate, and where one first touches the other when moved. |
 | Clipping | `Polygon` | Clips a polygon against planes, edges, boxes and other polygons, the step that contact manifolds are built from. |
 | Meshes | `IndexedTriangle`, `VertexWelder`, `MortonCode` | Turns a triangle soup into an indexed mesh and back, and gives a point's position on a Z-order (Morton) curve. |
-| 2D | `Ellipse`, `ConvexHullBuilder2D` | Containment, normals and closest points on an ellipse, and the convex hull of points in a plane. |
+| Convex hulls | `ConvexHullBuilder`, `ConvexHullBuilder2D` | The convex hull of a point cloud as polygon faces, or of points in a plane as a polygon. |
+| 2D | `Ellipse` | Containment, normals and closest points on an ellipse. |
 
 The [roadmap](docs/roadmap.md) lays out the path to a complete engine.
 
@@ -90,6 +91,7 @@ The tests under `Tests/MoonbounceTests` show every type in use.
 | `Sources/_MoonbounceShims` | Internal: header-only C wrappers around clang vector builtins. |
 | `Tests/MoonbounceTests` | Swift Testing suites. |
 | `Benchmarks/` | The benchmarks, as a separate package so the library keeps no dependencies. |
+| `Assets/` | [Test and benchmark data](Assets/README.md) from other projects, with its license. |
 | `JoltComparison/` | Temporary tooling that runs the benchmarks against Jolt Physics. See [Benchmark](#benchmark). |
 | `docs/` | The [roadmap](docs/roadmap.md) and [validation rules](docs/validation.md). |
 | `KNOWN_ISSUES.md` | [Toolchain problems](KNOWN_ISSUES.md) that Moonbounce works around. |

@@ -66,3 +66,5 @@ FetchContent_MakeAvailable(JoltPhysics)
 add_executable(jolt_primitives Primitives.cpp)
 target_link_libraries(jolt_primitives PRIVATE Jolt)
 target_compile_definitions(jolt_primitives PRIVATE JOLT_VERSION="${JOLT_VERSION}")
+# Moonbounce's copy of Jolt's convex_hulls.bin, which the Swift benchmarks read.
+target_compile_definitions(jolt_primitives PRIVATE MOONBOUNCE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/../Assets")

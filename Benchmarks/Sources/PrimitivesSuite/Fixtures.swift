@@ -1,3 +1,4 @@
+import Foundation
 import Moonbounce
 
 /// SplitMix64: a tiny, fully specified generator, so every run (and any
@@ -293,6 +294,13 @@ struct Fixtures: Sendable {
     let penetratingBoxes: [OrientedBox]
     /// Points in the square [-10, 10)², for the 2D hull.
     let hullPoints: [SIMD2<Float>]
+    /// Points in the cube [-10, 10)³, for the 3D hull.
+    let hullPoints3D: [Vector3]
+    /// 1,000 of the point clouds in `Assets/convex_hulls.bin`, game models
+    /// of 4 to 100 points, spread evenly through the file: their points back
+    /// to back, and each cloud's range of them.
+    let gameCloudPoints: [Vector3]
+    let gameClouds: [Range<Int>]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -365,5 +373,43 @@ struct Fixtures: Sendable {
             let y = rng.uniform(-10, 10)
             return SIMD2(x, y)
         }
+        hullPoints3D = (0..<Self.count).map { _ in rng.vector3(-10, 10) }
+
+        let clouds = Self.convexHullClouds()
+        var points: [Vector3] = []
+        gameClouds = (0..<Self.count).map { k in
+            let cloud = clouds[k * clouds.count / Self.count]
+            points += cloud
+            return (points.count - cloud.count)..<points.count
+        }
+        gameCloudPoints = points
+    }
+
+    /// The point clouds in `Assets/convex_hulls.bin`, in the format
+    /// `Assets/README.md` gives.
+    static func convexHullClouds() -> [[Vector3]] {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // PrimitivesSuite
+            .deletingLastPathComponent() // Sources
+            .deletingLastPathComponent() // Benchmarks
+            .deletingLastPathComponent()
+            .appendingPathComponent("Assets")
+            .appendingPathComponent("convex_hulls.bin")
+        guard let data = try? Data(contentsOf: url) else { fatalError("Cannot read \(url.path)") }
+        let bytes = [UInt8](data)
+        var offset = 0
+        func next() -> UInt32 {
+            defer { offset += 4 }
+            return (0..<4).reduce(0) { $0 | UInt32(bytes[offset + $1]) << (8 * $1) }
+        }
+        var clouds: [[Vector3]] = []
+        while offset < bytes.count {
+            let count = Int(next())
+            clouds.append((0..<count).map { _ in
+                let x = Float(bitPattern: next()), y = Float(bitPattern: next()), z = Float(bitPattern: next())
+                return Vector3(x, y, z)
+            })
+        }
+        return clouds
     }
 }
