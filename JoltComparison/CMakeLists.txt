@@ -9,16 +9,34 @@ set(JOLT_VERSION v5.6.0 CACHE STRING "Jolt Physics tag to build and compare agai
 # (Release without profiler, debug renderer or asserts) and these flags. They
 # are set in Jolt's own directory scope, and Jolt's math is header-only, so the
 # harness must be compiled with the same flags for the inlined math to match.
+# Jolt's instruction-set flags are public on its target, so they reach the
+# harness without repeating them here.
 if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Distribution)
 endif()
+# Visual Studio builds pick the configuration at build time, from this list.
+set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Distribution")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_FLAGS_DISTRIBUTION "-O3")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions -ffp-contract=on")
-if (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -faligned-allocation")
+if (MSVC)
+    # MSVC and clang-cl, with Jolt's static runtime: the two must match to link.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    string(REPLACE "/EHsc" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /Gm- /MP /nologo /diagnostics:classic /FC /fp:except- /Zc:inline /GR- /wd4577")
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:fast")
+    else()
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qunused-arguments")
+    endif()
+    set(CMAKE_CXX_FLAGS_DISTRIBUTION "/GS- /Gy /O2 /Oi /Ot")
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions -ffp-contract=on")
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -faligned-allocation")
+    endif()
+    set(CMAKE_CXX_FLAGS_DISTRIBUTION "-O3")
 endif()
+set(CMAKE_EXE_LINKER_FLAGS_DISTRIBUTION "${CMAKE_EXE_LINKER_FLAGS_RELEASE}")
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DISTRIBUTION ON)
 
 set(TARGET_UNIT_TESTS OFF CACHE BOOL "" FORCE)

@@ -2,11 +2,15 @@
 //
 // Same inputs (SplitMix64 with the same seed, consumed in the same order),
 // same sweep structure (1,000 operations per sweep, 1,000 sweeps per measured
-// iteration, a black hole once per sweep) and the same measurement scheme as
-// package-benchmark: CLOCK_UPTIME_RAW wall time, per-process retired
-// instructions from proc_pid_rusage, 5 warm-up iterations, then up to 1,000
-// iterations or 2 seconds, at user-interactive QoS. Prints raw per-iteration
-// percentiles as JSON. macOS only, like the measurement APIs it mirrors.
+// iteration, a black hole once per sweep) and the same iteration rules as the
+// Swift runners: 5 warm-up iterations, then up to 1,000 iterations or 2
+// seconds. Each platform measures as its Swift runner does:
+// - macOS, like package-benchmark: CLOCK_UPTIME_RAW wall time and per-process
+//   retired instructions from proc_pid_rusage, at user-interactive QoS.
+// - Windows, like the portable runner: QueryPerformanceCounter wall time and
+//   QueryThreadCycleTime cycles, at the highest thread priority with power
+//   throttling off.
+// Prints raw per-iteration percentiles as JSON.
 
 #include <Jolt/Jolt.h>
 
@@ -31,12 +35,20 @@
 #include <Jolt/Math/Mat44.h>
 #include <Jolt/Math/Quat.h>
 
+#ifdef _WIN32
+// NOGDI keeps GDI's Polygon and Ellipse functions out of the global namespace.
+#define NOGDI
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
 #include <libproc.h>
 #include <pthread.h>
 #include <sys/qos.h>
 #include <sys/resource.h>
 #include <time.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cstdint>
@@ -59,10 +71,18 @@ static void CountingFree(void *inBlock) { std::free(inBlock); }
 static void *CountingAlignedAllocate(size_t inSize, size_t inAlignment)
 {
 	++gAllocations;
+#ifdef _WIN32
+	return _aligned_malloc(inSize, inAlignment);
+#else
 	void *block = nullptr;
 	return posix_memalign(&block, std::max(inAlignment, sizeof(void *)), inSize) == 0 ? block : nullptr;
+#endif
 }
+#ifdef _WIN32
+static void CountingAlignedFree(void *inBlock) { _aligned_free(inBlock); }
+#else
 static void CountingAlignedFree(void *inBlock) { std::free(inBlock); }
+#endif
 
 void *operator new(size_t inSize) { ++gAllocations; if (void *p = std::malloc(inSize)) return p; std::abort(); }
 void operator delete(void *inBlock) noexcept { std::free(inBlock); }
@@ -506,19 +526,69 @@ static constexpr uint64_t cMaxDurationNs = 2'000'000'000;
 
 // The counterpart of package-benchmark's blackHole: an opaque call that may
 // read everything reachable from the pointer.
+#if defined(_MSC_VER) && !defined(__clang__)
+// MSVC has no inline assembly on x64. A volatile store of the pointer and a
+// compiler barrier, which no memory access may cross, do the same.
+static const void *volatile gBlackHole = nullptr;
+__declspec(noinline) static void BlackHole(const void *inData)
+{
+	gBlackHole = inData;
+	_ReadWriteBarrier();
+}
+#else
 __attribute__((noinline)) static void BlackHole(const void *inData)
 {
 	asm volatile("" : : "r"(inData) : "memory");
 }
+#endif
 
+#ifdef _WIN32
+static uint64_t WallClockNs()
+{
+	static const uint64_t cTicksPerSecond = [] { LARGE_INTEGER frequency; QueryPerformanceFrequency(&frequency); return uint64_t(frequency.QuadPart); }();
+	LARGE_INTEGER now;
+	QueryPerformanceCounter(&now);
+	// In two parts, so the product can't overflow however long the machine has been up.
+	uint64_t ticks = uint64_t(now.QuadPart);
+	return ticks / cTicksPerSecond * 1'000'000'000 + ticks % cTicksPerSecond * 1'000'000'000 / cTicksPerSecond;
+}
+
+// Windows has no retired-instruction counter without a kernel driver, so
+// cycles stand in: the time-stamp-counter cycles this thread has run for.
+static const char *const cCounterName = "cycles";
+static uint64_t Counter()
+{
+	ULONG64 cycles;
+	QueryThreadCycleTime(GetCurrentThread(), &cycles);
+	return cycles;
+}
+
+// Same as the portable runner: the highest priority in the process's class,
+// with execution-speed throttling off, so a hybrid CPU keeps the thread on
+// its performance cores.
+static bool KeepOnPerformanceCores()
+{
+	THREAD_POWER_THROTTLING_STATE state = {};
+	state.Version = THREAD_POWER_THROTTLING_CURRENT_VERSION;
+	state.ControlMask = THREAD_POWER_THROTTLING_EXECUTION_SPEED;
+	state.StateMask = 0;
+	return SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST)
+		&& SetThreadInformation(GetCurrentThread(), ThreadPowerThrottling, &state, sizeof(state));
+}
+#else
 static uint64_t WallClockNs() { return clock_gettime_nsec_np(CLOCK_UPTIME_RAW); }
 
-static uint64_t RetiredInstructions()
+static const char *const cCounterName = "instructions";
+static uint64_t Counter()
 {
 	rusage_info_v4 info;
 	proc_pid_rusage(getpid(), RUSAGE_INFO_V4, reinterpret_cast<rusage_info_t *>(&info));
 	return info.ri_instructions;
 }
+
+// Same as PackageBenchmarkIteration in the Primitives runner: stay on performance cores.
+static bool KeepOnPerformanceCores() { return pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) == 0; }
+#endif
 
 static std::vector<uint64_t> Percentiles(std::vector<uint64_t> ioSamples)
 {
@@ -551,31 +621,31 @@ static void Measure(const char *inName, Iteration inIteration)
 		inIteration();
 
 	// Reserved up front so recording samples never allocates mid-measurement.
-	std::vector<uint64_t> wall, instructions, allocations;
+	std::vector<uint64_t> wall, counts, allocations;
 	wall.reserve(cMaxIterations);
-	instructions.reserve(cMaxIterations);
+	counts.reserve(cMaxIterations);
 	allocations.reserve(cMaxIterations);
 
 	uint64_t total = 0;
 	while (wall.size() < cMaxIterations && total < cMaxDurationNs)
 	{
 		uint64_t allocations_before = gAllocations;
-		uint64_t instructions_before = RetiredInstructions();
+		uint64_t count_before = Counter();
 		uint64_t start = WallClockNs();
 		inIteration();
 		uint64_t end = WallClockNs();
-		uint64_t instructions_after = RetiredInstructions();
+		uint64_t count_after = Counter();
 		uint64_t allocations_after = gAllocations;
 
 		wall.push_back(end - start);
-		instructions.push_back(instructions_after - instructions_before);
+		counts.push_back(count_after - count_before);
 		allocations.push_back(allocations_after - allocations_before);
 		total += end - start;
 	}
 
 	std::printf("%s    \"%s\": {\n", gFirstBenchmark ? "" : ",\n", inName);
 	PrintMetric("wallClockNs", wall, false);
-	PrintMetric("instructions", instructions, false);
+	PrintMetric(cCounterName, counts, false);
 	PrintMetric("mallocs", allocations, true);
 	std::printf("    }");
 	gFirstBenchmark = false;
@@ -631,8 +701,11 @@ struct SwingTwist { Quat mSwing, mTwist; };
 
 int main()
 {
-	// Same as PackageBenchmarkIteration in the Primitives runner: stay on performance cores.
-	pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+	if (!KeepOnPerformanceCores())
+	{
+		std::fprintf(stderr, "jolt_primitives: could not keep the thread on performance cores\n");
+		return 1;
+	}
 
 	Allocate = CountingAllocate;
 	Reallocate = CountingReallocate;

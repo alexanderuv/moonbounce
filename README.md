@@ -43,6 +43,14 @@ cd Benchmarks && swift package benchmark
   - Save a baseline with `swift package --allow-writing-to-package-directory benchmark baseline update main`.
   - Compare against it with `swift package benchmark baseline compare main`.
 
+package-benchmark doesn't run on Windows, so the portable runner measures the same benchmarks there. On x86-64 it refuses a build below [x86-64-v3](docs/validation.md#x86-64-instruction-set):
+
+```bash
+swift run -c release --package-path Benchmarks -Xcc -march=x86-64-v3 PortableRunner
+```
+
+It prints wall time and thread cycles per sweep, in place of instructions, and counts no allocations. `--filter REGEX` limits it to benchmarks whose whole name matches; repeat it to select more.
+
 As a reference point, `JoltComparison/compare.py` runs the same benchmarks against [Jolt Physics](https://github.com/jrouwe/JoltPhysics), a mature C++ engine, on the same machine. Its [README](JoltComparison/README.md) has the details, and [validation](docs/validation.md) has the results so far.
 
 ## Contributing
