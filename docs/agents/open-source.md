@@ -1,0 +1,46 @@
+# Working in public
+
+Moonbounce is a public repository. Code, comments, docs, commit messages, issues and pull requests are all read by strangers and kept. Write for a reader who has never seen your conversation, the maintainer's notes, or the history behind the change.
+
+## Writing
+
+Public text is edited text: every sentence carries a fact, a decision or a reason the reader needs.
+
+- **Lead with the point.** The first sentence says what the thing is or does. Detail follows.
+- **Be concrete.** Name the type, the number, the file, the issue.
+- **Say it once.** Each fact has one home (see [Where things go](#where-things-go)). Everywhere else, link to it.
+- **Keep it short.** A README says what the project is, how to use it and where to go next. The roadmap lists phases and their status. Specifications live in issues.
+- **Use plain words.** "Uses", "measures", "is". Describe the subject, not the document ("This document is the plan" says nothing).
+- **Claim what is true today.** Mark unfinished work as planned or in progress.
+
+Before you post, reread as that stranger and delete every sentence they would skip.
+
+## Framing
+
+Moonbounce stands on its own: describe it by what it does and how it is built.
+
+- **Other projects appear where they are used.** [Jolt Physics](https://github.com/jrouwe/JoltPhysics) is the benchmark baseline and the reference for feature scope. Name it in benchmarking and validation material and in the phase issues, neutrally and with a link.
+- **Comparisons report measurements:** faster, even or slower, by how much, on which platform.
+- **Credit upstream work.** Link it, and state the license of anything derived from it.
+
+## Where things go
+
+| Content | Home |
+|---|---|
+| What Moonbounce is; how to build, test and benchmark it | `README.md` |
+| Phases and their status, one line each | `docs/roadmap.md` |
+| Features, specifications, acceptance criteria | GitHub issues: one per phase, with tickets as sub-issues |
+| Definition of done, platforms, measurement, recorded results | `docs/validation.md` |
+| Decisions and the reasons for them | `docs/adr/` |
+| Toolchain bugs Moonbounce works around | `KNOWN_ISSUES.md` |
+| Commit and pull request format | `CONTRIBUTING.md` |
+| Why a piece of code is the way it is | A comment beside the code |
+
+When you move or rename a section, update every reference to it. Search the repository and the open issues.
+
+## Hygiene
+
+- **Third-party code stays upstream.** The comparison script fetches Jolt's source into a git-ignored folder on each run. Third-party assets are committed only under a compatible license, with its notice beside them.
+- **Commits and posts carry only project material.** Strip secrets, tokens, local paths, machine names and personal data from code, logs and benchmark output before they are committed or pasted.
+- **Issues and pull requests are the permanent record.** Write them for the next contributor: what was decided and why.
+- **Links in issues use absolute URLs to `main`** (`https://github.com/alexanderuv/moonbounce/blob/main/…`), because relative links don't resolve there.

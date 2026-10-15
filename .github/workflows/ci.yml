@@ -1,5 +1,5 @@
 # Builds the library and runs its tests on every tier 1 and tier 2 platform in
-# docs/roadmap.md (Platforms), as rule 4 of "Rules for every phase" requires.
+# docs/validation.md (Platforms), as rule 4 of the definition of done requires.
 # Each platform is its own job, so each reports as its own status check.
 #
 # Every job builds and tests in Debug, then builds in Release, where the
@@ -104,7 +104,7 @@ jobs:
           # At the default x86-64 baseline, as on Linux: no SSE4.1 and no FMA,
           # so the shim takes its portable paths and its fused multiply-adds
           # call the Microsoft C runtime's fmaf. Tier 1 is measured at
-          # x86-64-v3, which CI does not build yet (see docs/roadmap.md,
+          # x86-64-v3, which CI does not build yet (see docs/validation.md,
           # Platforms).
           - arch: x86-64
             runner: windows-2025

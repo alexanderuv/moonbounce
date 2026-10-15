@@ -34,7 +34,7 @@ typedef int mb_int4 __attribute__((ext_vector_type(4)));
 /// call to libm's correctly rounded `fmaf` per lane: four calls per use, and
 /// about forty per `sinCos`. That keeps such a build correct and
 /// deterministic, but it is not a performance target; Moonbounce is measured
-/// at x86-64-v3 (see the roadmap's Platforms section). `Package.swift` links
+/// at x86-64-v3 (see docs/validation.md, Platforms). `Package.swift` links
 /// libm on Linux and Android for those calls.
 ///
 /// The standard library's `SIMD.addingProduct` computes the same value but is

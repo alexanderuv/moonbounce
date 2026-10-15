@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs `swift test` with the given arguments, and fails unless Swift Testing
 # reports at least one test. A run that discovers no tests otherwise passes,
-# as Windows release builds do (see docs/roadmap.md, Platforms).
+# as Windows release builds do (see docs/validation.md, Platforms).
 set -euo pipefail
 
 log=$(mktemp)
