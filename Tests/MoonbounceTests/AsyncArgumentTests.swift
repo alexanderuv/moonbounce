@@ -17,6 +17,9 @@ import Testing
     static let ray = Ray(origin: Vector3(0, 0, -5), direction: Vector3(0.1, 0.2, 1))
     static let inverseDirection = RayInverseDirection(Vector3(0.5, 0, -2))
     static let sphere = Sphere(center: Vector3(1, -2, 3.5), radius: 0.75)
+    static let triangle = Triangle(Vector3(1, -2, 3.5), Vector3(0, 1, 0), Vector3(-4, 0.5, 2))
+    static let triangle4 = Triangle4(
+        triangle, Triangle(triangle.b, triangle.c, triangle.a), Triangle(triangle.c, triangle.a, triangle.b), triangle)
 
     @Test(arguments: [("Vector3", vector3, vector3)])
     func vector3Arrives(_ label: String, _ a: Vector3, _ b: Vector3) {
@@ -64,6 +67,18 @@ import Testing
     func sphereArrives(_ label: String, _ a: Sphere, _ b: Sphere) {
         #expect(a == Self.sphere)
         #expect(b == Self.sphere)
+    }
+
+    @Test(arguments: [("Triangle", triangle, triangle)])
+    func triangleArrives(_ label: String, _ a: Triangle, _ b: Triangle) {
+        #expect(a == Self.triangle)
+        #expect(b == Self.triangle)
+    }
+
+    @Test(arguments: [("Triangle4", triangle4, triangle4)])
+    func triangle4Arrives(_ label: String, _ a: Triangle4, _ b: Triangle4) {
+        #expect(a == Self.triangle4)
+        #expect(b == Self.triangle4)
     }
 
     @Test(arguments: [("RayInverseDirection", inverseDirection, inverseDirection)])

@@ -92,6 +92,16 @@ struct SplitMix64: RandomNumberGenerator {
         return (halfHeight, radius)
     }
 
+    /// A triangle around a center in [-100, 100), each vertex within 10 of it
+    /// on each axis.
+    mutating func triangle() -> Triangle {
+        let center = vector3(-100, 100)
+        let a = center + vector3(-10, 10)
+        let b = center + vector3(-10, 10)
+        let c = center + vector3(-10, 10)
+        return Triangle(a, b, c)
+    }
+
     /// A ray from a random origin through a point within 8 of `target` on each
     /// axis, so a sphere of radius 0.5 to 10 at `target` is hit about half the
     /// time. The direction runs from the origin to that point, unnormalized.
@@ -140,6 +150,12 @@ struct Fixtures: Sendable {
     /// One ray per capsule and cylinder, aimed near the origin, where both are
     /// centered.
     let axialRays: [Ray]
+    let triangles: [Triangle]
+    /// One ray per triangle, aimed near its centroid.
+    let triangleRays: [Ray]
+    /// `triangles[i]` to `triangles[i + 3]` (wrapping), so `triangleRays[i]`
+    /// is aimed near lane x and passes the others by chance.
+    let triangleGroups: [Triangle4]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -169,5 +185,11 @@ struct Fixtures: Sendable {
         capsules = axialDimensions.map { Capsule(halfHeight: $0.halfHeight, radius: $0.radius) }
         cylinders = axialDimensions.map { Cylinder(halfHeight: $0.halfHeight, radius: $0.radius) }
         axialRays = (0..<Self.count).map { _ in rng.ray(toward: .zero) }
+        triangles = (0..<Self.count).map { _ in rng.triangle() }
+        triangleRays = triangles.map { rng.ray(toward: ($0.a + $0.b + $0.c) * (1.0 / 3.0)) }
+        triangleGroups = triangles.indices.map { [triangles] i in
+            func at(_ k: Int) -> Triangle { triangles[(i + k) % triangles.count] }
+            return Triangle4(at(0), at(1), at(2), at(3))
+        }
     }
 }

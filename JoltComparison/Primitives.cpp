@@ -16,6 +16,7 @@
 #include <Jolt/Geometry/RayCapsule.h>
 #include <Jolt/Geometry/RayCylinder.h>
 #include <Jolt/Geometry/RaySphere.h>
+#include <Jolt/Geometry/RayTriangle.h>
 #include <Jolt/Geometry/Sphere.h>
 #include <Jolt/Math/Mat44.h>
 #include <Jolt/Math/Quat.h>
@@ -72,6 +73,21 @@ struct AxialInput
 {
 	float mHalfHeight;
 	float mRadius;
+};
+
+// A triangle, laid out like Moonbounce's Triangle: 48 bytes.
+struct TriangleInput
+{
+	Vec3 mV0, mV1, mV2;
+};
+
+// Four triangles as structure of arrays, laid out like Moonbounce's Triangle4:
+// 144 bytes, the nine arguments of RayTriangle4.
+struct Triangle4Input
+{
+	Vec4 mV0X, mV0Y, mV0Z;
+	Vec4 mV1X, mV1Y, mV1Z;
+	Vec4 mV2X, mV2Y, mV2Z;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -173,6 +189,16 @@ struct SplitMix64
 		return { half_height, radius };
 	}
 
+	// Same as triangle() in Fixtures.swift.
+	TriangleInput TriangleAround()
+	{
+		Vec3 center = Vector(-100, 100);
+		Vec3 v0 = center + Vector(-10, 10);
+		Vec3 v1 = center + Vector(-10, 10);
+		Vec3 v2 = center + Vector(-10, 10);
+		return { v0, v1, v2 };
+	}
+
 	// Same as ray(toward:) in Fixtures.swift: the direction runs from a random
 	// origin to a point within 8 of the target, unnormalized.
 	RayInput RayToward(Vec3Arg inTarget)
@@ -199,6 +225,9 @@ struct Fixtures
 	std::vector<RayInput> mSphereRays;
 	std::vector<AxialInput> mAxialShapes;
 	std::vector<RayInput> mAxialRays;
+	std::vector<TriangleInput> mTriangles;
+	std::vector<RayInput> mTriangleRays;
+	std::vector<Triangle4Input> mTriangleGroups;
 
 	Fixtures()
 	{
@@ -228,6 +257,24 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mSphereRays.push_back(rng.RayToward(mSpheres[i].GetCenter()));
 		for (int i = 0; i < cCount; ++i) mAxialShapes.push_back(rng.AxialDimensions());
 		for (int i = 0; i < cCount; ++i) mAxialRays.push_back(rng.RayToward(Vec3::sZero()));
+		for (int i = 0; i < cCount; ++i) mTriangles.push_back(rng.TriangleAround());
+		for (const TriangleInput &t : mTriangles) mTriangleRays.push_back(rng.RayToward((t.mV0 + t.mV1 + t.mV2) * (1.0f / 3.0f)));
+		// Same as triangleGroups in Fixtures.swift: triangles i to i + 3, wrapping.
+		for (int i = 0; i < cCount; ++i)
+		{
+			const TriangleInput &t0 = mTriangles[i], &t1 = mTriangles[(i + 1) % cCount], &t2 = mTriangles[(i + 2) % cCount], &t3 = mTriangles[(i + 3) % cCount];
+			mTriangleGroups.push_back({
+				Vec4(t0.mV0.GetX(), t1.mV0.GetX(), t2.mV0.GetX(), t3.mV0.GetX()),
+				Vec4(t0.mV0.GetY(), t1.mV0.GetY(), t2.mV0.GetY(), t3.mV0.GetY()),
+				Vec4(t0.mV0.GetZ(), t1.mV0.GetZ(), t2.mV0.GetZ(), t3.mV0.GetZ()),
+				Vec4(t0.mV1.GetX(), t1.mV1.GetX(), t2.mV1.GetX(), t3.mV1.GetX()),
+				Vec4(t0.mV1.GetY(), t1.mV1.GetY(), t2.mV1.GetY(), t3.mV1.GetY()),
+				Vec4(t0.mV1.GetZ(), t1.mV1.GetZ(), t2.mV1.GetZ(), t3.mV1.GetZ()),
+				Vec4(t0.mV2.GetX(), t1.mV2.GetX(), t2.mV2.GetX(), t3.mV2.GetX()),
+				Vec4(t0.mV2.GetY(), t1.mV2.GetY(), t2.mV2.GetY(), t3.mV2.GetY()),
+				Vec4(t0.mV2.GetZ(), t1.mV2.GetZ(), t2.mV2.GetZ(), t3.mV2.GetZ())
+			});
+		}
 	}
 };
 
@@ -418,6 +465,8 @@ int main()
 	Sweep<RayInput, Sphere, float>("Sphere.rayDistance", f.mSphereRays, f.mSpheres, [](const RayInput &r, const Sphere &s) { return RaySphere(r.mOrigin, r.mDirection, s.GetCenter(), s.GetRadius()); });
 	Sweep<RayInput, AxialInput, float>("Capsule.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCapsule(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });
 	Sweep<RayInput, AxialInput, float>("Cylinder.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCylinder(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });
+	Sweep<RayInput, TriangleInput, float>("Triangle.rayDistance", f.mTriangleRays, f.mTriangles, [](const RayInput &r, const TriangleInput &t) { return RayTriangle(r.mOrigin, r.mDirection, t.mV0, t.mV1, t.mV2); });
+	Sweep<RayInput, Triangle4Input, Vec4>("Triangle4.rayDistance", f.mTriangleRays, f.mTriangleGroups, [](const RayInput &r, const Triangle4Input &t) { return RayTriangle4(r.mOrigin, r.mDirection, t.mV0X, t.mV0Y, t.mV0Z, t.mV1X, t.mV1Y, t.mV1Z, t.mV2X, t.mV2Y, t.mV2Z); });
 
 	std::printf("\n  }\n}\n");
 	return 0;

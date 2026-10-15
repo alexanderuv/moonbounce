@@ -220,6 +220,9 @@ MB_INLINE int mb_mask_count(mb_uint4 v) { return (int)__builtin_reduce_add(v >> 
 /// surrounding arithmetic into 2-lane pieces instead.
 MB_INLINE mb_float4 mb_yzxx(mb_float4 v) { return __builtin_shufflevector(v, v, 1, 2, 0, 0); }
 
+/// `(z, x, y, w)`: rotates lanes x, y and z up by one and keeps w.
+MB_INLINE mb_float4 mb_zxyw(mb_float4 v) { return __builtin_shufflevector(v, v, 2, 0, 1, 3); }
+
 /// `(x, y, z, z)`: restores the `Vector3` storage invariant.
 MB_INLINE mb_float4 mb_xyzz(mb_float4 v) { return __builtin_shufflevector(v, v, 0, 1, 2, 2); }
 

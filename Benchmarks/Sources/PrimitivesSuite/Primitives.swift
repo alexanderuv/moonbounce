@@ -156,6 +156,16 @@ extension SuiteBenchmark {
                 @inline(always) func operation(_ ray: Ray, _ cylinder: Cylinder) -> Float { cylinder.rayDistance(ray) }
                 sweep(iteration, fixtures.axialRays, fixtures.cylinders, operation)
             },
+
+            SuiteBenchmark(name: "Triangle.rayDistance") { iteration in
+                @inline(always) func operation(_ ray: Ray, _ triangle: Triangle) -> Float { triangle.rayDistance(ray) }
+                sweep(iteration, fixtures.triangleRays, fixtures.triangles, operation)
+            },
+
+            SuiteBenchmark(name: "Triangle4.rayDistance") { iteration in
+                @inline(always) func operation(_ ray: Ray, _ triangles: Triangle4) -> Vector4 { triangles.rayDistance(ray) }
+                sweep(iteration, fixtures.triangleRays, fixtures.triangleGroups, operation)
+            },
         ]
     }
 }
