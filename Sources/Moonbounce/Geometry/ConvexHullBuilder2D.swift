@@ -128,7 +128,7 @@ struct ConvexHullEdge2D: Sendable {
 
 extension ConvexHullBuilder2D {
     /// Below this, the squared cross product of the starting triangle's
-    /// sides, it has no area.
+    /// sides, it has no area. The 3D builder uses it too.
     static let minTriangleAreaSquared: Float = 1.0e-12
 
     static func cross(_ a: SIMD2<Float>, _ b: SIMD2<Float>) -> Float {

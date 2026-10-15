@@ -114,7 +114,7 @@ Both engines must start from the same state, so some scenes reproduce the refere
 
 - **HighSpeed** places its bodies with a default-seeded `std::mt19937` and Jolt's random helpers.
 - **ConvexVsMesh, LargeMesh and CharacterVirtual** compute terrain heights with Jolt's sin/cos, which rounds differently from Moonbounce's own.
-- **Ragdoll** loads three assets from Horizon Zero Dawn, released by Guerrilla Games under the MIT license. They are converted to Moonbounce's format and committed under `Benchmarks/Assets/` with the license notice and a checksum.
+- **Ragdoll** loads three assets from Horizon Zero Dawn, released by Guerrilla Games under the MIT license. They are converted to Moonbounce's format and committed under [`Assets/`](../Assets/README.md) with the license notice and a checksum.
 
 ## Reference results
 
