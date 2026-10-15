@@ -564,8 +564,8 @@ static uint64_t Counter()
 }
 
 // Same as the portable runner: the highest priority in the process's class,
-// with execution-speed throttling off, so a hybrid CPU keeps the thread on
-// its performance cores.
+// with execution-speed throttling off, so Windows prefers a hybrid CPU's
+// performance cores for the thread.
 static bool KeepOnPerformanceCores()
 {
 	THREAD_POWER_THROTTLING_STATE state = {};

@@ -57,14 +57,23 @@ while let argument = arguments.popFirst() {
 
 // MARK: - Checks
 
-#if DEBUG
-fail("measure a release build: swift run -c release")
-#endif
-if build_level_is_below_x86_64_v3() {
-    fail("""
-        this build targets less than x86-64-v3, which x86-64 figures require. \
-        Rebuild with -Xcc -march=x86-64-v3 (docs/validation.md, x86-64 instruction set).
-        """)
+/// Why this build can't be measured, or nil if it can.
+func buildProblem() -> String? {
+    let buildCommand = "swift run -c release --package-path Benchmarks -Xcc -march=x86-64-v3 PortableRunner"
+    #if DEBUG
+    return "measure a release build: \(buildCommand)"
+    #else
+    guard !build_level_is_below_x86_64_v3() else {
+        return """
+            this build targets less than x86-64-v3, which x86-64 figures require \
+            (docs/validation.md, x86-64 instruction set). Build with: \(buildCommand)
+            """
+    }
+    return nil
+    #endif
+}
+if let problem = buildProblem() {
+    fail(problem)
 }
 guard Counters.keepOnPerformanceCores() else {
     fail("Windows refused high priority or disabling power throttling for the measuring thread")
@@ -130,13 +139,11 @@ func measure(_ benchmark: SuiteBenchmark) -> Samples {
     samples.ticks.reserveCapacity(MeasurementRules.maxIterations)
     samples.cycles.reserveCapacity(MeasurementRules.maxIterations)
     let maxTicks = Counters.ticks(MeasurementRules.maxDuration)
-    var firstStart: Int64?
-    while samples.ticks.count < MeasurementRules.maxIterations {
-        if let firstStart, Counters.ticks() - firstStart >= maxTicks {
-            break
-        }
+    // As package-benchmark does, the time limit starts with the first
+    // measured iteration's setup, not its `startMeasurement()`.
+    let firstStart = Counters.ticks()
+    while samples.ticks.count < MeasurementRules.maxIterations, Counters.ticks() - firstStart < maxTicks {
         iteration.run(benchmark)
-        firstStart = firstStart ?? iteration.startTicks
         samples.ticks.append(iteration.stopTicks - iteration.startTicks)
         samples.cycles.append(iteration.stopCycles - iteration.startCycles)
     }

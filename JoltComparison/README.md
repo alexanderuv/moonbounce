@@ -52,7 +52,7 @@ Vector3.dot       396      615  55% faster             1261         1958        
 ...
 ```
 
-The cycles come from `QueryThreadCycleTime`, which counts at the time-stamp counter's fixed rate while the thread runs. They leave out time the thread spent waiting, but unlike instruction counts they change with the core's clock speed, so they confirm a time ratio rather than measure work.
+Cycles confirm a time ratio rather than measure work: unlike instructions, they change with the core's clock speed ([Measuring on Windows](../docs/validation.md#measuring-on-windows)).
 
 ## How it stays fair
 
@@ -60,7 +60,7 @@ The cycles come from `QueryThreadCycleTime`, which counts at the time-stamp coun
 - **Same loop shape:** 1,000 operations per sweep, 1,000 sweeps per measured iteration, results written to an output array, and one opaque black-hole call per sweep.
 - **Same measurement as the Swift runner on the same platform,** with the rules in `MeasurementRules` (`Benchmarks/Sources/BenchmarkSupport/Measurement.swift`): 5 warm-up iterations, then up to 1,000 iterations or 2 seconds.
   - macOS, as package-benchmark measures: `CLOCK_UPTIME_RAW` wall time, retired instructions from `proc_pid_rusage`, and user-interactive QoS, so the scheduler favors performance cores.
-  - Windows, as the portable runner measures: `QueryPerformanceCounter` wall time, cycles from `QueryThreadCycleTime`, and the highest thread priority with power throttling off, which keeps the thread on performance cores.
+  - Windows, as the portable runner measures: `QueryPerformanceCounter` wall time, cycles from `QueryThreadCycleTime`, and the highest thread priority with power throttling off, so Windows prefers performance cores.
 - **Jolt as it ships:** the Distribution configuration (no profiler, asserts or debug renderer) with Jolt's release flags, plus LTO. Jolt's math is header-only and inlines into the harness, so the harness is compiled with the same flags.
   - ARM: `-O3 -ffp-contract=on -fno-rtti -fno-exceptions`.
   - Windows: `/O2 /Oi /Ot /GS- /Gy` without RTTI or exceptions, plus `/fp:fast` for MSVC, under the Visual Studio generator Jolt's own build scripts use. Jolt's default x86-64 build selects AVX2, FMA, F16C and LZCNT there, the x86-64-v3 features its code uses.

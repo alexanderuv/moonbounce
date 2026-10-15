@@ -68,8 +68,11 @@ def find_visual_studio():
     """The newest Visual Studio with every component in VISUAL_STUDIO_COMPONENTS."""
     if not VSWHERE.exists():
         sys.exit("compare.py: Visual Studio 2022 or later is required to build Jolt on Windows")
-    command = [VSWHERE, "-latest", "-products", "*", "-format", "json", "-requires", *VISUAL_STUDIO_COMPONENTS]
-    found = json.loads(subprocess.run(command, check=True, stdout=subprocess.PIPE, text=True).stdout)
+    command = [
+        VSWHERE, "-latest", "-products", "*", "-version", "[17.0,", "-format", "json", "-utf8",
+        "-requires", *VISUAL_STUDIO_COMPONENTS,
+    ]
+    found = json.loads(subprocess.run(command, check=True, stdout=subprocess.PIPE, text=True, encoding="utf-8").stdout)
     if not found:
         components = "\n".join(f"  - {name}" for name in VISUAL_STUDIO_COMPONENTS.values())
         sys.exit(f"compare.py: no Visual Studio installation has every component Jolt's Windows builds need:\n{components}")
@@ -126,7 +129,12 @@ def build_jolt(cmake, visual_studio, jolt_version):
     executables = {}
     for name, directory, toolset in (("MSVC", "msvc", []), ("clang-cl", "clang-cl", ["-T", "ClangCL"])):
         build = BUILD / directory
-        run([cmake, "-S", HERE, "-B", build, "-G", generator, "-A", "x64", *toolset, f"-DJOLT_VERSION={jolt_version}"], HERE)
+        run([
+            cmake, "-S", HERE, "-B", build, "-G", generator, "-A", "x64", *toolset,
+            # The installation that has the components, not just any of that version.
+            f"-DCMAKE_GENERATOR_INSTANCE={visual_studio['installationPath']}",
+            f"-DJOLT_VERSION={jolt_version}",
+        ], HERE)
         run([cmake, "--build", build, "--config", "Distribution"], HERE)
         executables[name] = build / "Distribution" / "jolt_primitives.exe"
     return executables
@@ -302,7 +310,7 @@ def main():
         print(f"Jolt is the faster of its {' and '.join(jolt_executables)} builds, per benchmark")
     print()
     for index, row in enumerate(rows):
-        print("  ".join(cell.ljust(widths[i]) if i in left_aligned else cell.rjust(widths[i]) for i, cell in enumerate(row)))
+        print("  ".join(cell.ljust(widths[i]) if i in left_aligned else cell.rjust(widths[i]) for i, cell in enumerate(row)).rstrip())
         if index == 0:
             print("  ".join("-" * width for width in widths))
     if unmatched:

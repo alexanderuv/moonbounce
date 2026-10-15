@@ -137,8 +137,9 @@ jobs:
       # test step would pass while testing nothing. See KNOWN_ISSUES.md and #32.
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
-      # The portable benchmark runner, at x86-64-v3 as x86-64 benchmarks are
-      # measured. Build only: benchmarks are measured by hand.
-      - name: Build benchmarks
+      # The portable benchmark runner, built at x86-64-v3 as x86-64 benchmarks
+      # are measured. One short benchmark checks that the build passes the
+      # runner's level check; the figures themselves are measured by hand.
+      - name: Benchmarks
         if: matrix.arch == 'x86-64'
-        run: swift build -c release --package-path Benchmarks --product PortableRunner -Xcc -march=x86-64-v3
+        run: swift run -c release --package-path Benchmarks -Xcc -march=x86-64-v3 PortableRunner --filter 'Vector3\.dot'
