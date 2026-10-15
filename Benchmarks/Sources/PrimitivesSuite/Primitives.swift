@@ -166,6 +166,20 @@ extension SuiteBenchmark {
                 @inline(always) func operation(_ ray: Ray, _ triangles: Triangle4) -> Vector4 { triangles.rayDistance(ray) }
                 sweep(iteration, fixtures.triangleRays, fixtures.triangleGroups, operation)
             },
+
+            SuiteBenchmark(name: "AABB4.overlaps") { iteration in
+                @inline(always) func operation(_ boxes: AABB4, _ box: AABB) -> UInt32Vector4 { boxes.overlaps(box) }
+                sweep(iteration, fixtures.boxGroups, fixtures.boxesB, operation)
+            },
+
+            SuiteBenchmark(name: "AABB4.rayDistance") { iteration in
+                let origin = fixtures.ray.origin
+                let inverseDirection = RayInverseDirection(fixtures.ray.direction)
+                @inline(always) func operation(_ boxes: AABB4) -> Vector4 {
+                    boxes.rayDistance(origin: origin, inverseDirection: inverseDirection)
+                }
+                sweep(iteration, fixtures.boxGroups, operation)
+            },
         ]
     }
 }

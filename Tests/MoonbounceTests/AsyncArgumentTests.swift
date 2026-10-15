@@ -14,6 +14,7 @@ import Testing
     static let matrix = Matrix4x4(
         axisX: .axisX, axisY: Vector3(0, 0, 1), axisZ: Vector3(0, -1, 0), translation: Vector3(1, 2, 3))
     static let box = AABB(min: Vector3(-1, -2, -3), max: Vector3(1, 2, 3))
+    static let boxes = AABB4(box, .empty, box.expanded(by: Vector3(1, 1, 1)), box)
     static let ray = Ray(origin: Vector3(0, 0, -5), direction: Vector3(0.1, 0.2, 1))
     static let inverseDirection = RayInverseDirection(Vector3(0.5, 0, -2))
     static let sphere = Sphere(center: Vector3(1, -2, 3.5), radius: 0.75)
@@ -55,6 +56,12 @@ import Testing
     func boxArrives(_ label: String, _ a: AABB, _ b: AABB) {
         #expect(a == Self.box)
         #expect(b == Self.box)
+    }
+
+    @Test(arguments: [("AABB4", boxes, boxes)])
+    func boxesArrive(_ label: String, _ a: AABB4, _ b: AABB4) {
+        #expect(a == Self.boxes)
+        #expect(b == Self.boxes)
     }
 
     @Test(arguments: [("Ray", ray, ray)])

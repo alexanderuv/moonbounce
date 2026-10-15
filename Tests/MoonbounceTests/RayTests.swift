@@ -52,6 +52,19 @@ import Testing
         #expect(box.rayDistance(Ray(origin: .zero, direction: .zero)) == .infinity)
     }
 
+    @Test func invalidBoxNeverHits() {
+        // Corners in [-max, max], which a slab test alone would hit from
+        // anywhere.
+        let ray = Ray(origin: .zero, direction: .axisX)
+        #expect(AABB.empty.rayDistance(ray) == .infinity)
+        // Swapped on one axis only.
+        let swapped = AABB(min: Vector3(1, 1, -1), max: Vector3(3, -1, 1))
+        #expect(swapped.rayDistance(ray) == .infinity)
+        // A flat box, min == max on an axis, is still valid.
+        let flat = AABB(min: Vector3(1, 0, -1), max: Vector3(3, 0, 1))
+        #expect(flat.rayDistance(ray) == 1)
+    }
+
     @Test func preparedDirectionMatchesConvenienceOverload() {
         let ray = Ray(origin: Vector3(-3, 0.25, 0.5), direction: Vector3(2, 0.1, -0.2))
         let inverse = RayInverseDirection(ray.direction)

@@ -86,6 +86,9 @@ extension AABB {
     /// ``Sphere/rayDistance(origin:direction:)`` returns 0. Returning
     /// `.infinity` rather than an optional keeps the test branch-free and lets
     /// traversal fold results with `min`.
+    ///
+    /// An invalid box, with `min > max` on some axis, is never hit. That
+    /// includes ``empty``, which a tree uses for unused child slots.
     @inline(always)
     public func rayDistance(origin: Vector3, inverseDirection: RayInverseDirection) -> Float {
         let o = origin.storage
@@ -106,7 +109,11 @@ extension AABB {
         // into -inf.
         let outsideParallelSlab = horizontalMaximum3(minimum(maximum(t1, negated(t2)), gate)) > 0
 
-        let miss = near > far || far < 0 || outsideParallelSlab
+        // The difference of two distinct floats is never 0, so min - max > 0
+        // on some axis exactly when min > max there.
+        let invalid = horizontalMaximum3(min.storage - max.storage) > 0
+
+        let miss = near > far || far < 0 || outsideParallelSlab || invalid
         return miss ? .infinity : near
     }
 

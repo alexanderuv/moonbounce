@@ -65,4 +65,14 @@ import Testing
     @Test func expandedGrowsEverySide() {
         #expect(unit.expanded(by: Vector3(1, 2, 3)) == AABB(min: Vector3(-1, -2, -3), max: Vector3(2, 3, 4)))
     }
+
+    @Test func scaledScalesTheCornersAxisByAxis() {
+        let box = AABB(min: Vector3(1, -2, 3), max: Vector3(2, 4, 5))
+        #expect(box.scaled(by: Vector3(2, 0.5, 1)) == AABB(min: Vector3(2, -1, 3), max: Vector3(4, 2, 5)))
+    }
+
+    @Test func negativeScaleSwapsMinAndMax() {
+        let box = AABB(min: Vector3(1, -2, 3), max: Vector3(2, 4, 5))
+        #expect(box.scaled(by: Vector3(-1, 1, -2)) == AABB(min: Vector3(-2, -2, -10), max: Vector3(-1, 4, -6)))
+    }
 }
