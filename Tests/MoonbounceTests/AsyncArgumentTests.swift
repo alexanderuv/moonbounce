@@ -16,6 +16,7 @@ import Testing
     static let box = AABB(min: Vector3(-1, -2, -3), max: Vector3(1, 2, 3))
     static let ray = Ray(origin: Vector3(0, 0, -5), direction: Vector3(0.1, 0.2, 1))
     static let inverseDirection = RayInverseDirection(Vector3(0.5, 0, -2))
+    static let sphere = Sphere(center: Vector3(1, -2, 3.5), radius: 0.75)
 
     @Test(arguments: [("Vector3", vector3, vector3)])
     func vector3Arrives(_ label: String, _ a: Vector3, _ b: Vector3) {
@@ -57,6 +58,12 @@ import Testing
     func rayArrives(_ label: String, _ a: Ray, _ b: Ray) {
         #expect(a == Self.ray)
         #expect(b == Self.ray)
+    }
+
+    @Test(arguments: [("Sphere", sphere, sphere)])
+    func sphereArrives(_ label: String, _ a: Sphere, _ b: Sphere) {
+        #expect(a == Self.sphere)
+        #expect(b == Self.sphere)
     }
 
     @Test(arguments: [("RayInverseDirection", inverseDirection, inverseDirection)])

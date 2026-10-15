@@ -13,6 +13,8 @@
 #include <Jolt/Core/Memory.h>
 #include <Jolt/Geometry/AABox.h>
 #include <Jolt/Geometry/RayAABox.h>
+#include <Jolt/Geometry/RaySphere.h>
+#include <Jolt/Geometry/Sphere.h>
 #include <Jolt/Math/Mat44.h>
 #include <Jolt/Math/Quat.h>
 
@@ -54,6 +56,13 @@ void operator delete(void *inBlock) noexcept { std::free(inBlock); }
 void operator delete(void *inBlock, size_t) noexcept { std::free(inBlock); }
 
 // MARK: - Inputs
+
+// A ray as origin and direction, laid out like Moonbounce's Ray: 32 bytes.
+struct RayInput
+{
+	Vec3 mOrigin;
+	Vec3 mDirection;
+};
 
 // Identical to SplitMix64 in Fixtures.swift.
 struct SplitMix64
@@ -137,6 +146,23 @@ struct SplitMix64
 		auto lane = [bits](int inBit) { return ((bits >> inBit) & 1) != 0 ? 0xffffffffu : 0u; };
 		return UVec4(lane(0), lane(1), lane(2), lane(3));
 	}
+
+	// Same as sphere() in Fixtures.swift.
+	Sphere SphereInput()
+	{
+		Vec3 center = Vector(-100, 100);
+		float radius = Uniform(0.5f, 10);
+		return Sphere(center, radius);
+	}
+
+	// Same as ray(toward:) in Fixtures.swift: the direction runs from a random
+	// origin to a point within 8 of the target, unnormalized.
+	RayInput RayToward(Vec3Arg inTarget)
+	{
+		Vec3 origin = Vector(-100, 100);
+		Vec3 offset = Vector(-8, 8);
+		return { origin, (inTarget + offset) - origin };
+	}
 };
 
 static constexpr int cCount = 1000;
@@ -151,6 +177,8 @@ struct Fixtures
 	std::vector<UVec4> mIntegersA, mIntegersB, mMasks;
 	std::vector<Vec4> mAngles, mCoordinatesY, mCoordinatesX;
 	std::vector<Mat44> mMatricesA, mMatricesB, mRigidTransforms;
+	std::vector<Sphere> mSpheres;
+	std::vector<RayInput> mSphereRays;
 
 	Fixtures()
 	{
@@ -176,6 +204,8 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mMatricesA.push_back(rng.Matrix());
 		for (int i = 0; i < cCount; ++i) mMatricesB.push_back(rng.Matrix());
 		for (int i = 0; i < cCount; ++i) mRigidTransforms.push_back(Mat44::sRotationTranslation(mRotationsA[i], mVectorsA[i]));
+		for (int i = 0; i < cCount; ++i) mSpheres.push_back(rng.SphereInput());
+		for (int i = 0; i < cCount; ++i) mSphereRays.push_back(rng.RayToward(mSpheres[i].GetCenter()));
 	}
 };
 
@@ -363,6 +393,7 @@ int main()
 	Sweep<Mat44, Vec3, Vec3>("Matrix4x4.transformPoint", f.mRigidTransforms, f.mVectorsB, [](Mat44Arg m, Vec3Arg v) { return m * v; });
 	Sweep<Mat44, Mat44>("Matrix4x4.inversedRotationTranslation", f.mRigidTransforms, [](Mat44Arg m) { return m.InversedRotationTranslation(); });
 	Sweep<Quat, Quat, Quat>("Quaternion.slerp", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
+	Sweep<RayInput, Sphere, float>("Sphere.rayDistance", f.mSphereRays, f.mSpheres, [](const RayInput &r, const Sphere &s) { return RaySphere(r.mOrigin, r.mDirection, s.GetCenter(), s.GetRadius()); });
 
 	std::printf("\n  }\n}\n");
 	return 0;

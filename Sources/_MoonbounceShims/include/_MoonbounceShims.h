@@ -241,9 +241,19 @@ MB_INLINE mb_float4 mb_wxyz(mb_float4 v) { return __builtin_shufflevector(v, v, 
 /// `(a.x + a.y, a.z + a.w, b.x + b.y, b.z + b.w)`: one `faddp` on arm64, and
 /// the same sums in the same order everywhere, which `__builtin_reduce_add`
 /// does not promise for floats.
+///
+/// arm64 calls the intrinsic. Spelled as shuffles, the sum lowers to `uzp1`,
+/// `uzp2` and `fadd` plus lane moves whenever LLVM can see that an input lane
+/// is zero.
+#if defined(__aarch64__)
+MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) {
+    return (mb_float4)vpaddq_f32((float32x4_t)a, (float32x4_t)b);
+}
+#else
 MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) {
     return __builtin_shufflevector(a, b, 0, 2, 4, 6) + __builtin_shufflevector(a, b, 1, 3, 5, 7);
 }
+#endif
 
 /// `(a.x - a.y, a.z - a.w, b.x - b.y, b.z - b.w)`.
 MB_INLINE mb_float4 mb_pairwise_subtract(mb_float4 a, mb_float4 b) {
@@ -257,6 +267,13 @@ MB_INLINE mb_float4 mb_zip_high(mb_float4 a, mb_float4 b) { return __builtin_shu
 /// `(a.x, a.y, b.x, b.y)` and `(a.z, a.w, b.z, b.w)`: join the matching halves.
 MB_INLINE mb_float4 mb_low_halves(mb_float4 a, mb_float4 b) { return __builtin_shufflevector(a, b, 0, 1, 4, 5); }
 MB_INLINE mb_float4 mb_high_halves(mb_float4 a, mb_float4 b) { return __builtin_shufflevector(a, b, 2, 3, 6, 7); }
+
+/// `(x, y, z, 0)`: lane w cleared, one lane insert on arm64. A product with
+/// one such factor has w = 0 for finite inputs, so two rounds of
+/// `mb_pairwise_add` sum it to a 3-lane dot product. Clear only one factor:
+/// with both cleared, LLVM knows the product's w is 0 and rebuilds the
+/// product lane by lane.
+MB_INLINE mb_float4 mb_xyz0(mb_float4 v) { return __builtin_shufflevector(v, (mb_float4){0}, 0, 1, 2, 4); }
 
 /// `(z, 0, x, x)` and `(0, z, y, y)`: the two perpendicular candidates of
 /// `Vector3.normalizedPerpendicular`, before their x and y lanes are negated.

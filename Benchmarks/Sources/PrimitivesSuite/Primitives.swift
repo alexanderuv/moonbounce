@@ -141,6 +141,11 @@ extension SuiteBenchmark {
                 @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a.slerp(to: b, 0.3) }
                 sweep(iteration, fixtures.rotationsA, fixtures.rotationsB, operation)
             },
+
+            SuiteBenchmark(name: "Sphere.rayDistance") { iteration in
+                @inline(always) func operation(_ ray: Ray, _ sphere: Sphere) -> Float { sphere.rayDistance(ray) }
+                sweep(iteration, fixtures.sphereRays, fixtures.spheres, operation)
+            },
         ]
     }
 }
