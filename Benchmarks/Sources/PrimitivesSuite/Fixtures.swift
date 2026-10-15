@@ -145,6 +145,40 @@ struct SplitMix64: RandomNumberGenerator {
         let center = vector3(-2, 2)
         return (0..<count).map { _ in center + vector3(-2, 2) }
     }
+
+    /// A square parallel to the plane z = 0, counterclockwise about +z, like
+    /// a box face: centered at `(x, y)` in [-reach, reach) and z in
+    /// [-0.1, 0.1), with half its diagonal in [0.5, 1.5) along a random
+    /// direction.
+    mutating func square(reach: Float) -> Square {
+        let x = uniform(-reach, reach)
+        let y = uniform(-reach, reach)
+        let z = uniform(-0.1, 0.1)
+        let halfDiagonal = uniform(0.5, 1.5)
+        let dx = uniform(-1, 1)
+        let dy = uniform(-1, 1)
+        let xx = dx * dx
+        let yy = dy * dy
+        let length = (xx + yy).squareRoot()
+        let cx = dx / length * halfDiagonal
+        let cy = dy / length * halfDiagonal
+        return Square(
+            a: Vector3(x + cx, y + cy, z), b: Vector3(x - cy, y + cx, z),
+            c: Vector3(x - cx, y - cy, z), d: Vector3(x + cy, y - cx, z))
+    }
+}
+
+/// A square's corners in order, laid out like the C++ harness's
+/// `SquareInput`.
+struct Square: Sendable {
+    var a, b, c, d: Vector3
+}
+
+/// A clipped polygon's vertex sum and count, laid out like the C++ harness's
+/// `PolygonSummary`.
+struct PolygonSummary: BitwiseCopyable {
+    var sum: Vector3
+    var count: UInt32
 }
 
 /// Four vertices, laid out like the C++ harness's `TetrahedronInput`.
@@ -207,6 +241,11 @@ struct Fixtures: Sendable {
     /// Triangles and tetrahedra near the origin, for closest point queries.
     let simplexTriangles: [Triangle]
     let tetrahedra: [Tetrahedron]
+    /// Box faces facing each other: squares to clip near the origin, and
+    /// squares centered on it to clip them against, so most pairs overlap
+    /// in part.
+    let facesToClip: [Square]
+    let clippingFaces: [Square]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -258,5 +297,7 @@ struct Fixtures: Sendable {
             let v = rng.simplexVertices(4)
             return Tetrahedron(a: v[0], b: v[1], c: v[2], d: v[3])
         }
+        facesToClip = (0..<Self.count).map { _ in rng.square(reach: 1.5) }
+        clippingFaces = (0..<Self.count).map { _ in rng.square(reach: 0) }
     }
 }

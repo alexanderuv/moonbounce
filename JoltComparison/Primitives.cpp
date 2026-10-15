@@ -11,8 +11,10 @@
 #include <Jolt/Jolt.h>
 
 #include <Jolt/Core/Memory.h>
+#include <Jolt/Core/StaticArray.h>
 #include <Jolt/Geometry/AABox.h>
 #include <Jolt/Geometry/AABox4.h>
+#include <Jolt/Geometry/ClipPoly.h>
 #include <Jolt/Geometry/ClosestPoint.h>
 #include <Jolt/Geometry/Ellipse.h>
 #include <Jolt/Geometry/OrientedBox.h>
@@ -123,6 +125,24 @@ struct ClosestPointOutput
 {
 	Vec3 mPoint;
 	uint32 mSet;
+};
+
+// A square's corners in order, laid out like the benchmarks' Square: 64 bytes.
+struct SquareInput
+{
+	Vec3 mA, mB, mC, mD;
+};
+
+// A polygon of up to 32 vertices, like Moonbounce's Polygon and Jolt's
+// supporting faces.
+using Polygon = StaticArray<Vec3, 32>;
+
+// A clipped polygon's vertex sum and count, laid out like the benchmarks'
+// PolygonSummary: 32 bytes.
+struct PolygonSummary
+{
+	Vec3 mSum;
+	uint32 mCount;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -280,6 +300,25 @@ struct SplitMix64
 		for (int i = 0; i < inCount; ++i)
 			outVertices[i] = center + Vector(-2, 2);
 	}
+
+	// Same as square(reach:) in Fixtures.swift, one statement per rounding.
+	SquareInput Square(float inReach)
+	{
+		float x = Uniform(-inReach, inReach);
+		float y = Uniform(-inReach, inReach);
+		float z = Uniform(-0.1f, 0.1f);
+		float half_diagonal = Uniform(0.5f, 1.5f);
+		float dx = Uniform(-1, 1);
+		float dy = Uniform(-1, 1);
+		float xx = dx * dx;
+		float yy = dy * dy;
+		float length = std::sqrt(xx + yy);
+		float cx = dx / length;
+		cx *= half_diagonal;
+		float cy = dy / length;
+		cy *= half_diagonal;
+		return { Vec3(x + cx, y + cy, z), Vec3(x - cy, y + cx, z), Vec3(x - cx, y - cy, z), Vec3(x + cy, y - cx, z) };
+	}
 };
 
 static constexpr int cCount = 1000;
@@ -307,6 +346,7 @@ struct Fixtures
 	std::vector<Float2> mEllipsePoints;
 	std::vector<TriangleInput> mSimplexTriangles;
 	std::vector<TetrahedronInput> mTetrahedra;
+	std::vector<SquareInput> mFacesToClip, mClippingFaces;
 
 	Fixtures()
 	{
@@ -383,6 +423,8 @@ struct Fixtures
 			rng.SimplexVertices(v, 4);
 			mTetrahedra.push_back({ v[0], v[1], v[2], v[3] });
 		}
+		for (int i = 0; i < cCount; ++i) mFacesToClip.push_back(rng.Square(1.5f));
+		for (int i = 0; i < cCount; ++i) mClippingFaces.push_back(rng.Square(0));
 	}
 };
 
@@ -580,6 +622,27 @@ int main()
 	Sweep<OrientedBox, OrientedBox, uint8_t>("OrientedBox.overlaps", f.mOrientedBoxesA, f.mOrientedBoxesB, [](const OrientedBox &a, const OrientedBox &b) { return a.Overlaps(b); });
 	Sweep<EllipseInput, Float2, Float2>("Ellipse.closestPoint", f.mEllipses, f.mEllipsePoints, [](const EllipseInput &e, const Float2 &p) { return Ellipse(e.mA, e.mB).GetClosestPoint(p); });
 	Sweep<TriangleInput, ClosestPointOutput>("ClosestPoint.onTriangle", f.mSimplexTriangles, [](const TriangleInput &t) { ClosestPointOutput r; r.mPoint = ClosestPoint::GetClosestPointOnTriangle(t.mV0, t.mV1, t.mV2, r.mSet); return r; });
+	{
+		Polygon clipped;
+		Sweep<SquareInput, SquareInput, PolygonSummary>("Polygon.clipAgainstPolygon", f.mFacesToClip, f.mClippingFaces, [&](const SquareInput &face, const SquareInput &clipping) {
+			Polygon face_polygon;
+			face_polygon.push_back(face.mA);
+			face_polygon.push_back(face.mB);
+			face_polygon.push_back(face.mC);
+			face_polygon.push_back(face.mD);
+			Polygon clipping_polygon;
+			clipping_polygon.push_back(clipping.mA);
+			clipping_polygon.push_back(clipping.mB);
+			clipping_polygon.push_back(clipping.mC);
+			clipping_polygon.push_back(clipping.mD);
+			clipped.clear();
+			ClipPolyVsPoly(face_polygon, clipping_polygon, Vec3::sAxisZ(), clipped);
+			PolygonSummary r { Vec3::sZero(), uint32(clipped.size()) };
+			for (Vec3 v : clipped)
+				r.mSum += v;
+			return r;
+		});
+	}
 	Sweep<TetrahedronInput, ClosestPointOutput>("ClosestPoint.onTetrahedron", f.mTetrahedra, [](const TetrahedronInput &t) { ClosestPointOutput r; r.mPoint = ClosestPoint::GetClosestPointOnTetrahedron(t.mA, t.mB, t.mC, t.mD, r.mSet); return r; });
 
 	std::printf("\n  }\n}\n");

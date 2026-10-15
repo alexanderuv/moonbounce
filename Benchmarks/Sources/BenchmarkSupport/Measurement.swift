@@ -133,6 +133,37 @@ public func sweep<A, B, Output: BitwiseCopyable>(
     iteration.stopMeasurement()
 }
 
+/// Measures `transform` applied to every pair of `a` and `b`, once per sweep,
+/// with `state` passed to every call, for an operation that writes into
+/// storage it reuses.
+///
+/// `state` goes in as an argument rather than captured by `transform`, since
+/// Swift checks each access to a captured variable at run time.
+///
+/// - Precondition: `Output` is valid as all-zero bits, as for the
+///   single-input `sweep`.
+@inline(always)
+public func sweep<A, B, State, Output: BitwiseCopyable>(
+    _ iteration: any MeasuredIteration,
+    _ a: [A],
+    _ b: [B],
+    state: inout State,
+    _ transform: (A, B, inout State) -> Output
+) {
+    precondition(a.count == b.count)
+    var outputs = zeroedOutputs(Output.self, count: a.count)
+    iteration.startMeasurement()
+    for _ in 0..<MeasurementRules.sweepsPerIteration {
+        let lhs = a.span, rhs = b.span
+        var output = outputs.mutableSpan
+        for i in lhs.indices {
+            output[i] = transform(lhs[i], rhs[i], &state)
+        }
+        blackHole(outputs)
+    }
+    iteration.stopMeasurement()
+}
+
 /// Measures `transform` applied to every triple of `a`, `b` and `c`, once per sweep.
 ///
 /// - Precondition: `Output` is valid as all-zero bits, as for the

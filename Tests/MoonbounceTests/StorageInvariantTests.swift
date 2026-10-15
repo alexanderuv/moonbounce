@@ -7,6 +7,21 @@ import Testing
     static let a = Vector3(1.5, -2, 3.25)
     static let b = Vector3(-4, 0.5, 2)
     static let q = Quaternion(axis: Vector3(1, 2, -3).normalized(), angle: 2.1)
+    static let square = Polygon([Vector3(-1, -1, 0.5), Vector3(1, -1, 0.5), Vector3(1, 1, 0.5), Vector3(-1, 1, 0.5)])
+
+    /// `square` clipped by `clip`.
+    static func clipped(_ clip: (Polygon, inout Polygon) -> Void) -> Polygon {
+        var output = Polygon()
+        clip(square, &output)
+        return output
+    }
+
+    /// The square cut by a plane; the first vertex is a crossing.
+    static let cutSquare = clipped { $0.clip(againstPlaneThrough: Vector3(0.25, 0, 0), normal: Vector3(1, 0.5, 0), into: &$1) }
+    /// A crossing, then an end of the edge projected onto the square.
+    static let edgeOverSquare = clipped {
+        $0.clip(againstEdgeFrom: Vector3(-2, 0.2, 3), to: Vector3(0.5, 0.3, 2), normal: .axisZ, into: &$1)
+    }
 
     static let results: [(String, Vector3)] = [
         ("init(x:y:z:)", a),
@@ -45,6 +60,9 @@ import Testing
         ("ClosestPoint.onTriangle edge bc", ClosestPoint.onTriangle(Vector3(-4, -1, 1), Vector3(0, -1, 1), Vector3(-4, 3, 1)).point),
         ("ClosestPoint.onTriangle degenerate", ClosestPoint.onTriangle(a, b, a * 2 - b).point),
         ("ClosestPoint.onTetrahedron", ClosestPoint.onTetrahedron(a, b, Vector3(0, 0, 9), Vector3(1, 7, -2)).point),
+        ("Polygon.clip(againstPlaneThrough:) crossing", cutSquare[0]),
+        ("Polygon.clip(againstEdgeFrom:) crossing", edgeOverSquare[0]),
+        ("Polygon.clip(againstEdgeFrom:) projected end", edgeOverSquare[1]),
         ("Plane.normal", Plane(point: a, normal: b.normalized()).normal),
         ("Plane.projection", Plane(point: a, normal: b.normalized()).projection(of: b)),
         ("Plane.intersection", Plane.intersection(
