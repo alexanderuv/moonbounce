@@ -82,7 +82,8 @@ extension AABB {
     /// The distance along the ray to the first point inside the box, in
     /// multiples of the ray direction, or `.infinity` when the ray misses.
     ///
-    /// The distance is negative when the origin is inside the box. Returning
+    /// The distance is negative when the origin is inside the box, where
+    /// ``Sphere/rayDistance(origin:direction:)`` returns 0. Returning
     /// `.infinity` rather than an optional keeps the test branch-free and lets
     /// traversal fold results with `min`.
     @inline(always)

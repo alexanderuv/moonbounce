@@ -1,13 +1,13 @@
 // TODO: Remove this file and every `#if os(Windows) && arch(x86_64)` branch
 // that uses `FloatLaneStorage` or `UInt32LaneStorage` once a Swift toolchain
 // ships with the codegen bug below fixed (swiftlang/swift#90813). Then
-// `Vector3`, `Vector4`, `Quaternion`, `UInt32Vector4`, `Matrix4x4` and
-// `RayInverseDirection` store `SIMD4` on every platform again. The test
-// `AsyncArgumentTests.rawSIMD4IsStillCorrupted` starts failing when the bug
-// stops reproducing through Swift Testing; confirm with the snippet below
-// before removing anything, since a change in Swift Testing alone could also
-// trip it. Recheck the `mb_round` carve-out in the shim header at the same
-// time; it works around a different Windows toolchain gap.
+// `Vector3`, `Vector4`, `Quaternion`, `UInt32Vector4`, `Matrix4x4`,
+// `RayInverseDirection` and `Sphere` store `SIMD4` on every platform again.
+// The test `AsyncArgumentTests.rawSIMD4IsStillCorrupted` starts failing when
+// the bug stops reproducing through Swift Testing; confirm with the snippet
+// below before removing anything, since a change in Swift Testing alone could
+// also trip it. Recheck the `mb_round` carve-out in the shim header at the
+// same time; it works around a different Windows toolchain gap.
 //
 // To check a toolchain, build this on x86-64 Windows with `-Onone` and with
 // `-O`. While the bug is present it crashes or prints "BAD"; once it is fixed,

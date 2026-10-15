@@ -76,6 +76,22 @@ struct SplitMix64: RandomNumberGenerator {
         func lane(_ i: UInt64) -> UInt32 { (bits >> i) & 1 == 1 ? 0xFFFF_FFFF : 0 }
         return UInt32Vector4(lane(0), lane(1), lane(2), lane(3))
     }
+
+    /// A sphere centered in [-100, 100) with a radius in [0.5, 10).
+    mutating func sphere() -> Sphere {
+        let center = vector3(-100, 100)
+        let radius = uniform(0.5, 10)
+        return Sphere(center: center, radius: radius)
+    }
+
+    /// A ray from a random origin through a point within 8 of `target` on each
+    /// axis, so a sphere of radius 0.5 to 10 at `target` is hit about half the
+    /// time. The direction runs from the origin to that point, unnormalized.
+    mutating func ray(toward target: Vector3) -> Ray {
+        let origin = vector3(-100, 100)
+        let offset = vector3(-8, 8)
+        return Ray(origin: origin, direction: (target + offset) - origin)
+    }
 }
 
 /// Inputs shared by every benchmark: `count` elements per array, small enough
@@ -107,6 +123,9 @@ struct Fixtures: Sendable {
     /// Rotation-translation matrices built from `rotationsA` and `vectorsA`,
     /// with no further draws.
     let rigidTransforms: [Matrix4x4]
+    let spheres: [Sphere]
+    /// One ray per sphere, aimed near it: about half hit.
+    let sphereRays: [Ray]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -130,5 +149,7 @@ struct Fixtures: Sendable {
         matricesA = (0..<Self.count).map { _ in rng.matrix() }
         matricesB = (0..<Self.count).map { _ in rng.matrix() }
         rigidTransforms = zip(rotationsA, vectorsA).map { Matrix4x4(rotation: $0, translation: $1) }
+        spheres = (0..<Self.count).map { _ in rng.sphere() }
+        sphereRays = spheres.map { rng.ray(toward: $0.center) }
     }
 }
