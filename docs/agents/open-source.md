@@ -9,7 +9,7 @@ Public text is edited text: every sentence carries a fact, a decision or a reaso
 - **Lead with the point.** The first sentence says what the thing is or does. Detail follows.
 - **Be concrete.** Name the type, the number, the file, the issue.
 - **Say it once.** Each fact has one home (see [Where things go](#where-things-go)). Everywhere else, link to it.
-- **Keep it short.** A README says what the project is, how to use it and where to go next. The roadmap lists phases and their status. Specifications live in issues.
+- **Keep it short.** A README says what the project is, how to use it and where to go next. The roadmap outlines direction. Plans, tasks and specifications live in issues.
 - **Use plain words.** "Uses", "measures", "is". Describe the subject, not the document ("This document is the plan" says nothing).
 - **Claim what is true today.** Mark unfinished work as planned or in progress.
 
@@ -18,6 +18,8 @@ Before you post, reread as that stranger and delete every sentence they would sk
 ## Framing
 
 Moonbounce stands on its own: describe it by what it does and how it is built.
+
+- **Justify decisions on Moonbounce's terms.** An instruction set, a platform tier or an API shape is chosen for Moonbounce's users and hardware. Cite another project only where a comparison depends on it, such as building both sides of a benchmark at the same level.
 
 - **Other projects appear where they are used.** [Jolt Physics](https://github.com/jrouwe/JoltPhysics) is the benchmark baseline and the reference for feature scope. Name it in benchmarking and validation material and in the phase issues, neutrally and with a link.
 - **Comparisons report measurements:** faster, even or slower, by how much, on which platform.
@@ -28,7 +30,7 @@ Moonbounce stands on its own: describe it by what it does and how it is built.
 | Content | Home |
 |---|---|
 | What Moonbounce is; how to build, test and benchmark it | `README.md` |
-| Phases and their status, one line each | `docs/roadmap.md` |
+| Where Moonbounce is heading, in a few paragraphs | `docs/roadmap.md` |
 | Features, specifications, acceptance criteria | GitHub issues: one per phase, with tickets as sub-issues |
 | Definition of done, platforms, measurement, recorded results | `docs/validation.md` |
 | Decisions and the reasons for them | `docs/adr/` |
