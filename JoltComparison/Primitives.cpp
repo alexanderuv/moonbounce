@@ -13,6 +13,7 @@
 #include <Jolt/Core/Memory.h>
 #include <Jolt/Geometry/AABox.h>
 #include <Jolt/Geometry/AABox4.h>
+#include <Jolt/Geometry/ClosestPoint.h>
 #include <Jolt/Geometry/Ellipse.h>
 #include <Jolt/Geometry/OrientedBox.h>
 #include <Jolt/Geometry/RayAABox.h>
@@ -108,6 +109,20 @@ struct EllipseInput
 {
 	float mA;
 	float mB;
+};
+
+// Four vertices, laid out like the benchmarks' Tetrahedron: 64 bytes.
+struct TetrahedronInput
+{
+	Vec3 mA, mB, mC, mD;
+};
+
+// A closest point and the vertices of its feature, laid out like Moonbounce's
+// ClosestPoint: 32 bytes.
+struct ClosestPointOutput
+{
+	Vec3 mPoint;
+	uint32 mSet;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -256,6 +271,15 @@ struct SplitMix64
 		float v = (bits & 2) == 0 ? other : outside;
 		return Float2(inEllipse.mA * u, inEllipse.mB * v);
 	}
+
+	// Same as simplexVertices(_:) in Fixtures.swift: a center, then each
+	// vertex as an offset from it.
+	void SimplexVertices(Vec3 *outVertices, int inCount)
+	{
+		Vec3 center = Vector(-2, 2);
+		for (int i = 0; i < inCount; ++i)
+			outVertices[i] = center + Vector(-2, 2);
+	}
 };
 
 static constexpr int cCount = 1000;
@@ -281,6 +305,8 @@ struct Fixtures
 	std::vector<OrientedBox> mOrientedBoxesA, mOrientedBoxesB;
 	std::vector<EllipseInput> mEllipses;
 	std::vector<Float2> mEllipsePoints;
+	std::vector<TriangleInput> mSimplexTriangles;
+	std::vector<TetrahedronInput> mTetrahedra;
 
 	Fixtures()
 	{
@@ -345,6 +371,18 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mOrientedBoxesB.push_back(rng.OrientedBoxInput(mRotationsB[i]));
 		for (int i = 0; i < cCount; ++i) mEllipses.push_back(rng.EllipseRadii());
 		for (const EllipseInput &e : mEllipses) mEllipsePoints.push_back(rng.PointOutside(e));
+		for (int i = 0; i < cCount; ++i)
+		{
+			Vec3 v[3];
+			rng.SimplexVertices(v, 3);
+			mSimplexTriangles.push_back({ v[0], v[1], v[2] });
+		}
+		for (int i = 0; i < cCount; ++i)
+		{
+			Vec3 v[4];
+			rng.SimplexVertices(v, 4);
+			mTetrahedra.push_back({ v[0], v[1], v[2], v[3] });
+		}
 	}
 };
 
@@ -541,6 +579,8 @@ int main()
 	Sweep<AABox4Input, Vec4>("AABB4.rayDistance", f.mBoxGroups, [&](const AABox4Input &b) { return RayAABox4(origin, inverse_direction, b.mMinX, b.mMinY, b.mMinZ, b.mMaxX, b.mMaxY, b.mMaxZ); });
 	Sweep<OrientedBox, OrientedBox, uint8_t>("OrientedBox.overlaps", f.mOrientedBoxesA, f.mOrientedBoxesB, [](const OrientedBox &a, const OrientedBox &b) { return a.Overlaps(b); });
 	Sweep<EllipseInput, Float2, Float2>("Ellipse.closestPoint", f.mEllipses, f.mEllipsePoints, [](const EllipseInput &e, const Float2 &p) { return Ellipse(e.mA, e.mB).GetClosestPoint(p); });
+	Sweep<TriangleInput, ClosestPointOutput>("ClosestPoint.onTriangle", f.mSimplexTriangles, [](const TriangleInput &t) { ClosestPointOutput r; r.mPoint = ClosestPoint::GetClosestPointOnTriangle(t.mV0, t.mV1, t.mV2, r.mSet); return r; });
+	Sweep<TetrahedronInput, ClosestPointOutput>("ClosestPoint.onTetrahedron", f.mTetrahedra, [](const TetrahedronInput &t) { ClosestPointOutput r; r.mPoint = ClosestPoint::GetClosestPointOnTetrahedron(t.mA, t.mB, t.mC, t.mD, r.mSet); return r; });
 
 	std::printf("\n  }\n}\n");
 	return 0;

@@ -138,6 +138,18 @@ struct SplitMix64: RandomNumberGenerator {
         let (u, v) = bits & 2 == 0 ? (outside, other) : (other, outside)
         return SIMD2(ellipse.radiusX * u, ellipse.radiusY * v)
     }
+
+    /// Vertices around a center in [-2, 2), each within 2 of it on each axis,
+    /// so the origin falls in every kind of region of the simplex.
+    mutating func simplexVertices(_ count: Int) -> [Vector3] {
+        let center = vector3(-2, 2)
+        return (0..<count).map { _ in center + vector3(-2, 2) }
+    }
+}
+
+/// Four vertices, laid out like the C++ harness's `TetrahedronInput`.
+struct Tetrahedron: Sendable {
+    var a, b, c, d: Vector3
 }
 
 /// Inputs shared by every benchmark: `count` elements per array, small enough
@@ -192,6 +204,9 @@ struct Fixtures: Sendable {
     let ellipses: [Ellipse]
     /// One point outside each ellipse.
     let ellipsePoints: [SIMD2<Float>]
+    /// Triangles and tetrahedra near the origin, for closest point queries.
+    let simplexTriangles: [Triangle]
+    let tetrahedra: [Tetrahedron]
 
     init() {
         var rng = SplitMix64(seed: 0x6D6F_6F6E_626F_756E) // "moonboun"
@@ -235,5 +250,13 @@ struct Fixtures: Sendable {
         orientedBoxesB = rotationsB.map { rng.orientedBox(rotation: $0) }
         ellipses = (0..<Self.count).map { _ in rng.ellipse() }
         ellipsePoints = ellipses.map { rng.point(outside: $0) }
+        simplexTriangles = (0..<Self.count).map { _ in
+            let v = rng.simplexVertices(3)
+            return Triangle(v[0], v[1], v[2])
+        }
+        tetrahedra = (0..<Self.count).map { _ in
+            let v = rng.simplexVertices(4)
+            return Tetrahedron(a: v[0], b: v[1], c: v[2], d: v[3])
+        }
     }
 }
