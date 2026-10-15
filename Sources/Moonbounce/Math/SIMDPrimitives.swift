@@ -98,8 +98,12 @@ func horizontalMaximum3(_ v: SIMD4<Float>) -> Float {
 /// The dot product of lanes x, y and z.
 @inlinable @inline(always)
 func dot3(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> Float {
+    #if arch(arm64)
+    mb_dot3(a, b)
+    #else
     let p = a * b
     return p.x + p.y + p.z
+    #endif
 }
 
 /// The cross product of lanes x, y and z. The result's w lane repeats its z.

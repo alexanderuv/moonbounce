@@ -30,6 +30,33 @@ import Testing
         #expect(Vector3.axisX.dot(.axisY) == 0)
     }
 
+    /// Whatever instructions compute it, the dot product rounds as the
+    /// scalar sum `(x·x' + y·y') + z·z'`, the sign of a zero result included.
+    @Test func dotRoundsAsTheSumInOrder() {
+        func expectSum(_ a: Vector3, _ b: Vector3) {
+            let sum = a.x * b.x + a.y * b.y + a.z * b.z
+            let dot = a.dot(b)
+            #expect(dot.bitPattern == sum.bitPattern || (dot.isNaN && sum.isNaN), "\(a) · \(b)")
+        }
+        var rng = SplitMix64(seed: 53)
+        for _ in 0..<10_000 {
+            // Lanes of very different sizes, so the order of the sum shows.
+            func lane() -> Float {
+                Float.random(in: -1...1, using: &rng) * Float(sign: .plus, exponent: Int.random(in: -30...30, using: &rng), significand: 1)
+            }
+            expectSum(Vector3(lane(), lane(), lane()), Vector3(lane(), lane(), lane()))
+        }
+        let specials: [Float] = [0, -0, 1, -1, .leastNonzeroMagnitude, .greatestFiniteMagnitude, .infinity, -.infinity, .nan]
+        for x in specials {
+            for y in specials {
+                for z in specials {
+                    expectSum(Vector3(x, y, z), Vector3(1, 1, 1))
+                    expectSum(Vector3(x, y, z), Vector3(y, z, x))
+                }
+            }
+        }
+    }
+
     @Test func crossFollowsRightHandRule() {
         #expect(Vector3.axisX.cross(.axisY) == .axisZ)
         #expect(Vector3.axisY.cross(.axisZ) == .axisX)

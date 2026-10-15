@@ -85,6 +85,21 @@ MB_INLINE float mb_reduce_min(mb_float4 v) { return __builtin_reduce_min(v); }
 MB_INLINE float mb_reduce_max(mb_float4 v) { return __builtin_reduce_max(v); }
 #endif
 
+#if defined(__aarch64__)
+/// The dot product of lanes x, y and z: `fmul`, then `faddv` with lane w set
+/// to -0. The pairwise sum `(x + y) + (z + w)` is then `(x + y) + z` bit for
+/// bit, since -0 adds nothing even to -0.
+///
+/// Written in Swift as `p.x + p.y + p.z`, the sum is lane extracts, and
+/// LLVM's SLP vectorizer regroups the vector math feeding several of them
+/// into 2-lane pieces: EPA's triangle setup, with six dot products, came out
+/// half again as long as clang's code for Jolt's.
+MB_INLINE float mb_dot3(mb_float4 a, mb_float4 b) {
+    float32x4_t product = vmulq_f32((float32x4_t)a, (float32x4_t)b);
+    return vaddvq_f32(vsetq_lane_f32(-0.0f, product, 3));
+}
+#endif
+
 /// Lane-wise unsigned minimum.
 MB_INLINE mb_uint4 mb_umin(mb_uint4 a, mb_uint4 b) { return __builtin_elementwise_min(a, b); }
 
