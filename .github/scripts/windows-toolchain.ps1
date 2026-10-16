@@ -3,9 +3,9 @@
 #
 #   snapshot  Before installing: saves the job's environment.
 #   record    After installing: writes the variables and search paths the
-#             installer set into the toolchain's folder, then checks that the
-#             environment from the snapshot plus that record alone can run the
-#             toolchain, as a run that restores the cache will.
+#             installer set beside the toolchain's folder, then checks that the
+#             environment from the snapshot plus that record alone can build
+#             and run a program, as a run that restores the cache must.
 #   replay    After restoring the cache: sets the recorded environment for the
 #             job's later steps.
 param(
@@ -67,6 +67,12 @@ switch ($Action) {
         Invoke-Checked swift '--version'
         # swift-build is a separate executable with its own dependencies.
         Invoke-Checked swift 'build', '--version'
+        # Compiling needs the SDK, and running the result needs the runtime.
+        $Probe = Join-Path $env:RUNNER_TEMP 'toolchain-probe'
+        New-Item -ItemType Directory -Force $Probe | Out-Null
+        Set-Content (Join-Path $Probe 'main.swift') 'print("toolchain ok")'
+        Invoke-Checked swiftc (Join-Path $Probe 'main.swift'), '-o', (Join-Path $Probe 'probe.exe')
+        Invoke-Checked (Join-Path $Probe 'probe.exe') @()
     }
     'replay' {
         $Record = Read-Record
