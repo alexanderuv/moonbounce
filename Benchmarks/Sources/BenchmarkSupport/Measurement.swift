@@ -1,8 +1,7 @@
-// The contract between benchmark suites and runners, and the measurement rules
-// every runner follows, so package-benchmark on macOS and Linux and the
-// portable runner on Windows measure the same thing. Each suite library
-// (`PrimitivesSuite`, …) defines its bodies on top of this; each runner
-// registers them.
+// The contract between benchmark suites and BenchmarkRunner, and the
+// measurement rules it follows on every platform; the Jolt harness in
+// JoltComparison/ follows them too. Each suite library (`PrimitivesSuite`, …)
+// defines its bodies on top of this; the runner registers them.
 //
 // Reported metrics are per sweep: one operation on each of a suite's 1,000
 // inputs. Per-operation figures would round to whole nanoseconds, so a sweep
@@ -17,7 +16,7 @@
 // array that is handed to `blackHole` once per sweep, so the compiler cannot
 // drop the work and the sink adds nothing per operation.
 
-/// The iteration rules every runner applies to every benchmark.
+/// The iteration rules the runner applies to every benchmark.
 public enum MeasurementRules {
     /// Iterations run, unmeasured, before the first measured one.
     public static let warmupIterations = 5
@@ -29,18 +28,17 @@ public enum MeasurementRules {
     /// iteration started, whichever comes first. The time between
     /// measurements counts too: each iteration's setup, such as allocating
     /// its outputs, and the runner's own bookkeeping. Both limits are checked
-    /// before each iteration, as package-benchmark does.
+    /// before each iteration.
     public static let maxDuration: Duration = .seconds(2)
 }
 
-/// One measured iteration, as a runner hands it to a benchmark body.
+/// One measured iteration, as the runner hands it to a benchmark body.
 ///
 /// The runner measures only what runs between the two calls and owns
 /// everything about the measurement: clocks, counters, thread priority.
 public protocol MeasuredIteration {
-    /// Called once per iteration, right before the first sweep. Per-iteration
-    /// runner work, such as keeping the thread on a performance core, goes
-    /// here, before the clock starts.
+    /// Called once per iteration, right before the first sweep. The runner
+    /// reads its counters and starts the clock here.
     func startMeasurement()
 
     /// Called once per iteration, right after the last sweep.
@@ -52,7 +50,7 @@ public struct SuiteBenchmark: Sendable {
     /// `Type.operation`, the name the Jolt counterpart has too.
     public let name: String
 
-    /// Runs one iteration. A runner calls it once per iteration, warm-ups
+    /// Runs one iteration. The runner calls it once per iteration, warm-ups
     /// included. It prepares its outputs, calls `startMeasurement()`, runs
     /// `MeasurementRules.sweepsPerIteration` sweeps, then calls
     /// `stopMeasurement()`, each exactly once.
@@ -65,9 +63,8 @@ public struct SuiteBenchmark: Sendable {
 }
 
 /// An opaque sink: the optimizer must assume it reads its argument, so the
-/// work that produced the argument stays. The same definition as
-/// package-benchmark's, and like it, called from another module, so callers
-/// never see the empty body.
+/// work that produced the argument stays. Callers are in other modules, so
+/// they never see the empty body.
 @_optimize(none)
 public func blackHole(_: some Any) {}
 

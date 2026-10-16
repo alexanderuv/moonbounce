@@ -6,6 +6,7 @@
 # optimizer inlines the hot paths and the shim's builtins. macOS and Linux also
 # test the Release build; Windows can't yet (see the windows job).
 # `-enable-testing` lets the Release build serve the tests' `@testable import`.
+# Every job then runs one benchmark with BenchmarkRunner.
 #
 # Tests run through .github/scripts/swift-test.sh, which fails a run that
 # discovers no tests instead of letting it pass.
@@ -84,10 +85,13 @@ jobs:
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
         run: .github/scripts/swift-test.sh -c release --skip-build -Xswiftc -enable-testing
-      # Build only, in release, the configuration the benchmarks run in. They
-      # are measured by hand, not in CI.
-      - name: Build benchmarks
-        run: swift build -c release --package-path Benchmarks
+      # BenchmarkRunner, built as benchmarks are measured. One short benchmark
+      # checks that the runner builds and runs here and that its allocation
+      # counter passes its self-check. CI's virtual machines don't expose
+      # instruction counts, so the runner reports none; the figures are
+      # measured by hand.
+      - name: Benchmarks
+        run: swift run -c release --package-path Benchmarks BenchmarkRunner --filter 'Vector3\.dot'
       # Saved under the key the restore step computed, before the build folders
       # existed to change the sources' hash. A run that restored its exact key
       # has nothing new to save.
@@ -108,11 +112,15 @@ jobs:
         include:
           # At the default x86-64 baseline, without FMA: the shim's fused
           # multiply-adds fall back to libm's fmaf, and the tests still expect
-          # the same bits as everywhere else.
+          # the same bits as everywhere else. The benchmarks build at
+          # x86-64-v3, as x86-64 benchmarks are measured (docs/validation.md,
+          # x86-64 instruction set).
           - arch: x86-64
             runner: ubuntu-24.04
+            benchmark-level: -Xcc -march=x86-64-v3
           - arch: arm64
             runner: ubuntu-24.04-arm
+            benchmark-level: ''
     runs-on: ${{ matrix.runner }}
     # The official multi-architecture image; the tag is for reading, the digest
     # is what runs.
@@ -148,6 +156,9 @@ jobs:
       - name: Test release
         run: .github/scripts/swift-test.sh -c release --skip-build -Xswiftc -enable-testing
       # As on macOS.
+      - name: Benchmarks
+        run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
+      # As on macOS.
       - name: Save build folders
         if: steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -172,10 +183,12 @@ jobs:
             runner: windows-2025
             installer: amd64
             other-sdk: OptionsInstallWindowsSDKARM64=0 OptionsInstallWindowsRedistARM64=0
+            benchmark-level: -Xcc -march=x86-64-v3
           - arch: arm64
             runner: windows-11-arm
             installer: arm64
             other-sdk: OptionsInstallWindowsSDKAMD64=0 OptionsInstallWindowsRedistAMD64=0
+            benchmark-level: ''
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
@@ -275,12 +288,10 @@ jobs:
       # test step would pass while testing nothing. See KNOWN_ISSUES.md and #32.
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
-      # The portable benchmark runner, built at x86-64-v3 as x86-64 benchmarks
-      # are measured. One short benchmark checks that the build passes the
-      # runner's level check; the figures themselves are measured by hand.
+      # As on macOS. On x86-64 this also checks that the build passes the
+      # runner's x86-64-v3 level check.
       - name: Benchmarks
-        if: matrix.arch == 'x86-64'
-        run: swift run -c release --package-path Benchmarks -Xcc -march=x86-64-v3 PortableRunner --filter 'Vector3\.dot'
+        run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
       # As on macOS.
       - name: Save build folders
         if: steps.build-cache.outputs.cache-hit != 'true'

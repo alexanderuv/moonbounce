@@ -3,7 +3,7 @@ import Moonbounce
 
 extension SuiteBenchmark {
     /// The `Primitives` benchmarks: Moonbounce's math and geometry operations,
-    /// each swept over the seeded fixtures. Every runner registers these
+    /// each swept over the seeded fixtures. BenchmarkRunner registers these
     /// bodies as they are, under their names. Builds the fixtures once and
     /// returns the benchmarks in registration order.
     public static func primitives() -> [SuiteBenchmark] {
