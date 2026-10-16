@@ -51,7 +51,9 @@ public enum MeasurementRules {
 ///
 /// The runner measures only what runs between the two calls and owns
 /// everything about the measurement: clocks, counters, thread priority and
-/// the number of sweeps.
+/// the number of sweeps. A body prepares its outputs, reads `sweeps`, calls
+/// `startMeasurement()`, runs that many sweeps, then calls
+/// `stopMeasurement()`, each exactly once.
 public protocol MeasuredIteration {
     /// The sweeps to run between the two calls: the benchmark's
     /// `sweepsPerIteration`.
@@ -65,6 +67,20 @@ public protocol MeasuredIteration {
     func stopMeasurement()
 }
 
+/// The runner's loop over one benchmark's iterations, warm-ups included.
+/// Suites never call it: `SuiteBenchmark` calls it once per benchmark.
+public protocol MeasurementLoop {
+    /// Calls `body` once per iteration with `state`, until the runner's limits
+    /// are reached.
+    ///
+    /// The state goes in as an `inout` parameter rather than captured by
+    /// `body`: the optimizer may assume nothing else reaches an `inout`
+    /// parameter, but not a captured variable. In a trial, keeping a GJK
+    /// captured that way cost `GJK.castShape` 1.2% more instructions per
+    /// sweep. The state may be noncopyable; a tuple carries several values.
+    func run<State: ~Copyable>(keeping state: inout State, _ body: (any MeasuredIteration, inout State) -> Void)
+}
+
 /// A named benchmark body.
 public struct SuiteBenchmark: Sendable {
     /// `Type.operation`, the name the Jolt counterpart has too.
@@ -75,21 +91,51 @@ public struct SuiteBenchmark: Sendable {
     /// (Benchmarks). The Jolt counterpart runs the same count.
     public let sweepsPerIteration: Int
 
-    /// Runs one iteration. The runner calls it once per iteration, warm-ups
-    /// included. It prepares its outputs, reads the iteration's `sweeps`,
-    /// calls `startMeasurement()`, runs that many sweeps, then calls
-    /// `stopMeasurement()`, each exactly once.
-    public let run: @Sendable (any MeasuredIteration) -> Void
+    /// Runs every iteration of the benchmark through the runner's loop. The
+    /// runner calls it once per benchmark.
+    public let measure: @Sendable (any MeasurementLoop) -> Void
 
+    /// A benchmark that keeps nothing between iterations: `run` is one
+    /// iteration's body.
     public init(
         name: String,
         sweepsPerIteration: Int = MeasurementRules.defaultSweepsPerIteration,
         run: @escaping @Sendable (any MeasuredIteration) -> Void
     ) {
+        self = .keepingState(name: name, sweepsPerIteration: sweepsPerIteration, state: {}) { iteration, _ in
+            run(iteration)
+        }
+    }
+
+    private init(
+        name: String,
+        sweepsPerIteration: Int,
+        measure: @escaping @Sendable (any MeasurementLoop) -> Void
+    ) {
         precondition(sweepsPerIteration > 0, "\(name) must run at least one sweep per iteration")
         self.name = name
         self.sweepsPerIteration = sweepsPerIteration
-        self.run = run
+        self.measure = measure
+    }
+
+    /// A benchmark that keeps state across its iterations, as a caller keeps
+    /// a builder and reuses its storage. `state` runs once, before the
+    /// warm-up: it creates the state and, for storage the operation sizes,
+    /// runs the operation once, so no iteration repeats the sizing.
+    /// `iteration` is one iteration's body, which gets the state as
+    /// `MeasurementLoop.run(keeping:_:)` passes it.
+    public static func keepingState<State: ~Copyable>(
+        name: String,
+        sweepsPerIteration: Int = MeasurementRules.defaultSweepsPerIteration,
+        state: @escaping @Sendable () -> State,
+        iteration: @escaping @Sendable (any MeasuredIteration, inout State) -> Void
+    ) -> SuiteBenchmark {
+        SuiteBenchmark(
+            name: name, sweepsPerIteration: sweepsPerIteration,
+            measure: { loop in
+                var kept = state()
+                loop.run(keeping: &kept, iteration)
+            })
     }
 }
 
@@ -167,8 +213,8 @@ public func sweep<A, B, Output: BitwiseCopyable>(
 /// with `state` passed to every call, for an operation that writes into
 /// storage it reuses.
 ///
-/// `state` goes in as an argument rather than captured by `transform`, since
-/// Swift checks each access to a captured variable at run time. It may be
+/// `state` goes in as an argument rather than captured by `transform`, for
+/// the reason `MeasurementLoop.run(keeping:_:)` gives. It may be
 /// noncopyable, as storage too large to copy by accident is.
 ///
 /// - Precondition: `Output` is valid as all-zero bits, as for the

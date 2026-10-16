@@ -233,21 +233,25 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.vectorsA, operation)
             },
 
-            SuiteBenchmark(name: "VertexWelder.weld", sweepsPerIteration: 10) { iteration in
+            .keepingState(name: "VertexWelder.weld", sweepsPerIteration: 10) {
                 // One weld of the whole soup per sweep, so an operation is a
-                // triangle. The welder and its outputs are reused, as by a
-                // mesh builder: one weld before the clock starts sizes them.
+                // triangle. The welder and its outputs are reused across
+                // iterations, as by a mesh builder: one weld before the
+                // warm-up sizes them.
+                var weld = (welder: VertexWelder(), vertices: [Vector3](), triangles: [IndexedTriangle]())
+                weld.welder.weld(
+                    fixtures.soup.span, materialIndices: fixtures.soupMaterials.span, vertices: &weld.vertices,
+                    triangles: &weld.triangles)
+                return weld
+            } iteration: { iteration, weld in
                 let soup = fixtures.soup, materials = fixtures.soupMaterials
-                var welder = VertexWelder()
-                var vertices: [Vector3] = []
-                var triangles: [IndexedTriangle] = []
-                welder.weld(soup.span, materialIndices: materials.span, vertices: &vertices, triangles: &triangles)
                 let sweeps = iteration.sweeps
                 iteration.startMeasurement()
                 for _ in 0..<sweeps {
-                    welder.weld(soup.span, materialIndices: materials.span, vertices: &vertices, triangles: &triangles)
-                    blackHole(vertices)
-                    blackHole(triangles)
+                    weld.welder.weld(
+                        soup.span, materialIndices: materials.span, vertices: &weld.vertices, triangles: &weld.triangles)
+                    blackHole(weld.vertices)
+                    blackHole(weld.triangles)
                 }
                 iteration.stopMeasurement()
             },
@@ -305,12 +309,15 @@ extension SuiteBenchmark {
                     operation)
             },
 
-            SuiteBenchmark(name: "EPA.penetrationDepth", sweepsPerIteration: 1) { iteration in
+            .keepingState(name: "EPA.penetrationDepth", sweepsPerIteration: 1) {
                 // Box B centered inside box A, both cores grown by a convex
                 // radius of 0.05, so every pair needs EPA, with Jolt's
-                // default tolerances. One EPA is reused, and each query
-                // starts along x; no penetration gives zeros.
-                var epa = EPA()
+                // default tolerances. One EPA, which allocates its storage
+                // when made, is reused across iterations, as in the C++
+                // harness. Each query starts along x; no penetration gives
+                // zeros.
+                EPA()
+            } iteration: { iteration, epa in
                 @inline(always) func operation(_ a: OrientedBox, _ b: OrientedBox, _ epa: inout EPA) -> EPA.Penetration {
                     let coreA = a.convex, coreB = b.convex
                     var axis = Vector3.axisX
@@ -323,64 +330,58 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.orientedBoxesA, fixtures.penetratingBoxes, state: &epa, operation)
             },
 
-            SuiteBenchmark(name: "ConvexHullBuilder2D.build", sweepsPerIteration: 100) { iteration in
+            .keepingState(name: "ConvexHullBuilder2D.build", sweepsPerIteration: 100) {
                 // One hull of all the points per sweep, so an operation is a
                 // point, with Jolt's tolerance in its hull tests. The builder
-                // and its output are reused: one build before the clock
-                // starts sizes them.
+                // and its output are reused across iterations: one build
+                // before the warm-up sizes them.
+                var build = (builder: ConvexHullBuilder2D(), hull: [Int]())
+                _ = build.builder.build(fixtures.hullPoints.span, tolerance: 1.0e-3, into: &build.hull)
+                return build
+            } iteration: { iteration, build in
                 let points = fixtures.hullPoints
-                var builder = ConvexHullBuilder2D()
-                var hull: [Int] = []
-                _ = builder.build(points.span, tolerance: 1.0e-3, into: &hull)
                 let sweeps = iteration.sweeps
                 iteration.startMeasurement()
                 for _ in 0..<sweeps {
-                    blackHole(builder.build(points.span, tolerance: 1.0e-3, into: &hull))
-                    blackHole(hull)
+                    blackHole(build.builder.build(points.span, tolerance: 1.0e-3, into: &build.hull))
+                    blackHole(build.hull)
                 }
                 iteration.stopMeasurement()
             },
 
-            SuiteBenchmark(name: "ConvexHullBuilder.build", sweepsPerIteration: 1) { iteration in
+            .keepingState(name: "ConvexHullBuilder.build", sweepsPerIteration: 1) {
                 // The hull of each of 1,000 game models per sweep, so an
                 // operation is a hull, with Jolt's default hull tolerance.
-                // The builder and its outputs are reused: one sweep before
-                // the clock starts sizes them.
+                // The builder and its outputs are reused across iterations:
+                // one sweep before the warm-up sizes them.
+                var build = HullBuild()
+                build.buildEach(fixtures.gameClouds, of: fixtures.gameCloudPoints)
+                return build
+            } iteration: { iteration, build in
                 let points = fixtures.gameCloudPoints, clouds = fixtures.gameClouds
-                var builder = ConvexHullBuilder()
-                var faces: [Range<Int>] = []
-                var indices: [Int] = []
-                func buildEach() {
-                    let span = points.span
-                    for cloud in clouds {
-                        blackHole(builder.build(span.extracting(cloud), tolerance: 1.0e-3, faces: &faces, indices: &indices))
-                        blackHole(indices)
-                    }
-                }
-                buildEach()
                 let sweeps = iteration.sweeps
                 iteration.startMeasurement()
                 for _ in 0..<sweeps {
-                    buildEach()
+                    build.buildEach(clouds, of: points)
                 }
                 iteration.stopMeasurement()
             },
 
-            SuiteBenchmark(name: "ConvexHullBuilder.buildRandomPoints", sweepsPerIteration: 100) { iteration in
+            .keepingState(name: "ConvexHullBuilder.buildRandomPoints", sweepsPerIteration: 100) {
                 // One hull of all the points per sweep, so an operation is a
                 // point, with Jolt's default hull tolerance. The builder and
-                // its outputs are reused: one build before the clock starts
-                // sizes them.
+                // its outputs are reused across iterations: one build before
+                // the warm-up sizes them.
+                var build = HullBuild()
+                _ = build.builder.build(fixtures.hullPoints3D.span, tolerance: 1.0e-3, faces: &build.faces, indices: &build.indices)
+                return build
+            } iteration: { iteration, build in
                 let points = fixtures.hullPoints3D
-                var builder = ConvexHullBuilder()
-                var faces: [Range<Int>] = []
-                var indices: [Int] = []
-                _ = builder.build(points.span, tolerance: 1.0e-3, faces: &faces, indices: &indices)
                 let sweeps = iteration.sweeps
                 iteration.startMeasurement()
                 for _ in 0..<sweeps {
-                    blackHole(builder.build(points.span, tolerance: 1.0e-3, faces: &faces, indices: &indices))
-                    blackHole(indices)
+                    blackHole(build.builder.build(points.span, tolerance: 1.0e-3, faces: &build.faces, indices: &build.indices))
+                    blackHole(build.indices)
                 }
                 iteration.stopMeasurement()
             },
@@ -394,5 +395,22 @@ extension OrientedBox {
     @inline(always)
     var convex: TransformedConvex<AABB> {
         TransformedConvex(AABB(min: -halfExtents, max: halfExtents), transform: orientation)
+    }
+}
+
+/// A 3D hull builder and the outputs it reuses, kept across a benchmark's
+/// iterations.
+private struct HullBuild {
+    var builder = ConvexHullBuilder()
+    var faces: [Range<Int>] = []
+    var indices: [Int] = []
+
+    /// Builds the hull of each cloud, a range of `points`.
+    mutating func buildEach(_ clouds: [Range<Int>], of points: [Vector3]) {
+        let span = points.span
+        for cloud in clouds {
+            blackHole(builder.build(span.extracting(cloud), tolerance: 1.0e-3, faces: &faces, indices: &indices))
+            blackHole(indices)
+        }
     }
 }
