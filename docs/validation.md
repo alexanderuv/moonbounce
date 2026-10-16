@@ -49,7 +49,13 @@ A build below x86-64-v3 is supported for correctness only. Without FMA, each vec
 
 ### Measuring
 
-One runner, `Benchmarks/Sources/BenchmarkRunner`, measures the benchmarks on every platform, with the same suite libraries and `MeasurementRules`. Only its clocks and counters differ:
+One runner, `Benchmarks/Sources/BenchmarkRunner`, measures the benchmarks on every platform, with the same suite libraries and `MeasurementRules` (`Benchmarks/Sources/BenchmarkSupport/Measurement.swift`):
+
+- **Warm-up.** 5 unmeasured iterations.
+- **Measured iterations.** Until 1,000 are measured or 2 seconds have passed, but never fewer than 100, so every percentile comes from a distribution. 100 is the fewest at which p99, by the runner's rounding, has exactly one iteration in a hundred above it.
+- **Sweeps per iteration.** 1,000 by default, or fewer for a long sweep ([Benchmarks](#benchmarks)). Figures are per sweep, so the count sets how many samples a benchmark gets, not what its figures mean.
+
+A benchmark that needs more than 2 seconds for its 100 iterations is measured anyway, and the runner warns that it runs too many sweeps per iteration. Only the runner's clocks and counters differ by platform:
 
 | Platform | Wall time | Counter | Measuring thread | Allocations |
 |---|---|---|---|---|
@@ -57,7 +63,7 @@ One runner, `Benchmarks/Sources/BenchmarkRunner`, measures the benchmarks on eve
 | Linux | `CLOCK_MONOTONIC_RAW` | The measuring thread's retired user-space instructions, from `perf_event_open` | Default scheduling | Counted with glibc |
 | Windows | `QueryPerformanceCounter` | Thread cycles, from `QueryThreadCycleTime` | Highest priority, power throttling off, so Windows prefers performance cores | Not counted |
 
-- **Instructions on macOS.** They include the kernel's, so a system call, page fault or interrupt during a measurement adds to the count. The counter is read by a system call before and after each measured iteration, which adds about 6,000 instructions per iteration, 6 per sweep. The Jolt harness reads it the same way, so the comparison stays even.
+- **Instructions on macOS.** They include the kernel's, so a system call, page fault or interrupt during a measurement adds to the count. The counter is read by a system call before and after each measured iteration, which adds about 6,000 instructions per iteration: 6 per sweep at 1,000 sweeps, and at most 0.1% of a sweep for the benchmarks that run fewer. The Jolt harness reads it the same way with the same sweeps per iteration, so the comparison stays even.
 - **Instructions on Linux.** A kernel with `perf_event_paranoid` above 2, or a virtual machine without a hardware counter, doesn't expose them, and the runner then reports none. The runner also reports none once the counter has run for less time than the thread. That happens when the kernel shares the counter with other events, or when a CPU that mixes core types runs the thread on a core type the counter isn't on.
 - **Cycles on Windows.** Windows has no retired-instruction counter without a kernel driver. Thread cycles tick at the time-stamp counter's fixed rate while the thread runs: they leave out time the thread waits, but unlike instructions they vary with the core's clock speed.
 - **Allocations.** The runner counts calls into the C allocator, where the Swift runtime allocates, by replacing its entry points: through dyld's interposing on macOS and by defining them on Linux with glibc (`Benchmarks/CounterShims`). At startup it checks that it sees an allocation the Swift runtime makes. Windows' C runtime allocator can't be replaced, and other Linux C libraries such as musl don't export their allocator under a second name to forward to, so the allocation rule is checked on macOS and on Linux with glibc. On Windows it will be checked through a temp allocator's counters (planned).
@@ -67,7 +73,9 @@ One runner, `Benchmarks/Sources/BenchmarkRunner`, measures the benchmarks on eve
 Benchmarks live in the separate `Benchmarks/` package.
 
 - Names are `Type.operation`.
-- Each measured iteration runs sweeps of 1,000 operations over seeded SplitMix64 fixtures.
+- Each sweep runs 1,000 operations over seeded SplitMix64 fixtures. By default, each measured iteration runs 1,000 sweeps.
+- A benchmark whose iterations would take longer than about 10 ms sets `sweepsPerIteration` to the largest power of ten that keeps them within that, on both tier 1 platforms, for Moonbounce and for its Jolt counterpart. 10 ms is half the 20 ms at which 100 iterations fill the 2-second limit, so a slower machine still gets them in time. An iteration's time includes its setup, which counts toward the limit, such as the one sweep a body runs before the clock starts to size its outputs. A benchmark whose single sweep already takes longer runs one. `ConvexHullBuilder.build` builds 1,000 hulls per sweep. At one sweep plus its sizing sweep, an iteration takes about 14 ms on macOS arm64 and about 18 ms on Windows x86-64, where a sweep takes 9.2 ms. 100 iterations still fit in the limit, but with less margin than the rule aims for, and a slower Windows machine would hit the warning.
+- The Jolt counterpart of each benchmark runs the same sweeps per iteration, and `JoltComparison/compare.py` stops if the two differ.
 - Metrics are wall time, retired instructions (thread cycles on Windows) and malloc count.
 - Each area of the library has its own suite library under `Benchmarks/Sources/`, such as `PrimitivesSuite` for math and geometry, built on `BenchmarkSupport`. It holds the bodies and fixtures; BenchmarkRunner registers them.
 - Each operation is a local `@inline(always)` function, not a closure literal, so it inlines into the sweep (see the comment in `PrimitivesSuite/Primitives.swift`).
