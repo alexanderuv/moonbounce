@@ -10,6 +10,9 @@
 #
 # Tests run through .github/scripts/swift-test.sh, which fails a run that
 # discovers no tests instead of letting it pass.
+#
+# Every job restores SwiftPM's build folders from a cache (see the macos job),
+# and the Windows x86-64 job restores the installed toolchain.
 
 name: CI
 
@@ -48,12 +51,36 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Also names the compiler and the runner image for the build cache: the
+      # cached modules were built by this compiler from this image's SDK.
       - name: Toolchain
-        run: swift --version
+        id: toolchain
+        run: |
+          swift --version
+          echo "id=$({ swift --version; echo "${ImageVersion:-}"; } 2>&1 | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      # SwiftPM's build folders, so a build reuses the modules it compiled from
+      # the SDK and the toolchain, and a Debug build the objects of sources
+      # that haven't changed. Keyed on the job, the toolchain step's id, and
+      # the manifests, the sources and this workflow, which sets the build
+      # flags; any earlier cache with the same job and id is the fallback.
+      - name: Restore build folders
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build
+            Benchmarks/.build
+          key: build-macos-arm64-${{ steps.toolchain.outputs.id }}-${{ hashFiles('.github/workflows/ci.yml', 'Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
+          restore-keys: build-macos-arm64-${{ steps.toolchain.outputs.id }}-
+      # The checkout gives every source a new modification time, which alone
+      # would make an incremental build compile them all again. With file
+      # hashing, the compiler skips a source only when its contents match the
+      # cached build's. Release builds compile each module whole, so they
+      # always compile every source.
       - name: Build
-        run: swift build --build-tests
+        run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
-        run: .github/scripts/swift-test.sh --skip-build
+        run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
@@ -65,6 +92,20 @@ jobs:
       # measured by hand.
       - name: Benchmarks
         run: swift run -c release --package-path Benchmarks BenchmarkRunner --filter 'Vector3\.dot'
+      # Saved under the key the restore step computed, before the build folders
+      # existed to change the sources' hash. A run that restored its exact key
+      # has nothing new to save. Only main saves: every pull request can
+      # restore main's caches, while a pull request's own would only serve its
+      # next push, cost each push the save, and crowd main's out of the
+      # repository's cache space.
+      - name: Save build folders
+        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build
+            Benchmarks/.build
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
   linux:
     name: Linux ${{ matrix.arch }}
@@ -92,12 +133,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # As on macOS, except that the runner doesn't pass ImageVersion into a
+      # container. The container's installed packages, and so its C library
+      # and headers, name its image instead.
       - name: Toolchain
-        run: swift --version
+        id: toolchain
+        run: |
+          swift --version
+          echo "id=$({ swift --version; dpkg-query -W; } 2>&1 | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      # As on macOS.
+      - name: Restore build folders
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build
+            Benchmarks/.build
+          key: build-linux-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('.github/workflows/ci.yml', 'Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
+          restore-keys: build-linux-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-
+      # As on macOS.
       - name: Build
-        run: swift build --build-tests
+        run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
-        run: .github/scripts/swift-test.sh --skip-build
+        run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
@@ -105,6 +163,15 @@ jobs:
       # As on macOS.
       - name: Benchmarks
         run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
+      # As on macOS.
+      - name: Save build folders
+        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build
+            Benchmarks/.build
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
 
   windows:
     name: Windows ${{ matrix.arch }}
@@ -120,32 +187,90 @@ jobs:
           - arch: x86-64
             runner: windows-2025
             installer: amd64
+            other-sdk: OptionsInstallWindowsSDKARM64=0 OptionsInstallWindowsRedistARM64=0
             benchmark-level: -Xcc -march=x86-64-v3
+            cache-toolchain: true
           - arch: arm64
             runner: windows-11-arm
             installer: arm64
+            other-sdk: OptionsInstallWindowsSDKAMD64=0 OptionsInstallWindowsRedistAMD64=0
             benchmark-level: ''
+            # Restoring the toolchain here takes as long as installing it.
+            cache-toolchain: false
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
       # The swift.org toolchain. Linux runs the official image of the same
       # version, and macOS the Swift that ships with its Xcode.
       SWIFT_VERSION: 6.4.1
+      # The installer's features that CI doesn't use: the debugger and its
+      # Python, the Android SDKs, and the Windows SDKs for other architectures
+      # (with the matrix's other-sdk). Leaving them out shrinks the install by
+      # about a third, and so the cached toolchain. The editor tools stay:
+      # swift-build loads libraries from their package.
+      SWIFT_INSTALLER_OPTIONS: OptionsInstallDBG=0 OptionsInstallPy=0 OptionsInstallAndroidPlatform=0 OptionsInstallWindowsSDKX86=0 OptionsInstallWindowsRedistX86=0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # The installer, not the download, is the slow part of the setup: on
+      # x86-64 it takes about 70 seconds, against about 35 to restore what it
+      # installed. So the cache holds the installed toolchain with the
+      # environment the installer set for it (see
+      # .github/scripts/windows-toolchain.ps1). Keyed on the version, the
+      # runner, and this workflow and that script, which set the installer's
+      # options and the recorded environment. To drop a bad entry, delete it
+      # with `gh cache delete` or change either file.
+      - name: Restore toolchain
+        id: swift-cache
+        if: matrix.cache-toolchain
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/AppData/Local/Programs/Swift
+            ~/AppData/Local/Programs/Swift.env
+            ~/AppData/Local/Programs/Swift.path
+          key: swift-${{ env.SWIFT_VERSION }}-${{ matrix.runner }}-${{ hashFiles('.github/workflows/ci.yml', '.github/scripts/windows-toolchain.ps1') }}
+      - name: Snapshot environment
+        if: matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./.github/scripts/windows-toolchain.ps1 snapshot
       - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
+        if: steps.swift-cache.outputs.cache-hit != 'true'
         with:
           swift-version: swift-${{ env.SWIFT_VERSION }}-release
           swift-build: ${{ env.SWIFT_VERSION }}-RELEASE
           build_arch: ${{ matrix.installer }}
+          installer-args: ${{ env.SWIFT_INSTALLER_OPTIONS }} ${{ matrix.other-sdk }}
+      - name: Record toolchain environment
+        if: matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./.github/scripts/windows-toolchain.ps1 record
+      - name: Use restored toolchain
+        if: steps.swift-cache.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: ./.github/scripts/windows-toolchain.ps1 replay
+      # As on macOS.
       - name: Toolchain
-        run: swift --version
+        id: toolchain
+        run: |
+          swift --version
+          echo "id=$({ swift --version; echo "${ImageVersion:-}"; } 2>&1 | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      # As on macOS.
+      - name: Restore build folders
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build
+            Benchmarks/.build
+          key: build-windows-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('.github/workflows/ci.yml', 'Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
+          restore-keys: build-windows-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-
+      # As on macOS.
       - name: Build
-        run: swift build --build-tests
+        run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
-        run: .github/scripts/swift-test.sh --skip-build
+        run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
       # Build only: Swift Testing finds no tests in Windows Release builds, so a
       # test step would pass while testing nothing. See KNOWN_ISSUES.md and #32.
       - name: Build release
@@ -154,3 +279,24 @@ jobs:
       # runner's x86-64-v3 level check.
       - name: Benchmarks
         run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
+      # Saved only after every step above passed, so an install that can't
+      # build and test the package never reaches the cache, and only from main,
+      # as the build folders are.
+      - name: Save toolchain
+        if: github.ref == 'refs/heads/main' && matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/AppData/Local/Programs/Swift
+            ~/AppData/Local/Programs/Swift.env
+            ~/AppData/Local/Programs/Swift.path
+          key: ${{ steps.swift-cache.outputs.cache-primary-key }}
+      # As on macOS.
+      - name: Save build folders
+        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build
+            Benchmarks/.build
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
