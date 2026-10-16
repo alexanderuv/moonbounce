@@ -58,12 +58,10 @@ jobs:
           swift --version
           echo "id=$({ swift --version; echo "${ImageVersion:-}"; } 2>&1 | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
       # SwiftPM's build folders, so a build reuses the modules it compiled from
-      # the SDK and the toolchain instead of compiling them again. The checkout
-      # gives every source a new modification time, so Moonbounce's own sources
-      # always compile again: the tests and benchmarks run on the code under
-      # test, whichever earlier build the cache holds. Keyed on the job, the
-      # toolchain step's id, and the manifests and sources; any earlier cache
-      # with the same job and id is the fallback.
+      # the SDK and the toolchain, and a Debug build the objects of sources
+      # that haven't changed. Keyed on the job, the toolchain step's id, and
+      # the manifests, the sources and this workflow, which sets the build
+      # flags; any earlier cache with the same job and id is the fallback.
       - name: Restore build folders
         id: build-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -71,12 +69,17 @@ jobs:
           path: |
             .build
             Benchmarks/.build
-          key: build-macos-arm64-${{ steps.toolchain.outputs.id }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
+          key: build-macos-arm64-${{ steps.toolchain.outputs.id }}-${{ hashFiles('.github/workflows/ci.yml', 'Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
           restore-keys: build-macos-arm64-${{ steps.toolchain.outputs.id }}-
+      # The checkout gives every source a new modification time, which alone
+      # would make an incremental build compile them all again. With file
+      # hashing, the compiler skips a source only when its contents match the
+      # cached build's. Release builds compile each module whole, so they
+      # always compile every source.
       - name: Build
-        run: swift build --build-tests
+        run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
-        run: .github/scripts/swift-test.sh --skip-build
+        run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
@@ -133,12 +136,13 @@ jobs:
           path: |
             .build
             Benchmarks/.build
-          key: build-linux-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
+          key: build-linux-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('.github/workflows/ci.yml', 'Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
           restore-keys: build-linux-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-
+      # As on macOS.
       - name: Build
-        run: swift build --build-tests
+        run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
-        run: .github/scripts/swift-test.sh --skip-build
+        run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
@@ -167,23 +171,30 @@ jobs:
           - arch: x86-64
             runner: windows-2025
             installer: amd64
+            other-sdk: OptionsInstallWindowsSDKARM64=0 OptionsInstallWindowsRedistARM64=0
           - arch: arm64
             runner: windows-11-arm
             installer: arm64
+            other-sdk: OptionsInstallWindowsSDKAMD64=0 OptionsInstallWindowsRedistAMD64=0
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
       # The swift.org toolchain. Linux runs the official image of the same
       # version, and macOS the Swift that ships with its Xcode.
       SWIFT_VERSION: 6.4.1
+      # The installer's features that CI doesn't use: the debugger and its
+      # Python, the editor tools, the Android SDKs, and the Windows SDKs for
+      # other architectures (with the matrix's other-sdk). By default it
+      # installs all of them, and they take most of its time.
+      SWIFT_INSTALLER_OPTIONS: OptionsInstallDBG=0 OptionsInstallPy=0 OptionsInstallIDE=0 OptionsInstallAndroidPlatform=0 OptionsInstallWindowsSDKX86=0 OptionsInstallWindowsRedistX86=0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The installer, not the download, is the slow part of the setup: about
-      # 95 of 102 seconds on x86-64 and 57 of 64 on arm64. So the cache holds
-      # the installed toolchain, and the environment variables the installer
-      # set for it, keyed on the version and the architecture.
+      # The installer, not the download, is the slow part of the setup. So the
+      # cache holds the installed toolchain, and the environment variables the
+      # installer set for it, keyed on the version, the architecture and the
+      # installer's options.
       - name: Restore toolchain
         id: swift-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -192,13 +203,14 @@ jobs:
             ~/AppData/Local/Programs/Swift
             ~/AppData/Local/Programs/Swift.env
             ~/AppData/Local/Programs/Swift.path
-          key: swift-${{ env.SWIFT_VERSION }}-windows-${{ matrix.installer }}
+          key: swift-${{ env.SWIFT_VERSION }}-windows-${{ matrix.installer }} ${{ env.SWIFT_INSTALLER_OPTIONS }} ${{ matrix.other-sdk }}
       - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
         if: steps.swift-cache.outputs.cache-hit != 'true'
         with:
           swift-version: swift-${{ env.SWIFT_VERSION }}-release
           swift-build: ${{ env.SWIFT_VERSION }}-RELEASE
           build_arch: ${{ matrix.installer }}
+          installer-args: ${{ env.SWIFT_INSTALLER_OPTIONS }} ${{ matrix.other-sdk }}
       # The installer sets the toolchain's variables and search paths for the
       # user. Record those that point into the toolchain, so a run that
       # restores it can set them again.
@@ -252,12 +264,13 @@ jobs:
           path: |
             .build
             Benchmarks/.build
-          key: build-windows-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
+          key: build-windows-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('.github/workflows/ci.yml', 'Package.swift', 'Package.resolved', 'Sources/**', 'Tests/**', 'Benchmarks/**') }}
           restore-keys: build-windows-${{ matrix.arch }}-${{ steps.toolchain.outputs.id }}-
+      # As on macOS.
       - name: Build
-        run: swift build --build-tests
+        run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
-        run: .github/scripts/swift-test.sh --skip-build
+        run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
       # Build only: Swift Testing finds no tests in Windows Release builds, so a
       # test step would pass while testing nothing. See KNOWN_ISSUES.md and #32.
       - name: Build release
