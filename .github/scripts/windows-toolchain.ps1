@@ -86,7 +86,7 @@ let package = Package(
 import Probe
 import Testing
 
-@Test func answer() {
+@Test func answerIsFortyTwo() {
     #expect(Probe.answer() == 42)
 }
 '@
