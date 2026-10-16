@@ -90,7 +90,14 @@ import Testing
     #expect(Probe.answer() == 42)
 }
 '@
-        Invoke-Checked swift 'test', '--package-path', $Probe
+        # A run that finds no tests also exits 0 (see swift-test.sh), so
+        # require the one test to have run.
+        $Output = & swift test --package-path $Probe 2>&1 | ForEach-Object { "$_" }
+        $Output
+        if ($LASTEXITCODE -ne 0 -or -not ($Output -match 'Test run with 1 test')) {
+            Write-Host "::error::swift test didn't run the probe's test in the recorded environment"
+            exit 1
+        }
     }
     'replay' {
         $Record = Read-Record
