@@ -5,5 +5,4 @@
 *.xcodeproj
 xcuserdata/
 DerivedData/
-.benchmarkBaselines/
 __pycache__/

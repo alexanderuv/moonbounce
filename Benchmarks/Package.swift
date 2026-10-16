@@ -1,8 +1,8 @@
 // swift-tools-version: 6.4
 
 // Benchmarks live in their own package so the library's dependency graph stays
-// empty for clients. Run with `swift package benchmark` from this directory, or
-// on Windows with the portable runner (see Sources/PortableRunner/main.swift).
+// empty for clients. Run them with `BenchmarkRunner`, the same way on every
+// platform (see Sources/BenchmarkRunner/main.swift and the README).
 
 import PackageDescription
 
@@ -13,14 +13,14 @@ let package = Package(
     ],
     dependencies: [
         .package(path: ".."),
-        .package(url: "https://github.com/ordo-one/benchmark.git", .upToNextMajor(from: "1.38.0")),
+        // The allocation and instruction counters, a package of their own so
+        // that macOS can link them as a dynamic library (see its manifest).
+        .package(path: "CounterShims"),
     ],
     targets: [
-        // Benchmark bodies live in suite libraries free of package-benchmark, so
-        // every runner shares them: package-benchmark on macOS and Linux, and a
-        // portable runner on Windows, where package-benchmark does not run.
-        // This target is the contract between suites and runners: the
-        // measurement rules, the sweeps and the iteration interface.
+        // Benchmark bodies live in suite libraries, apart from the runner that
+        // measures them. This target is the contract between suites and the
+        // runner: the measurement rules, the sweeps and the iteration interface.
         .target(name: "BenchmarkSupport"),
         // The `Primitives` bodies and their fixtures.
         .target(
@@ -30,30 +30,18 @@ let package = Package(
                 .product(name: "Moonbounce", package: "moonbounce"),
             ]
         ),
-        // Which instruction-set level the build targets, so a runner can refuse
-        // to measure below the level Moonbounce is measured at.
+        // Which instruction-set level the build targets, so the runner can
+        // refuse to measure below the level Moonbounce is measured at.
         .target(name: "BuildLevel"),
-        // The portable runner, for Windows: registers every suite's bodies and
-        // measures them with the Windows clocks and the same `MeasurementRules`.
+        // The runner: registers every suite's bodies and measures them with
+        // each platform's clocks and counters under `MeasurementRules`.
         .executableTarget(
-            name: "PortableRunner",
+            name: "BenchmarkRunner",
             dependencies: [
                 "BenchmarkSupport",
                 "BuildLevel",
                 "PrimitivesSuite",
-            ]
-        ),
-        // The package-benchmark runner for `Primitives`: registers the suite's bodies.
-        .executableTarget(
-            name: "Primitives",
-            dependencies: [
-                "BenchmarkSupport",
-                "PrimitivesSuite",
-                .product(name: "Benchmark", package: "benchmark"),
-            ],
-            path: "Benchmarks/Primitives",
-            plugins: [
-                .plugin(name: "BenchmarkPlugin", package: "benchmark"),
+                .product(name: "CounterShims", package: "CounterShims"),
             ]
         ),
     ]

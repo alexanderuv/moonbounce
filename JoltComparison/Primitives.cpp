@@ -2,14 +2,13 @@
 //
 // Same inputs (SplitMix64 with the same seed, consumed in the same order),
 // same sweep structure (1,000 operations per sweep, 1,000 sweeps per measured
-// iteration, a black hole once per sweep) and the same iteration rules as the
-// Swift runners: 5 warm-up iterations, then up to 1,000 iterations or 2
-// seconds. Each platform measures as its Swift runner does:
-// - macOS, like package-benchmark: CLOCK_UPTIME_RAW wall time and per-process
-//   retired instructions from proc_pid_rusage, at user-interactive QoS.
-// - Windows, like the portable runner: QueryPerformanceCounter wall time and
-//   QueryThreadCycleTime cycles, at the highest thread priority with power
-//   throttling off.
+// iteration, a black hole once per sweep) and the same iteration rules as
+// BenchmarkRunner: 5 warm-up iterations, then up to 1,000 iterations or 2
+// seconds. Each platform measures as BenchmarkRunner does there:
+// - macOS: CLOCK_UPTIME_RAW wall time and per-process retired instructions
+//   from proc_pid_rusage, at user-interactive QoS.
+// - Windows: QueryPerformanceCounter wall time and QueryThreadCycleTime
+//   cycles, at the highest thread priority with power throttling off.
 // Prints raw per-iteration percentiles as JSON.
 
 #include <Jolt/Jolt.h>
@@ -579,7 +578,7 @@ static constexpr int cWarmupIterations = 5;
 static constexpr int cMaxIterations = 1000;
 static constexpr uint64_t cMaxDurationNs = 2'000'000'000;
 
-// The counterpart of package-benchmark's blackHole: an opaque call that may
+// The counterpart of BenchmarkSupport's blackHole: an opaque call that may
 // read everything reachable from the pointer.
 #if defined(_MSC_VER) && !defined(__clang__)
 // MSVC has no inline assembly on x64. A volatile store of the pointer and a
@@ -618,7 +617,7 @@ static uint64_t Counter()
 	return cycles;
 }
 
-// Same as the portable runner: the highest priority in the process's class,
+// Same as BenchmarkRunner: the highest priority in the process's class,
 // with execution-speed throttling off, so Windows prefers a hybrid CPU's
 // performance cores for the thread.
 static bool KeepOnPerformanceCores()
@@ -641,7 +640,7 @@ static uint64_t Counter()
 	return info.ri_instructions;
 }
 
-// Same as PackageBenchmarkIteration in the Primitives runner: stay on performance cores.
+// Same as BenchmarkRunner: stay on performance cores.
 static bool KeepOnPerformanceCores() { return pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0) == 0; }
 #endif
 

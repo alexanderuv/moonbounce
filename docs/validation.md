@@ -22,11 +22,11 @@ A slower result blocks the feature. Find the cause and fix it; don't loosen the 
 | 2 | Linux, x86-64 and arm64 | Build and tests |
 | 2 | Windows, arm64 | Build and tests |
 
-CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`, builds the benchmarks package on macOS, and builds the portable runner on Windows x86-64 at x86-64-v3, running one benchmark to check the build passes its level check. Three things are not covered yet:
+CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`. On each platform it also runs one benchmark with [BenchmarkRunner](#measuring), built at x86-64-v3 on x86-64, which checks that the runner's clocks and counters work there. Three things are not covered yet:
 
 - **Windows Release tests.** Swift Testing finds no tests in Windows Release builds, so Windows is tested in Debug only ([#32](https://github.com/alexanderuv/moonbounce/issues/32), [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)).
 - **x86-64-v3.** CI tests x86-64 at the default baseline only, so the [x86-64-v3](#x86-64-instruction-set) build that Moonbounce is measured at is built but untested.
-- **Benchmarks.** They are run by hand.
+- **Benchmark figures.** They are measured by hand.
 
 ### x86-64 instruction set
 
@@ -42,13 +42,23 @@ swift build -c release -Xcc -march=x86-64-v3
 - **It must apply to the whole build.** The hot-path API is inlinable, so it compiles into the application's own modules. Flags on Moonbounce's targets alone would miss it.
 - **It stays out of the manifest.** A manifest can't condition a setting on the architecture, so a hard-coded level would break arm64 builds and require x86-64-v3 of every application's users.
 
-x86-64 benchmark figures count only from a build with this flag. The portable runner refuses to measure a build without it, and `JoltComparison/compare.py` passes it.
+x86-64 benchmark figures count only from a build with this flag. BenchmarkRunner refuses to measure a build without it, and `JoltComparison/compare.py` passes it.
 
 A build below x86-64-v3 is supported for correctness only. Without FMA, each vector fused multiply-add becomes four calls to the C library's `fmaf`: the same bits, but far slower.
 
-### Measuring on Windows
+### Measuring
 
-package-benchmark runs only on macOS and Linux, so Windows gets a portable runner, `Benchmarks/Sources/PortableRunner`, over the same suite libraries and `MeasurementRules`. It times with `QueryPerformanceCounter` and, lacking a retired-instruction counter, counts cycles with `QueryThreadCycleTime`. Those cycles tick at the time-stamp counter's fixed rate while the thread runs: they leave out time the thread waits, but unlike instructions they vary with the core's clock speed. Measured threads run at high priority with power throttling off, so Windows prefers performance cores for them. malloc can't be interposed on Windows, so the portable runner counts no allocations and the allocation rule is checked on macOS and Linux. On Windows it will be checked through a temp allocator's counters (planned).
+One runner, `Benchmarks/Sources/BenchmarkRunner`, measures the benchmarks on every platform, with the same suite libraries and `MeasurementRules`. Only its clocks and counters differ:
+
+| Platform | Wall time | Counter | Measuring thread | Allocations |
+|---|---|---|---|---|
+| macOS | `CLOCK_UPTIME_RAW` | Retired instructions, from `proc_pid_rusage` | User-interactive QoS, so it runs on performance cores | Counted |
+| Linux | `CLOCK_MONOTONIC_RAW` | Retired instructions, from `perf_event_open` | Default scheduling | Counted |
+| Windows | `QueryPerformanceCounter` | Thread cycles, from `QueryThreadCycleTime` | Highest priority, power throttling off, so Windows prefers performance cores | Not counted |
+
+- **Instructions on Linux.** A kernel with `perf_event_paranoid` above 2, or a virtual machine without a hardware counter, doesn't expose them, and the runner then reports none.
+- **Cycles on Windows.** Windows has no retired-instruction counter without a kernel driver. Thread cycles tick at the time-stamp counter's fixed rate while the thread runs: they leave out time the thread waits, but unlike instructions they vary with the core's clock speed.
+- **Allocations.** The runner counts calls into the C allocator, where the Swift runtime allocates, by replacing its entry points: through dyld's interposing on macOS and by defining them on Linux (`Benchmarks/CounterShims`). At startup it checks that it sees an allocation the Swift runtime makes. Windows' C runtime allocator can't be replaced, so the allocation rule is checked on macOS and Linux. On Windows it will be checked through a temp allocator's counters (planned).
 
 ## Benchmarks
 
@@ -56,9 +66,8 @@ Benchmarks live in the separate `Benchmarks/` package.
 
 - Names are `Type.operation`.
 - Each measured iteration runs sweeps of 1,000 operations over seeded SplitMix64 fixtures.
-- Metrics are wall time, retired instructions and malloc count.
-- Each area of the library has its own benchmark target, such as `Primitives` for math and geometry.
-- Bodies and fixtures live in suite libraries under `Benchmarks/Sources/` (`PrimitivesSuite`), built on `BenchmarkSupport`. Runners only register them, so package-benchmark on macOS and Linux and the portable runner on Windows measure the same code.
+- Metrics are wall time, retired instructions (thread cycles on Windows) and malloc count.
+- Each area of the library has its own suite library under `Benchmarks/Sources/`, such as `PrimitivesSuite` for math and geometry, built on `BenchmarkSupport`. It holds the bodies and fixtures; BenchmarkRunner registers them.
 - Each operation is a local `@inline(always)` function, not a closure literal, so it inlines into the sweep (see the comment in `PrimitivesSuite/Primitives.swift`).
 - Benchmarks build with plain `-O`. `-Ounchecked` gives identical instruction counts, since bounds checks are already hoisted out of the inner loops.
 

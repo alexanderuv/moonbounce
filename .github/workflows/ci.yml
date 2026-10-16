@@ -6,6 +6,7 @@
 # optimizer inlines the hot paths and the shim's builtins. macOS and Linux also
 # test the Release build; Windows can't yet (see the windows job).
 # `-enable-testing` lets the Release build serve the tests' `@testable import`.
+# Every job then runs one benchmark with BenchmarkRunner.
 #
 # Tests run through .github/scripts/swift-test.sh, which fails a run that
 # discovers no tests instead of letting it pass.
@@ -57,10 +58,11 @@ jobs:
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
         run: .github/scripts/swift-test.sh -c release --skip-build -Xswiftc -enable-testing
-      # Build only, in release, the configuration the benchmarks run in. They
-      # are measured by hand, not in CI.
-      - name: Build benchmarks
-        run: swift build -c release --package-path Benchmarks
+      # BenchmarkRunner, built as benchmarks are measured. One short benchmark
+      # checks that the runner's clocks and counters work here, its allocation
+      # counter's self-check included; the figures are measured by hand.
+      - name: Benchmarks
+        run: swift run -c release --package-path Benchmarks BenchmarkRunner --filter 'Vector3\.dot'
 
   linux:
     name: Linux ${{ matrix.arch }}
@@ -70,11 +72,15 @@ jobs:
         include:
           # At the default x86-64 baseline, without FMA: the shim's fused
           # multiply-adds fall back to libm's fmaf, and the tests still expect
-          # the same bits as everywhere else.
+          # the same bits as everywhere else. The benchmarks build at
+          # x86-64-v3, as x86-64 benchmarks are measured (docs/validation.md,
+          # x86-64 instruction set).
           - arch: x86-64
             runner: ubuntu-24.04
+            benchmark-level: -Xcc -march=x86-64-v3
           - arch: arm64
             runner: ubuntu-24.04-arm
+            benchmark-level: ''
     runs-on: ${{ matrix.runner }}
     # The official multi-architecture image; the tag is for reading, the digest
     # is what runs.
@@ -94,6 +100,10 @@ jobs:
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
         run: .github/scripts/swift-test.sh -c release --skip-build -Xswiftc -enable-testing
+      # As on macOS. A container usually can't read the instruction counter,
+      # so the runner reports none here; times and allocations still count.
+      - name: Benchmarks
+        run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
 
   windows:
     name: Windows ${{ matrix.arch }}
@@ -109,9 +119,11 @@ jobs:
           - arch: x86-64
             runner: windows-2025
             installer: amd64
+            benchmark-level: -Xcc -march=x86-64-v3
           - arch: arm64
             runner: windows-11-arm
             installer: arm64
+            benchmark-level: ''
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
@@ -137,9 +149,7 @@ jobs:
       # test step would pass while testing nothing. See KNOWN_ISSUES.md and #32.
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
-      # The portable benchmark runner, built at x86-64-v3 as x86-64 benchmarks
-      # are measured. One short benchmark checks that the build passes the
-      # runner's level check; the figures themselves are measured by hand.
+      # As on macOS. On x86-64 this also checks that the build passes the
+      # runner's x86-64-v3 level check.
       - name: Benchmarks
-        if: matrix.arch == 'x86-64'
-        run: swift run -c release --package-path Benchmarks -Xcc -march=x86-64-v3 PortableRunner --filter 'Vector3\.dot'
+        run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
