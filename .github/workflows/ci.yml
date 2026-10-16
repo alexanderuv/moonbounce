@@ -94,12 +94,12 @@ jobs:
         run: swift run -c release --package-path Benchmarks BenchmarkRunner --filter 'Vector3\.dot'
       # Saved under the key the restore step computed, before the build folders
       # existed to change the sources' hash. A run that restored its exact key
-      # has nothing new to save. Only pushes to main save: every pull request
-      # can restore main's caches, while a pull request's own would only serve
-      # its next push, cost each push the save, and crowd main's out of the
+      # has nothing new to save. Only main saves: every pull request can
+      # restore main's caches, while a pull request's own would only serve its
+      # next push, cost each push the save, and crowd main's out of the
       # repository's cache space.
       - name: Save build folders
-        if: github.event_name == 'push' && steps.build-cache.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -133,12 +133,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # As on macOS.
+      # As on macOS, except that the runner doesn't pass ImageVersion into a
+      # container. The container's installed packages, and so its C library
+      # and headers, name its image instead.
       - name: Toolchain
         id: toolchain
         run: |
           swift --version
-          echo "id=$({ swift --version; echo "${ImageVersion:-}"; } 2>&1 | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          echo "id=$({ swift --version; dpkg-query -W; } 2>&1 | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
       # As on macOS.
       - name: Restore build folders
         id: build-cache
@@ -163,7 +165,7 @@ jobs:
         run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
       # As on macOS.
       - name: Save build folders
-        if: github.event_name == 'push' && steps.build-cache.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -212,10 +214,13 @@ jobs:
         with:
           persist-credentials: false
       # The installer, not the download, is the slow part of the setup: on
-      # x86-64 it takes 70 to 185 seconds, against about 35 to restore what it
-      # installed. So the cache holds the installed toolchain, and the
-      # environment variables the installer set for it, keyed on the version,
-      # the architecture and the installer's options.
+      # x86-64 it takes about 70 seconds, and at times over 180, against about
+      # 35 to restore what it installed. So the cache holds the installed
+      # toolchain with the environment the installer set for it (see
+      # .github/scripts/windows-toolchain.ps1). Keyed on the version, the
+      # runner, and this workflow and that script, which set the installer's
+      # options and the recorded environment. To drop a bad entry, delete it
+      # with `gh cache delete` or change either file.
       - name: Restore toolchain
         id: swift-cache
         if: matrix.cache-toolchain
@@ -225,7 +230,11 @@ jobs:
             ~/AppData/Local/Programs/Swift
             ~/AppData/Local/Programs/Swift.env
             ~/AppData/Local/Programs/Swift.path
-          key: swift-${{ env.SWIFT_VERSION }}-windows-${{ matrix.installer }} ${{ env.SWIFT_INSTALLER_OPTIONS }} ${{ matrix.other-sdk }}
+          key: swift-${{ env.SWIFT_VERSION }}-${{ matrix.runner }}-${{ hashFiles('.github/workflows/ci.yml', '.github/scripts/windows-toolchain.ps1') }}
+      - name: Snapshot environment
+        if: matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: ./.github/scripts/windows-toolchain.ps1 snapshot
       - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
         if: steps.swift-cache.outputs.cache-hit != 'true'
         with:
@@ -233,36 +242,14 @@ jobs:
           swift-build: ${{ env.SWIFT_VERSION }}-RELEASE
           build_arch: ${{ matrix.installer }}
           installer-args: ${{ env.SWIFT_INSTALLER_OPTIONS }} ${{ matrix.other-sdk }}
-      # The installer sets the toolchain's variables and search paths for the
-      # user. Record those that point into the toolchain, so a run that
-      # restores it can set them again.
       - name: Record toolchain environment
         if: matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
         shell: pwsh
-        run: |
-          $Root = Join-Path $env:LOCALAPPDATA 'Programs\Swift'
-          $User = [Environment]::GetEnvironmentVariables('User')
-          $User.GetEnumerator() |
-            Where-Object { $_.Name -ne 'Path' -and $_.Value -like "*$Root*" } |
-            ForEach-Object { "$($_.Name)=$($_.Value)" } |
-            Set-Content "$Root.env"
-          $User['Path'] -split ';' | Where-Object { $_ -like "$Root*" } | Set-Content "$Root.path"
-          if (-not (Get-Content "$Root.path")) {
-            Write-Host "::error::The installer added no search path under $Root"
-            exit 1
-          }
-          Get-Content "$Root.env", "$Root.path"
+        run: ./.github/scripts/windows-toolchain.ps1 record
       - name: Use restored toolchain
         if: steps.swift-cache.outputs.cache-hit == 'true'
         shell: pwsh
-        run: |
-          $Root = Join-Path $env:LOCALAPPDATA 'Programs\Swift'
-          Get-Content "$Root.env" | Add-Content $env:GITHUB_ENV
-          # Each line of GITHUB_PATH goes in front of the last, so add the
-          # paths in reverse to keep the installer's order.
-          $Paths = @(Get-Content "$Root.path")
-          [Array]::Reverse($Paths)
-          $Paths | Add-Content $env:GITHUB_PATH
+        run: ./.github/scripts/windows-toolchain.ps1 replay
       # As on macOS.
       - name: Toolchain
         id: toolchain
@@ -296,7 +283,7 @@ jobs:
       # build and test the package never reaches the cache, and only from main,
       # as the build folders are.
       - name: Save toolchain
-        if: github.event_name == 'push' && matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main' && matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -306,7 +293,7 @@ jobs:
           key: ${{ steps.swift-cache.outputs.cache-primary-key }}
       # As on macOS.
       - name: Save build folders
-        if: github.event_name == 'push' && steps.build-cache.outputs.cache-hit != 'true'
+        if: github.ref == 'refs/heads/main' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
