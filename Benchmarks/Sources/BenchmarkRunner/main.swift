@@ -158,6 +158,10 @@ while let argument = arguments.popFirst() {
     }
 }
 
+if json, baseline != nil {
+    fail("--baseline adds columns to the text table, so it can't be combined with --format json")
+}
+
 // MARK: - Checks
 
 /// Why this build can't be measured, or nil if it can.
@@ -292,11 +296,25 @@ func perSweepPercentiles(_ samples: [some BinaryInteger], scale: (Double) -> Dou
     percentiles(samples).map { scale(Double($0)) / Double(MeasurementRules.sweepsPerIteration) }
 }
 
-func figures(_ samples: Samples) -> Figures {
-    Figures(
+var reportedIncompleteCounter = false
+
+/// Measures `benchmark` and summarizes it. Once the counter turns unreliable,
+/// its counts are reported as missing, for this benchmark and every later one.
+@MainActor
+func measuredFigures(_ benchmark: SuiteBenchmark) -> Figures {
+    let samples = measure(benchmark)
+    let countsAreComplete = countsCounter && Counters.counterIsReliable
+    if countsCounter, !countsAreComplete, !reportedIncompleteCounter {
+        printError("""
+            reading \(Counters.counterName) failed or missed part of the thread's run time, \
+            so \(benchmark.name) and every later benchmark report none
+            """)
+        reportedIncompleteCounter = true
+    }
+    return Figures(
         iterations: samples.ticks.count,
         wallClockNs: perSweepPercentiles(samples.ticks, scale: Counters.nanoseconds),
-        counter: countsCounter ? perSweepPercentiles(samples.counter) : nil,
+        counter: countsAreComplete ? perSweepPercentiles(samples.counter) : nil,
         mallocs: allocations_are_counted() ? percentiles(samples.allocations) : nil
     )
 }
@@ -306,7 +324,7 @@ func figures(_ samples: Samples) -> Figures {
 if json {
     var report = Report(benchmarks: [:])
     for benchmark in benchmarks {
-        report.benchmarks[benchmark.name] = figures(measure(benchmark))
+        report.benchmarks[benchmark.name] = measuredFigures(benchmark)
     }
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -334,7 +352,7 @@ if json {
     print(row("Benchmark", headers))
     print(row(String(repeating: "-", count: nameWidth), headers.map { String(repeating: "-", count: max($0.count, 10)) }))
     for benchmark in benchmarks {
-        let current = figures(measure(benchmark))
+        let current = measuredFigures(benchmark)
         func whole(_ value: Double) -> String { "\(Int(value.rounded()))" }
         var cells = ["\(current.iterations)"] + [p0, p50, p99].map { whole(current.wallClockNs[$0]) }
         cells += [p0, p50, p99].map { rank in current.counter.map { whole($0[rank]) } ?? "-" }

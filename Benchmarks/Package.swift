@@ -41,7 +41,10 @@ let package = Package(
                 "BenchmarkSupport",
                 "BuildLevel",
                 "PrimitivesSuite",
-                .product(name: "CounterShims", package: "CounterShims"),
+                // Dynamic on macOS, where the allocation counter's interposing
+                // works only from a dynamic library; static elsewhere.
+                .product(name: "CounterShimsDynamic", package: "CounterShims", condition: .when(platforms: [.macOS])),
+                .product(name: "CounterShims", package: "CounterShims", condition: .when(platforms: [.linux, .windows])),
             ]
         ),
     ]

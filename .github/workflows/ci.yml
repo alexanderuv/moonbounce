@@ -59,8 +59,10 @@ jobs:
       - name: Test release
         run: .github/scripts/swift-test.sh -c release --skip-build -Xswiftc -enable-testing
       # BenchmarkRunner, built as benchmarks are measured. One short benchmark
-      # checks that the runner's clocks and counters work here, its allocation
-      # counter's self-check included; the figures are measured by hand.
+      # checks that the runner builds and runs here and that its allocation
+      # counter passes its self-check. CI's virtual machines don't expose
+      # instruction counts, so the runner reports none; the figures are
+      # measured by hand.
       - name: Benchmarks
         run: swift run -c release --package-path Benchmarks BenchmarkRunner --filter 'Vector3\.dot'
 
@@ -100,8 +102,7 @@ jobs:
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
         run: .github/scripts/swift-test.sh -c release --skip-build -Xswiftc -enable-testing
-      # As on macOS. A container usually can't read the instruction counter,
-      # so the runner reports none here; times and allocations still count.
+      # As on macOS.
       - name: Benchmarks
         run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
 

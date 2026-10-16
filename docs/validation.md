@@ -22,10 +22,11 @@ A slower result blocks the feature. Find the cause and fix it; don't loosen the 
 | 2 | Linux, x86-64 and arm64 | Build and tests |
 | 2 | Windows, arm64 | Build and tests |
 
-CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`. On each platform it also runs one benchmark with [BenchmarkRunner](#measuring), built at x86-64-v3 on x86-64, which checks that the runner's clocks and counters work there. Three things are not covered yet:
+CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`. On each platform it also builds [BenchmarkRunner](#measuring), at x86-64-v3 on x86-64, and runs one benchmark. That checks that the runner builds and runs, passes its x86-64-v3 check, and on macOS and Linux sees the Swift runtime's allocations. Four things are not covered yet:
 
 - **Windows Release tests.** Swift Testing finds no tests in Windows Release builds, so Windows is tested in Debug only ([#32](https://github.com/alexanderuv/moonbounce/issues/32), [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)).
 - **x86-64-v3.** CI tests x86-64 at the default baseline only, so the [x86-64-v3](#x86-64-instruction-set) build that Moonbounce is measured at is built but untested.
+- **Instruction counts.** CI's virtual machines don't expose them, so the instruction counters run only on real hardware.
 - **Benchmark figures.** They are measured by hand.
 
 ### x86-64 instruction set
@@ -52,13 +53,14 @@ One runner, `Benchmarks/Sources/BenchmarkRunner`, measures the benchmarks on eve
 
 | Platform | Wall time | Counter | Measuring thread | Allocations |
 |---|---|---|---|---|
-| macOS | `CLOCK_UPTIME_RAW` | Retired instructions, from `proc_pid_rusage` | User-interactive QoS, so it runs on performance cores | Counted |
-| Linux | `CLOCK_MONOTONIC_RAW` | Retired instructions, from `perf_event_open` | Default scheduling | Counted |
+| macOS | `CLOCK_UPTIME_RAW` | The process's retired instructions, kernel included, from `proc_pid_rusage` | User-interactive QoS, so it runs on performance cores | Counted |
+| Linux | `CLOCK_MONOTONIC_RAW` | The measuring thread's retired user-space instructions, from `perf_event_open` | Default scheduling | Counted with glibc |
 | Windows | `QueryPerformanceCounter` | Thread cycles, from `QueryThreadCycleTime` | Highest priority, power throttling off, so Windows prefers performance cores | Not counted |
 
-- **Instructions on Linux.** A kernel with `perf_event_paranoid` above 2, or a virtual machine without a hardware counter, doesn't expose them, and the runner then reports none.
+- **Instructions on macOS.** They include the kernel's, so a system call, page fault or interrupt during a measurement adds to the count. The counter is read by a system call before and after each measured iteration, which adds about 6,000 instructions per iteration, 6 per sweep. The Jolt harness reads it the same way, so the comparison stays even.
+- **Instructions on Linux.** A kernel with `perf_event_paranoid` above 2, or a virtual machine without a hardware counter, doesn't expose them, and the runner then reports none. The runner also reports none once the counter has run for less time than the thread. That happens when the kernel shares the counter with other events, or when a CPU that mixes core types runs the thread on a core type the counter isn't on.
 - **Cycles on Windows.** Windows has no retired-instruction counter without a kernel driver. Thread cycles tick at the time-stamp counter's fixed rate while the thread runs: they leave out time the thread waits, but unlike instructions they vary with the core's clock speed.
-- **Allocations.** The runner counts calls into the C allocator, where the Swift runtime allocates, by replacing its entry points: through dyld's interposing on macOS and by defining them on Linux (`Benchmarks/CounterShims`). At startup it checks that it sees an allocation the Swift runtime makes. Windows' C runtime allocator can't be replaced, so the allocation rule is checked on macOS and Linux. On Windows it will be checked through a temp allocator's counters (planned).
+- **Allocations.** The runner counts calls into the C allocator, where the Swift runtime allocates, by replacing its entry points: through dyld's interposing on macOS and by defining them on Linux with glibc (`Benchmarks/CounterShims`). At startup it checks that it sees an allocation the Swift runtime makes. Windows' C runtime allocator can't be replaced, and other Linux C libraries such as musl don't export their allocator under a second name to forward to, so the allocation rule is checked on macOS and on Linux with glibc. On Windows it will be checked through a temp allocator's counters (planned).
 
 ## Benchmarks
 

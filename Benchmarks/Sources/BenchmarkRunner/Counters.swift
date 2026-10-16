@@ -43,10 +43,17 @@ enum Counters {
         start_instruction_count()
     }
 
-    /// Retired user-space instructions (see `instruction_count()`).
+    /// Retired instructions: the process's, kernel included, on macOS; the
+    /// thread's, in user space, on Linux (see `instruction_count()`).
     @inline(__always)
     static func counter() -> UInt64 {
         instruction_count()
+    }
+
+    /// False once a read has failed or, on Linux, missed part of the thread's
+    /// run time; the counts since are incomplete.
+    static var counterIsReliable: Bool {
+        instruction_count_is_reliable()
     }
 
     /// Asks the scheduler to prefer performance cores for the calling thread.
@@ -92,12 +99,23 @@ enum Counters {
     /// rate, so they measure the thread's CPU time rather than core clock
     /// cycles: unlike wall time, they leave out any time the thread was not
     /// running.
+    /// A failed read returns the last good value, so the count never goes
+    /// backwards, and clears `counterIsReliable`.
     @inline(__always)
     static func counter() -> UInt64 {
         var cycles: ULONG64 = 0
-        QueryThreadCycleTime(GetCurrentThread(), &cycles)
+        guard QueryThreadCycleTime(GetCurrentThread(), &cycles) else {
+            counterIsReliable = false
+            return lastCycles
+        }
+        lastCycles = cycles
         return cycles
     }
+
+    /// False once a read has failed; the counts since are incomplete. Only the
+    /// measuring thread reads the counter.
+    nonisolated(unsafe) private(set) static var counterIsReliable = true
+    nonisolated(unsafe) private static var lastCycles: UInt64 = 0
 
     /// Asks Windows to prefer performance cores for the calling thread, with
     /// the highest priority in the process's class and execution-speed

@@ -9,15 +9,11 @@
 // and SwiftPM links a target into an executable of its own package
 // statically, so it is a package of its own. Elsewhere it links statically:
 // on Linux an executable's own allocator functions replace glibc's, and
-// Windows counts no allocations.
+// Windows counts no allocations. A manifest can't pick a library type by the
+// platform it builds for, so the package offers both, and BenchmarkRunner
+// depends on each under a platform condition (Benchmarks/Package.swift).
 
 import PackageDescription
-
-#if os(macOS)
-let libraryType: Product.Library.LibraryType? = .dynamic
-#else
-let libraryType: Product.Library.LibraryType? = nil
-#endif
 
 let package = Package(
     name: "CounterShims",
@@ -25,7 +21,8 @@ let package = Package(
         .macOS(.v27),
     ],
     products: [
-        .library(name: "CounterShims", type: libraryType, targets: ["CounterShims"]),
+        .library(name: "CounterShims", targets: ["CounterShims"]),
+        .library(name: "CounterShimsDynamic", type: .dynamic, targets: ["CounterShims"]),
     ],
     targets: [
         .target(name: "CounterShims"),

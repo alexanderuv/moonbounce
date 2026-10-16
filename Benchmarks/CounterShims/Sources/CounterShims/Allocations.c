@@ -5,7 +5,10 @@
 
 #include "CounterShims.h"
 
-#if defined(__APPLE__) || defined(__linux__)
+// Any C library header defines __GLIBC__ under glibc.
+#include <stdlib.h>
+
+#if defined(__APPLE__) || defined(__GLIBC__)
 
 #include <stdatomic.h>
 
@@ -177,17 +180,21 @@ INTERPOSE(counting_malloc_type_zone_valloc, malloc_type_zone_valloc)
 INTERPOSE(counting_malloc_type_zone_memalign, malloc_type_zone_memalign)
 INTERPOSE(counting_malloc_type_zone_malloc_with_options, malloc_type_zone_malloc_with_options)
 
-#elif defined(__linux__)
+#elif defined(__GLIBC__)
 
 // An executable's definitions of the allocator functions replace glibc's for
 // the whole process, shared libraries such as the Swift runtime included.
-// These forward to glibc's allocator under the names it also exports it by,
-// which never call back into these, so glibc's own `free` still releases the
-// memory and each allocation counts once.
+// These forward to glibc's allocator under the `__libc_*` names it also
+// exports it by, which never call back into these, so glibc's own `free` still
+// releases the memory and each allocation counts once. Other C libraries, such
+// as musl, export no such names, so they count no allocations.
 
 #include <errno.h>
 #include <malloc.h>
-#include <stdlib.h>
+
+static inline bool is_power_of_two(size_t value) {
+    return value != 0 && (value & (value - 1)) == 0;
+}
 
 extern void *__libc_malloc(size_t size);
 extern void *__libc_calloc(size_t count, size_t size);
@@ -213,12 +220,17 @@ void *memalign(size_t alignment, size_t size) {
     return __libc_memalign(alignment, size);
 }
 void *aligned_alloc(size_t alignment, size_t size) {
+    // glibc 2.38's check: a power of two.
+    if (!is_power_of_two(alignment)) {
+        errno = EINVAL;
+        return NULL;
+    }
     count_allocation();
     return __libc_memalign(alignment, size);
 }
 int posix_memalign(void **block, size_t alignment, size_t size) {
-    // glibc's checks: a power of two that is a multiple of the pointer size.
-    if (alignment % sizeof(void *) != 0 || (alignment & (alignment - 1)) != 0) {
+    // glibc's check: a power of two that is a multiple of the pointer size.
+    if (!is_power_of_two(alignment) || alignment % sizeof(void *) != 0) {
         return EINVAL;
     }
     count_allocation();
