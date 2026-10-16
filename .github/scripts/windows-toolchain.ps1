@@ -5,7 +5,7 @@
 #   record    After installing: writes the variables and search paths the
 #             installer set beside the toolchain's folder, then checks that the
 #             environment from the snapshot plus that record alone can build
-#             and run a program, as a run that restores the cache must.
+#             and test a package, as a run that restores the cache must.
 #   replay    After restoring the cache: sets the recorded environment for the
 #             job's later steps.
 param(
@@ -65,14 +65,32 @@ switch ($Action) {
         $Record.Variables | ForEach-Object { [Environment]::SetEnvironmentVariable($_.Name, $_.Value) }
         $env:Path = (@($Record.Paths) + $env:Path) -join ';'
         Invoke-Checked swift '--version'
-        # swift-build is a separate executable with its own dependencies.
-        Invoke-Checked swift 'build', '--version'
-        # Compiling needs the SDK, and running the result needs the runtime.
+        # A package with one Swift Testing test needs what the job's own steps
+        # do: swift-build, the SDK, the runtime and the testing libraries.
         $Probe = Join-Path $env:RUNNER_TEMP 'toolchain-probe'
-        New-Item -ItemType Directory -Force $Probe | Out-Null
-        Set-Content (Join-Path $Probe 'main.swift') 'print("toolchain ok")'
-        Invoke-Checked swiftc (Join-Path $Probe 'main.swift'), '-o', (Join-Path $Probe 'probe.exe')
-        Invoke-Checked (Join-Path $Probe 'probe.exe') @()
+        New-Item -ItemType Directory -Force "$Probe\Sources\Probe", "$Probe\Tests\ProbeTests" | Out-Null
+        Set-Content "$Probe\Package.swift" @'
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "Probe",
+    targets: [
+        .target(name: "Probe"),
+        .testTarget(name: "ProbeTests", dependencies: ["Probe"]),
+    ]
+)
+'@
+        Set-Content "$Probe\Sources\Probe\Probe.swift" 'public func answer() -> Int { 42 }'
+        Set-Content "$Probe\Tests\ProbeTests\ProbeTests.swift" @'
+import Probe
+import Testing
+
+@Test func answer() {
+    #expect(Probe.answer() == 42)
+}
+'@
+        Invoke-Checked swift 'test', '--package-path', $Probe
     }
     'replay' {
         $Record = Read-Record

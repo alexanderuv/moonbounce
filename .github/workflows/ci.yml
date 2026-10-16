@@ -214,9 +214,9 @@ jobs:
         with:
           persist-credentials: false
       # The installer, not the download, is the slow part of the setup: on
-      # x86-64 it takes about 70 seconds, and at times over 180, against about
-      # 35 to restore what it installed. So the cache holds the installed
-      # toolchain with the environment the installer set for it (see
+      # x86-64 it takes about 70 seconds, against about 35 to restore what it
+      # installed. So the cache holds the installed toolchain with the
+      # environment the installer set for it (see
       # .github/scripts/windows-toolchain.ps1). Keyed on the version, the
       # runner, and this workflow and that script, which set the installer's
       # options and the recorded environment. To drop a bad entry, delete it
