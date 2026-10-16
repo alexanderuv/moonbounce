@@ -243,15 +243,6 @@ jobs:
             exit 1
           }
           Get-Content "$Root.env", "$Root.path"
-      - name: Save toolchain
-        if: steps.swift-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/AppData/Local/Programs/Swift
-            ~/AppData/Local/Programs/Swift.env
-            ~/AppData/Local/Programs/Swift.path
-          key: ${{ steps.swift-cache.outputs.cache-primary-key }}
       - name: Use restored toolchain
         if: steps.swift-cache.outputs.cache-hit == 'true'
         shell: pwsh
@@ -292,6 +283,17 @@ jobs:
       # runner's x86-64-v3 level check.
       - name: Benchmarks
         run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
+      # Saved only after every step above passed, so an install that can't
+      # build and test the package never reaches the cache.
+      - name: Save toolchain
+        if: steps.swift-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/AppData/Local/Programs/Swift
+            ~/AppData/Local/Programs/Swift.env
+            ~/AppData/Local/Programs/Swift.path
+          key: ${{ steps.swift-cache.outputs.cache-primary-key }}
       # As on macOS.
       - name: Save build folders
         if: steps.build-cache.outputs.cache-hit != 'true'
