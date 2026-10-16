@@ -12,7 +12,7 @@
 # discovers no tests instead of letting it pass.
 #
 # Every job restores SwiftPM's build folders from a cache (see the macos job),
-# and the Windows jobs restore the installed toolchain.
+# and the Windows x86-64 job restores the installed toolchain.
 
 name: CI
 
@@ -94,9 +94,12 @@ jobs:
         run: swift run -c release --package-path Benchmarks BenchmarkRunner --filter 'Vector3\.dot'
       # Saved under the key the restore step computed, before the build folders
       # existed to change the sources' hash. A run that restored its exact key
-      # has nothing new to save.
+      # has nothing new to save. Only pushes to main save: every pull request
+      # can restore main's caches, while a pull request's own would only serve
+      # its next push, cost each push the save, and crowd main's out of the
+      # repository's cache space.
       - name: Save build folders
-        if: steps.build-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -160,7 +163,7 @@ jobs:
         run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
       # As on macOS.
       - name: Save build folders
-        if: steps.build-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -184,11 +187,14 @@ jobs:
             installer: amd64
             other-sdk: OptionsInstallWindowsSDKARM64=0 OptionsInstallWindowsRedistARM64=0
             benchmark-level: -Xcc -march=x86-64-v3
+            cache-toolchain: true
           - arch: arm64
             runner: windows-11-arm
             installer: arm64
             other-sdk: OptionsInstallWindowsSDKAMD64=0 OptionsInstallWindowsRedistAMD64=0
             benchmark-level: ''
+            # Restoring the toolchain here takes as long as installing it.
+            cache-toolchain: false
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
     env:
@@ -205,12 +211,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # The installer, not the download, is the slow part of the setup. So the
-      # cache holds the installed toolchain, and the environment variables the
-      # installer set for it, keyed on the version, the architecture and the
-      # installer's options.
+      # The installer, not the download, is the slow part of the setup: on
+      # x86-64 it takes 70 to 185 seconds, against about 35 to restore what it
+      # installed. So the cache holds the installed toolchain, and the
+      # environment variables the installer set for it, keyed on the version,
+      # the architecture and the installer's options.
       - name: Restore toolchain
         id: swift-cache
+        if: matrix.cache-toolchain
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -229,7 +237,7 @@ jobs:
       # user. Record those that point into the toolchain, so a run that
       # restores it can set them again.
       - name: Record toolchain environment
-        if: steps.swift-cache.outputs.cache-hit != 'true'
+        if: matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $Root = Join-Path $env:LOCALAPPDATA 'Programs\Swift'
@@ -285,9 +293,10 @@ jobs:
       - name: Benchmarks
         run: swift run -c release --package-path Benchmarks ${{ matrix.benchmark-level }} BenchmarkRunner --filter 'Vector3\.dot'
       # Saved only after every step above passed, so an install that can't
-      # build and test the package never reaches the cache.
+      # build and test the package never reaches the cache, and only from main,
+      # as the build folders are.
       - name: Save toolchain
-        if: steps.swift-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && matrix.cache-toolchain && steps.swift-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
@@ -297,7 +306,7 @@ jobs:
           key: ${{ steps.swift-cache.outputs.cache-primary-key }}
       # As on macOS.
       - name: Save build folders
-        if: steps.build-cache.outputs.cache-hit != 'true'
+        if: github.event_name == 'push' && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
