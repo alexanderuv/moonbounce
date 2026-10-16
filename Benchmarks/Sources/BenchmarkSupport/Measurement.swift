@@ -75,9 +75,9 @@ public protocol MeasurementLoop {
     ///
     /// The state goes in as an `inout` parameter rather than captured by
     /// `body`: the optimizer may assume nothing else reaches an `inout`
-    /// parameter, but not a captured variable. A captured GJK cost
-    /// `GJK.castShape` 1.2% more instructions per sweep. The state may be
-    /// noncopyable; a tuple carries several values.
+    /// parameter, but not a captured variable. In a trial, keeping a GJK
+    /// captured that way cost `GJK.castShape` 1.2% more instructions per
+    /// sweep. The state may be noncopyable; a tuple carries several values.
     func run<State: ~Copyable>(keeping state: inout State, _ body: (any MeasuredIteration, inout State) -> Void)
 }
 
