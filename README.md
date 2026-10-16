@@ -93,7 +93,7 @@ The tests under `Tests/MoonbounceTests` show every type in use.
 | `Benchmarks/` | The benchmarks, as a separate package so the library keeps no dependencies. |
 | `Assets/` | [Test and benchmark data](Assets/README.md) from other projects, with its license. |
 | `JoltComparison/` | Temporary tooling that runs the benchmarks against Jolt Physics. See [Benchmark](#benchmark). |
-| `docs/` | The [roadmap](docs/roadmap.md) and [validation rules](docs/validation.md). |
+| `docs/` | The [roadmap](docs/roadmap.md), [validation rules](docs/validation.md) and [decision records](docs/adr/). |
 | `KNOWN_ISSUES.md` | [Toolchain problems](KNOWN_ISSUES.md) that Moonbounce works around. |
 
 ## Test
@@ -105,22 +105,17 @@ swift test
 ## Benchmark
 
 ```bash
-cd Benchmarks && swift package benchmark
+swift run -c release --package-path Benchmarks BenchmarkRunner
 ```
 
-- **What a figure means:** each one covers a sweep of 1,000 operations over L1-resident inputs. Time per sweep in nanoseconds equals picoseconds per operation. Instruction counts are per sweep too.
-- **Allocations:** every benchmark tracks the malloc count, and the hot paths must stay at 0.
+On x86-64, add `-Xcc -march=x86-64-v3` before `BenchmarkRunner`: the runner refuses a build below [x86-64-v3](docs/validation.md#x86-64-instruction-set). It runs the same way on macOS, Linux and Windows; only its clocks and counters differ ([Measuring](docs/validation.md#measuring)).
+
+- **What a figure means:** each one covers a sweep of 1,000 operations over L1-resident inputs. Time per sweep in nanoseconds equals picoseconds per operation. Instruction counts are per sweep too; Windows counts thread cycles instead.
+- **Allocations:** every benchmark tracks the malloc count per iteration, and the hot paths must stay at 0. Windows counts no allocations.
+- **Selecting benchmarks:** `--filter REGEX` limits the run to benchmarks whose whole name matches; repeat it to select more.
 - **Regression checks:**
-  - Save a baseline with `swift package --allow-writing-to-package-directory benchmark baseline update main`.
-  - Compare against it with `swift package benchmark baseline compare main`.
-
-package-benchmark doesn't run on Windows, so the portable runner measures the same benchmarks there. On x86-64 it refuses a build below [x86-64-v3](docs/validation.md#x86-64-instruction-set):
-
-```bash
-swift run -c release --package-path Benchmarks -Xcc -march=x86-64-v3 PortableRunner
-```
-
-It prints wall time and thread cycles per sweep, in place of instructions, and counts no allocations. `--filter REGEX` limits it to benchmarks whose whole name matches; repeat it to select more.
+  - Save a baseline with `--format json > main.json`.
+  - Compare against it with `--baseline main.json`, which adds each p50's change from the baseline.
 
 As a reference point, `JoltComparison/compare.py` runs the same benchmarks against [Jolt Physics](https://github.com/jrouwe/JoltPhysics), a mature C++ engine, on the same machine. Its [README](JoltComparison/README.md) has the details, and [validation](docs/validation.md) has the results so far.
 

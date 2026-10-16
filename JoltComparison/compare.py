@@ -5,7 +5,7 @@ print a side-by-side table.
 Usage: JoltComparison/compare.py [--jolt-version TAG] [--rounds N] [--filter REGEX ...]
 
 A --filter regular expression must match a benchmark's whole name, as
-package-benchmark requires: `Matrix4x4\..*` selects every Matrix4x4 benchmark,
+BenchmarkRunner requires: `Matrix4x4\..*` selects every Matrix4x4 benchmark,
 `Matrix4x4` selects none.
 
 Fetches Jolt at --jolt-version into JoltComparison/.build (git-ignored), builds its
@@ -16,16 +16,15 @@ Windows) per 1,000 operations. Instruction counts are deterministic; wall times
 on a busy machine are not, so trust a time ratio only when the instruction
 counts agree with it.
 
-On macOS, package-benchmark measures the Swift side. On Windows x86-64, the
-portable runner does, built at x86-64-v3; Jolt is built twice, with MSVC and
-with clang-cl, and each benchmark is compared against the faster of the two.
+BenchmarkRunner measures the Swift side, built at x86-64-v3 on x86-64. On
+Windows, Jolt is built twice, with MSVC and with clang-cl, and each benchmark
+is compared against the faster of the two.
 
 Everything runs on the machine that invokes the script, so the figures describe
 that machine. The script keeps no results between runs.
 """
 
 import argparse
-import csv
 import json
 import os
 import platform
@@ -39,13 +38,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 BUILD = HERE / ".build"
-SWIFT_RESULTS = BUILD / "swift-results"
 
 DEFAULT_JOLT_VERSION = "v5.6.0"
-# Benchmarks/Sources/BenchmarkSupport/Measurement.swift: `MeasurementRules.sweepsPerIteration`
-# (1,000) sweeps of `Fixtures.count` (1,000) operations per measured iteration.
-SWIFT_OPERATIONS_PER_ITERATION = 1_000_000
-SWIFT_TARGET = "Primitives"
 # Within this relative difference the two count as even.
 TOLERANCE = 0.05
 
@@ -153,73 +147,30 @@ def jolt_round(executable):
     }
 
 
-def build_portable_runner():
-    """Builds the portable runner at x86-64-v3, the level x86-64 figures
-    require (docs/validation.md, x86-64 instruction set), and returns it."""
-    command = [
-        "swift", "build", "-c", "release", "--package-path", ROOT / "Benchmarks",
-        "--product", "PortableRunner", "-Xcc", "-march=x86-64-v3",
-    ]
+def build_runner():
+    """Builds BenchmarkRunner and returns it. On x86-64 it builds at
+    x86-64-v3, the level x86-64 figures require (docs/validation.md, x86-64
+    instruction set)."""
+    command = ["swift", "build", "-c", "release", "--package-path", ROOT / "Benchmarks", "--product", "BenchmarkRunner"]
+    if platform.machine() in ("x86_64", "AMD64"):
+        command += ["-Xcc", "-march=x86-64-v3"]
     run(command, ROOT)
-    return Path(run([*command, "--show-bin-path"], ROOT).strip()) / "PortableRunner.exe"
+    return Path(run([*command, "--show-bin-path"], ROOT).strip()) / ("BenchmarkRunner.exe" if WINDOWS else "BenchmarkRunner")
 
 
-def portable_round(runner, name_filters):
-    """One run of the portable runner. Its figures are per sweep: per 1,000
-    operations already. It counts no allocations."""
+def swift_round(runner, name_filters):
+    """One run of BenchmarkRunner. Its figures are per sweep: per 1,000
+    operations already. It counts no allocations on Windows."""
     command = [runner, "--format", "json"]
     for name_filter in name_filters or []:
         command += ["--filter", name_filter]
     report = json.loads(run(command, ROOT))
-    return {
-        name: {"ns": metrics["wallClockNs"][2], "count": metrics[COUNTER][2], "mallocs": None}
-        for name, metrics in report["benchmarks"].items()
-    }
-
-
-def package_benchmark_round(name_filters):
-    SWIFT_RESULTS.mkdir(parents=True, exist_ok=True)
-    command = [
-        "swift", "package", "--allow-writing-to-directory", SWIFT_RESULTS,
-        "benchmark", "--target", SWIFT_TARGET, "--format", "influx", "--path", SWIFT_RESULTS, "--no-progress",
-    ]
-    for name_filter in name_filters or []:
-        command += ["--filter", name_filter]
-    # Remove the previous run's results first, so a run that writes nothing
-    # can't pass them off as this one's.
-    results_file = SWIFT_RESULTS / "Current_run.influx.csv"
-    results_file.unlink(missing_ok=True)
-    run(command, ROOT / "Benchmarks")
-
-    no_benchmark_ran = "compare.py: no Swift benchmark ran; a --filter must match a whole benchmark name"
-    if not results_file.exists():
-        sys.exit(no_benchmark_ran)
-    # Values are raw per-iteration counts (nanoseconds for wall clock); the
-    # unit column is only package-benchmark's display unit.
-    scale = 1000 / SWIFT_OPERATIONS_PER_ITERATION
     results = {}
-    with open(results_file, newline="") as file:
-        rows = [row for row in csv.reader(file) if row and not row[0].startswith("#")]
-    if not rows:
-        sys.exit(no_benchmark_ran)
-    header = rows[0]
-    column = {name: header.index(name) for name in ("metric", "test", "percentile", "value")}
-    for row in rows[1:]:
-        metric, test = row[column["metric"]], row[column["test"]]
-        percentile, value = float(row[column["percentile"]]), float(row[column["value"]])
-        entry = results.setdefault(test, {})
-        if metric == "Time(wallclock)" and percentile == 50:
-            entry["ns"] = value * scale
-        elif metric == "Instructions" and percentile == 50:
-            entry["count"] = value * scale
-        elif metric == "Malloc(total)" and percentile == 100:
-            entry["mallocs"] = int(value)
-    # A header with no data rows means nothing ran, too.
-    if not results:
-        sys.exit(no_benchmark_ran)
-    incomplete = sorted(name for name, entry in results.items() if entry.keys() != {"ns", "count", "mallocs"})
-    if incomplete:
-        sys.exit(f"compare.py: missing p50 time, p50 instructions or total mallocs for: {', '.join(incomplete)}")
+    for name, metrics in report["benchmarks"].items():
+        if metrics[COUNTER] is None:
+            sys.exit(f"compare.py: this machine doesn't expose {COUNTER} to BenchmarkRunner")
+        mallocs = metrics["mallocs"]
+        results[name] = {"ns": metrics["wallClockNs"][2], "count": metrics[COUNTER][2], "mallocs": None if mallocs is None else mallocs[-1]}
     return results
 
 
@@ -265,15 +216,14 @@ def main():
 
     cmake, visual_studio = check_prerequisites()
     jolt_executables = build_jolt(cmake, visual_studio, arguments.jolt_version)
-    if WINDOWS:
-        runner = build_portable_runner()
+    runner = build_runner()
     jolt_rounds = {compiler: [] for compiler in jolt_executables}
     swift_rounds = []
     for _ in range(arguments.rounds):
         for compiler, executable in jolt_executables.items():
             jolt_version, results = jolt_round(executable)
             jolt_rounds[compiler].append(results)
-        swift_rounds.append(portable_round(runner, arguments.filter) if WINDOWS else package_benchmark_round(arguments.filter))
+        swift_rounds.append(swift_round(runner, arguments.filter))
     jolt = fastest({compiler: combine(rounds) for compiler, rounds in jolt_rounds.items()})
     swift = combine(swift_rounds)
 
