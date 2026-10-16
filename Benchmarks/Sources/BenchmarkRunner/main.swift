@@ -1,10 +1,10 @@
 // The benchmark runner, the same on every platform. It registers every suite's
-// bodies and measures them under `MeasurementRules`: the warm-up, the sweeps
-// per iteration and the iteration and time limits. Only the clocks, counters
-// and thread settings differ by platform, in `Counters` and `CounterShims`. It
-// prints wall time and retired instructions (thread cycles on Windows) per
-// sweep, and allocations per iteration; the README's Benchmark section shows
-// how to run it.
+// bodies and measures them under `MeasurementRules`: the warm-up, each
+// benchmark's sweeps per iteration, and the iteration and time limits. Only
+// the clocks, counters and thread settings differ by platform, in `Counters`
+// and `CounterShims`. It prints wall time and retired instructions (thread
+// cycles on Windows) per sweep, and allocations per iteration; the README's
+// Benchmark section shows how to run it.
 
 import BenchmarkSupport
 import BuildLevel
@@ -63,6 +63,9 @@ func fail(_ message: String) -> Never {
 /// One benchmark's figures, as `--format json` prints them and `--baseline`
 /// reads them back. Each array holds the values at `percentileRanks`.
 struct Figures: Codable {
+    /// The benchmark's `sweepsPerIteration`, which the Jolt harness reports
+    /// too, so `compare.py` can check both sides ran the same count.
+    var sweepsPerIteration: Int
     var iterations: Int
     /// Nanoseconds per sweep.
     var wallClockNs: [Double]
@@ -72,7 +75,8 @@ struct Figures: Codable {
     /// Allocations per iteration; nil where they aren't counted.
     var mallocs: [UInt64]?
 
-    init(iterations: Int, wallClockNs: [Double], counter: [Double]?, mallocs: [UInt64]?) {
+    init(sweepsPerIteration: Int, iterations: Int, wallClockNs: [Double], counter: [Double]?, mallocs: [UInt64]?) {
+        self.sweepsPerIteration = sweepsPerIteration
         self.iterations = iterations
         self.wallClockNs = wallClockNs
         self.counter = counter
@@ -89,6 +93,7 @@ struct Figures: Codable {
         init?(stringValue: String) { self.stringValue = stringValue }
         init?(intValue: Int) { nil }
 
+        static let sweepsPerIteration = Key("sweepsPerIteration")
         static let iterations = Key("iterations")
         static let wallClockNs = Key("wallClockNs")
         static let counter = Key(Counters.counterName)
@@ -97,6 +102,7 @@ struct Figures: Codable {
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: Key.self)
+        sweepsPerIteration = try container.decode(Int.self, forKey: .sweepsPerIteration)
         iterations = try container.decode(Int.self, forKey: .iterations)
         wallClockNs = try container.decode([Double].self, forKey: .wallClockNs)
         counter = try container.decodeIfPresent([Double].self, forKey: .counter)
@@ -105,6 +111,7 @@ struct Figures: Codable {
 
     func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: Key.self)
+        try container.encode(sweepsPerIteration, forKey: .sweepsPerIteration)
         try container.encode(iterations, forKey: .iterations)
         try container.encode(wallClockNs, forKey: .wallClockNs)
         try container.encode(counter, forKey: .counter)
@@ -217,6 +224,7 @@ if benchmarks.isEmpty {
 /// `stopMeasurement()`, nested so the counter reads stay outside the
 /// wall-time window.
 final class CountingIteration: MeasuredIteration {
+    private(set) var sweeps = 0
     private(set) var startTicks: Int64 = 0, stopTicks: Int64 = 0
     private(set) var startCounter: UInt64 = 0, stopCounter: UInt64 = 0
     private(set) var startAllocations: UInt64 = 0, stopAllocations: UInt64 = 0
@@ -239,6 +247,7 @@ final class CountingIteration: MeasuredIteration {
     /// Runs one iteration of `benchmark`, which must start and stop the
     /// measurement exactly once.
     func run(_ benchmark: SuiteBenchmark) {
+        sweeps = benchmark.sweepsPerIteration
         starts = 0
         stops = 0
         benchmark.run(self)
@@ -255,7 +264,9 @@ struct Samples {
 }
 
 /// Runs the warm-up, then measured iterations until either limit in
-/// `MeasurementRules` is reached, checking both before each iteration.
+/// `MeasurementRules` is reached once `minIterations` are measured, checking
+/// before each iteration. Warns when reaching `minIterations` took longer
+/// than `maxDuration`.
 func measure(_ benchmark: SuiteBenchmark) -> Samples {
     let iteration = CountingIteration()
     for _ in 0..<MeasurementRules.warmupIterations {
@@ -272,11 +283,25 @@ func measure(_ benchmark: SuiteBenchmark) -> Samples {
     // The time limit starts with the first measured iteration's setup, not its
     // `startMeasurement()`.
     let firstStart = Counters.ticks()
-    while samples.ticks.count < MeasurementRules.maxIterations, Counters.ticks() - firstStart < maxTicks {
+    // Whether an iteration ran only to reach `minIterations`.
+    var overran = false
+    while samples.ticks.count < MeasurementRules.maxIterations {
+        if Counters.ticks() - firstStart >= maxTicks {
+            guard samples.ticks.count < MeasurementRules.minIterations else { break }
+            overran = true
+        }
         iteration.run(benchmark)
         samples.ticks.append(iteration.stopTicks - iteration.startTicks)
         samples.counter.append(iteration.stopCounter - iteration.startCounter)
         samples.allocations.append(iteration.stopAllocations - iteration.startAllocations)
+    }
+    if overran {
+        let seconds = Counters.nanoseconds(Double(Counters.ticks() - firstStart)) / 1e9
+        printError("""
+            \(benchmark.name) took \(Int(seconds.rounded())) s to measure \(MeasurementRules.minIterations) \
+            iterations, past MeasurementRules.maxDuration (\(MeasurementRules.maxDuration)); \
+            give it fewer sweeps per iteration
+            """)
     }
     return samples
 }
@@ -291,9 +316,12 @@ func percentiles<Sample: BinaryInteger>(_ samples: [Sample]) -> [Sample] {
     return percentileRanks.map { rank in sorted[Int(rank / 100 * Double(sorted.count - 1) + 0.5)] }
 }
 
-/// `samples`, each covering one iteration, at each of `percentileRanks`, per sweep.
-func perSweepPercentiles(_ samples: [some BinaryInteger], scale: (Double) -> Double = { $0 }) -> [Double] {
-    percentiles(samples).map { scale(Double($0)) / Double(MeasurementRules.sweepsPerIteration) }
+/// `samples`, each covering an iteration of `sweeps` sweeps, at each of
+/// `percentileRanks`, per sweep.
+func perSweepPercentiles(
+    _ samples: [some BinaryInteger], sweeps: Int, scale: (Double) -> Double = { $0 }
+) -> [Double] {
+    percentiles(samples).map { scale(Double($0)) / Double(sweeps) }
 }
 
 var reportedIncompleteCounter = false
@@ -311,10 +339,12 @@ func measuredFigures(_ benchmark: SuiteBenchmark) -> Figures {
             """)
         reportedIncompleteCounter = true
     }
+    let sweeps = benchmark.sweepsPerIteration
     return Figures(
+        sweepsPerIteration: sweeps,
         iterations: samples.ticks.count,
-        wallClockNs: perSweepPercentiles(samples.ticks, scale: Counters.nanoseconds),
-        counter: countsAreComplete ? perSweepPercentiles(samples.counter) : nil,
+        wallClockNs: perSweepPercentiles(samples.ticks, sweeps: sweeps, scale: Counters.nanoseconds),
+        counter: countsAreComplete ? perSweepPercentiles(samples.counter, sweeps: sweeps) : nil,
         mallocs: allocations_are_counted() ? percentiles(samples.allocations) : nil
     )
 }
@@ -336,7 +366,7 @@ if json {
 } else {
     let counterColumn = Counters.counterName == "instructions" ? "instr" : Counters.counterName
     var headers = [
-        "Iterations", "ns p0", "ns p50", "ns p99",
+        "Sweeps", "Iterations", "ns p0", "ns p50", "ns p99",
         "\(counterColumn) p0", "\(counterColumn) p50", "\(counterColumn) p99", "mallocs max",
     ]
     if baseline != nil {
@@ -348,13 +378,17 @@ if json {
         // fixed width that fits a GJK sweep's seven-digit cycle count.
         name.padding(nameWidth) + zip(cells, headers).map { "  " + $0.leftPadding(max($1.count, 10)) }.joined()
     }
-    print("Per sweep of 1,000 operations, except mallocs, per iteration; percentiles over each benchmark's iterations.\n")
+    print("""
+        Per sweep of 1,000 operations, except mallocs, per iteration. Each iteration runs Sweeps sweeps; \
+        percentiles are over each benchmark's Iterations.
+
+        """)
     print(row("Benchmark", headers))
     print(row(String(repeating: "-", count: nameWidth), headers.map { String(repeating: "-", count: max($0.count, 10)) }))
     for benchmark in benchmarks {
         let current = measuredFigures(benchmark)
         func whole(_ value: Double) -> String { "\(Int(value.rounded()))" }
-        var cells = ["\(current.iterations)"] + [p0, p50, p99].map { whole(current.wallClockNs[$0]) }
+        var cells = ["\(current.sweepsPerIteration)", "\(current.iterations)"] + [p0, p50, p99].map { whole(current.wallClockNs[$0]) }
         cells += [p0, p50, p99].map { rank in current.counter.map { whole($0[rank]) } ?? "-" }
         cells.append(current.mallocs.map { "\($0[p100])" } ?? "-")
         if let baseline {

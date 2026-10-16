@@ -57,8 +57,8 @@ Cycles confirm a time ratio rather than measure work: unlike instructions, they 
 ## How it stays fair
 
 - **Same inputs:** `Primitives.cpp` uses the same SplitMix64 generator as `Benchmarks/Sources/PrimitivesSuite/Fixtures.swift`, with the same seed, consumed in the same order.
-- **Same loop shape:** 1,000 operations per sweep, 1,000 sweeps per measured iteration, results written to an output array, and one opaque black-hole call per sweep.
-- **Same measurement as BenchmarkRunner on the same platform,** with the rules in `MeasurementRules` (`Benchmarks/Sources/BenchmarkSupport/Measurement.swift`): 5 warm-up iterations, then up to 1,000 iterations or 2 seconds, and the same clocks, counters and thread settings ([Measuring](../docs/validation.md#measuring)).
+- **Same loop shape:** 1,000 operations per sweep, results written to an output array, and one opaque black-hole call per sweep. Each benchmark runs the sweeps per measured iteration its Swift benchmark sets, and `compare.py` stops if the two sides report different counts.
+- **Same measurement as BenchmarkRunner on the same platform,** with the iteration rules in `MeasurementRules` and the same clocks, counters and thread settings ([Measuring](../docs/validation.md#measuring)).
   - macOS: `CLOCK_UPTIME_RAW` wall time, retired instructions from `proc_pid_rusage`, and user-interactive QoS, so the scheduler favors performance cores.
   - Windows: `QueryPerformanceCounter` wall time, cycles from `QueryThreadCycleTime`, and the highest thread priority with power throttling off, so Windows prefers performance cores.
 - **Jolt as it ships:** the Distribution configuration (no profiler, asserts or debug renderer) with Jolt's release flags, plus LTO. Jolt's math is header-only and inlines into the harness, so the harness is compiled with the same flags.

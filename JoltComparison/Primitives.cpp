@@ -1,15 +1,17 @@
 // Jolt counterpart of Benchmarks/Sources/PrimitivesSuite/Primitives.swift.
 //
 // Same inputs (SplitMix64 with the same seed, consumed in the same order),
-// same sweep structure (1,000 operations per sweep, 1,000 sweeps per measured
-// iteration, a black hole once per sweep) and the same iteration rules as
-// BenchmarkRunner: 5 warm-up iterations, then up to 1,000 iterations or 2
-// seconds. Each platform measures as BenchmarkRunner does there:
+// same sweep structure (1,000 operations per sweep, a black hole once per
+// sweep, and each benchmark's sweeps per measured iteration: 1,000 unless the
+// Swift benchmark sets fewer) and the same iteration rules as BenchmarkRunner:
+// 5 warm-up iterations, then up to 1,000 iterations or 2 seconds, but at least
+// 100 iterations. Each platform measures as BenchmarkRunner does there:
 // - macOS: CLOCK_UPTIME_RAW wall time and per-process retired instructions
 //   from proc_pid_rusage, at user-interactive QoS.
 // - Windows: QueryPerformanceCounter wall time and QueryThreadCycleTime
 //   cycles, at the highest thread priority with power throttling off.
-// Prints raw per-iteration percentiles as JSON.
+// Prints each benchmark's sweeps per iteration and its raw per-iteration
+// percentiles as JSON.
 
 #include <Jolt/Jolt.h>
 
@@ -573,10 +575,21 @@ struct Fixtures
 
 // MARK: - Measurement
 
-static constexpr int cSweepsPerIteration = 1000;
+static constexpr int cDefaultSweepsPerIteration = 1000;
 static constexpr int cWarmupIterations = 5;
 static constexpr int cMaxIterations = 1000;
 static constexpr uint64_t cMaxDurationNs = 2'000'000'000;
+static constexpr int cMinIterations = 100;
+
+// A benchmark's name and sweeps per measured iteration: the default, or the
+// count its Swift benchmark sets, written as { "EPA.penetrationDepth", 1 }.
+struct Benchmark
+{
+	Benchmark(const char *inName, int inSweeps = cDefaultSweepsPerIteration) : mName(inName), mSweeps(inSweeps) { }
+
+	const char *mName;
+	int mSweeps;
+};
 
 // The counterpart of BenchmarkSupport's blackHole: an opaque call that may
 // read everything reachable from the pointer.
@@ -666,13 +679,15 @@ static void PrintMetric(const char *inName, const std::vector<uint64_t> &inSampl
 
 static bool gFirstBenchmark = true;
 
-// Runs `inIteration` (one measured iteration of cSweepsPerIteration sweeps)
-// and prints its percentiles.
+// Runs `inIteration(sweeps)`, one measured iteration of the benchmark's
+// sweeps, then prints its percentiles. As in BenchmarkRunner, the time limit
+// counts from the first measured iteration, bookkeeping included, and stops
+// the benchmark only once it has cMinIterations.
 template <class Iteration>
-static void Measure(const char *inName, Iteration inIteration)
+static void Measure(const Benchmark &inBenchmark, Iteration inIteration)
 {
 	for (int i = 0; i < cWarmupIterations; ++i)
-		inIteration();
+		inIteration(inBenchmark.mSweeps);
 
 	// Reserved up front so recording samples never allocates mid-measurement.
 	std::vector<uint64_t> wall, counts, allocations;
@@ -680,13 +695,22 @@ static void Measure(const char *inName, Iteration inIteration)
 	counts.reserve(cMaxIterations);
 	allocations.reserve(cMaxIterations);
 
-	uint64_t total = 0;
-	while (wall.size() < cMaxIterations && total < cMaxDurationNs)
+	uint64_t first_start = WallClockNs();
+	// Whether an iteration ran only to reach cMinIterations.
+	bool overran = false;
+	while (wall.size() < cMaxIterations)
 	{
+		if (WallClockNs() - first_start >= cMaxDurationNs)
+		{
+			if (wall.size() >= cMinIterations)
+				break;
+			overran = true;
+		}
+
 		uint64_t allocations_before = gAllocations;
 		uint64_t count_before = Counter();
 		uint64_t start = WallClockNs();
-		inIteration();
+		inIteration(inBenchmark.mSweeps);
 		uint64_t end = WallClockNs();
 		uint64_t count_after = Counter();
 		uint64_t allocations_after = gAllocations;
@@ -694,10 +718,14 @@ static void Measure(const char *inName, Iteration inIteration)
 		wall.push_back(end - start);
 		counts.push_back(count_after - count_before);
 		allocations.push_back(allocations_after - allocations_before);
-		total += end - start;
 	}
+	if (overran)
+		std::fprintf(stderr, "jolt_primitives: %s took %.0f s to measure %d iterations, past the %.0f s limit\n",
+			inBenchmark.mName, double(WallClockNs() - first_start) / 1e9, cMinIterations, double(cMaxDurationNs) / 1e9);
 
-	std::printf("%s    \"%s\": {\n", gFirstBenchmark ? "" : ",\n", inName);
+	std::printf("%s    \"%s\": {\n", gFirstBenchmark ? "" : ",\n", inBenchmark.mName);
+	std::printf("      \"sweepsPerIteration\": %d,\n", inBenchmark.mSweeps);
+	std::printf("      \"iterations\": %zu,\n", wall.size());
 	PrintMetric("wallClockNs", wall, false);
 	PrintMetric(cCounterName, counts, false);
 	PrintMetric("mallocs", allocations, true);
@@ -706,11 +734,11 @@ static void Measure(const char *inName, Iteration inIteration)
 }
 
 template <class In, class Out, class Transform>
-static void Sweep(const char *inName, const std::vector<In> &inInputs, Transform inTransform)
+static void Sweep(const Benchmark &inBenchmark, const std::vector<In> &inInputs, Transform inTransform)
 {
 	std::vector<Out> outputs(inInputs.size());
-	Measure(inName, [&] {
-		for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+	Measure(inBenchmark, [&](int inSweeps) {
+		for (int sweep = 0; sweep < inSweeps; ++sweep)
 		{
 			for (size_t i = 0; i < inInputs.size(); ++i)
 				outputs[i] = inTransform(inInputs[i]);
@@ -720,11 +748,11 @@ static void Sweep(const char *inName, const std::vector<In> &inInputs, Transform
 }
 
 template <class A, class B, class Out, class Transform>
-static void Sweep(const char *inName, const std::vector<A> &inA, const std::vector<B> &inB, Transform inTransform)
+static void Sweep(const Benchmark &inBenchmark, const std::vector<A> &inA, const std::vector<B> &inB, Transform inTransform)
 {
 	std::vector<Out> outputs(inA.size());
-	Measure(inName, [&] {
-		for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+	Measure(inBenchmark, [&](int inSweeps) {
+		for (int sweep = 0; sweep < inSweeps; ++sweep)
 		{
 			for (size_t i = 0; i < inA.size(); ++i)
 				outputs[i] = inTransform(inA[i], inB[i]);
@@ -734,11 +762,11 @@ static void Sweep(const char *inName, const std::vector<A> &inA, const std::vect
 }
 
 template <class A, class B, class C, class Out, class Transform>
-static void Sweep(const char *inName, const std::vector<A> &inA, const std::vector<B> &inB, const std::vector<C> &inC, Transform inTransform)
+static void Sweep(const Benchmark &inBenchmark, const std::vector<A> &inA, const std::vector<B> &inB, const std::vector<C> &inC, Transform inTransform)
 {
 	std::vector<Out> outputs(inA.size());
-	Measure(inName, [&] {
-		for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+	Measure(inBenchmark, [&](int inSweeps) {
+		for (int sweep = 0; sweep < inSweeps; ++sweep)
 		{
 			for (size_t i = 0; i < inA.size(); ++i)
 				outputs[i] = inTransform(inA[i], inB[i], inC[i]);
@@ -769,7 +797,7 @@ int main()
 
 	Fixtures f;
 
-	std::printf("{\n  \"jolt\": \"%s\",\n  \"operationsPerIteration\": %d,\n  \"benchmarks\": {\n", JOLT_VERSION, cCount * cSweepsPerIteration);
+	std::printf("{\n  \"jolt\": \"%s\",\n  \"benchmarks\": {\n", JOLT_VERSION);
 
 	Sweep<Vec3, Vec3>("Vector3.normalized", f.mVectorsA, [](Vec3Arg v) { return v.Normalized(); });
 	Sweep<Vec3, Vec3, float>("Vector3.dot", f.mVectorsA, f.mVectorsB, [](Vec3Arg a, Vec3Arg b) { return a.Dot(b); });
@@ -784,8 +812,8 @@ int main()
 	Sweep<AABox, float>("AABB.rayDistance", f.mBoxesA, [&](const AABox &b) { return RayAABox(origin, inverse_direction, b.mMin, b.mMax); });
 
 	// A reduction: one loop-carried dependency, as in the Swift benchmark.
-	Measure("AABB.encapsulate", [&] {
-		for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+	Measure("AABB.encapsulate", [&](int inSweeps) {
+		for (int sweep = 0; sweep < inSweeps; ++sweep)
 		{
 			AABox bounds;
 			for (const AABox &b : f.mBoxesA)
@@ -807,7 +835,7 @@ int main()
 	Sweep<Mat44, Mat44>("Matrix4x4.inversed", f.mMatricesA, [](Mat44Arg m) { return m.Inversed(); });
 	Sweep<Mat44, Vec3, Vec3>("Matrix4x4.transformPoint", f.mRigidTransforms, f.mVectorsB, [](Mat44Arg m, Vec3Arg v) { return m * v; });
 	Sweep<Mat44, Mat44>("Matrix4x4.inversedRotationTranslation", f.mRigidTransforms, [](Mat44Arg m) { return m.InversedRotationTranslation(); });
-	Sweep<Quat, Quat, Quat>("Quaternion.slerp", f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
+	Sweep<Quat, Quat, Quat>({ "Quaternion.slerp", 100 }, f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 	Sweep<RayInput, Sphere, float>("Sphere.rayDistance", f.mSphereRays, f.mSpheres, [](const RayInput &r, const Sphere &s) { return RaySphere(r.mOrigin, r.mDirection, s.GetCenter(), s.GetRadius()); });
 	Sweep<RayInput, AxialInput, float>("Capsule.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCapsule(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });
 	Sweep<RayInput, AxialInput, float>("Cylinder.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCylinder(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });
@@ -816,11 +844,11 @@ int main()
 	Sweep<AABox4Input, AABox, UVec4>("AABB4.overlaps", f.mBoxGroups, f.mBoxesB, [](const AABox4Input &b, const AABox &box) { return AABox4VsBox(box, b.mMinX, b.mMinY, b.mMinZ, b.mMaxX, b.mMaxY, b.mMaxZ); });
 	Sweep<AABox4Input, Vec4>("AABB4.rayDistance", f.mBoxGroups, [&](const AABox4Input &b) { return RayAABox4(origin, inverse_direction, b.mMinX, b.mMinY, b.mMinZ, b.mMaxX, b.mMaxY, b.mMaxZ); });
 	Sweep<OrientedBox, OrientedBox, uint8_t>("OrientedBox.overlaps", f.mOrientedBoxesA, f.mOrientedBoxesB, [](const OrientedBox &a, const OrientedBox &b) { return a.Overlaps(b); });
-	Sweep<EllipseInput, Float2, Float2>("Ellipse.closestPoint", f.mEllipses, f.mEllipsePoints, [](const EllipseInput &e, const Float2 &p) { return Ellipse(e.mA, e.mB).GetClosestPoint(p); });
+	Sweep<EllipseInput, Float2, Float2>({ "Ellipse.closestPoint", 100 }, f.mEllipses, f.mEllipsePoints, [](const EllipseInput &e, const Float2 &p) { return Ellipse(e.mA, e.mB).GetClosestPoint(p); });
 	Sweep<TriangleInput, ClosestPointOutput>("ClosestPoint.onTriangle", f.mSimplexTriangles, [](const TriangleInput &t) { ClosestPointOutput r; r.mPoint = ClosestPoint::GetClosestPointOnTriangle(t.mV0, t.mV1, t.mV2, r.mSet); return r; });
 	{
 		Polygon clipped;
-		Sweep<SquareInput, SquareInput, PolygonSummary>("Polygon.clipAgainstPolygon", f.mFacesToClip, f.mClippingFaces, [&](const SquareInput &face, const SquareInput &clipping) {
+		Sweep<SquareInput, SquareInput, PolygonSummary>({ "Polygon.clipAgainstPolygon", 100 }, f.mFacesToClip, f.mClippingFaces, [&](const SquareInput &face, const SquareInput &clipping) {
 			Polygon face_polygon;
 			face_polygon.push_back(face.mA);
 			face_polygon.push_back(face.mB);
@@ -839,7 +867,7 @@ int main()
 			return r;
 		});
 	}
-	Sweep<TetrahedronInput, ClosestPointOutput>("ClosestPoint.onTetrahedron", f.mTetrahedra, [](const TetrahedronInput &t) { ClosestPointOutput r; r.mPoint = ClosestPoint::GetClosestPointOnTetrahedron(t.mA, t.mB, t.mC, t.mD, r.mSet); return r; });
+	Sweep<TetrahedronInput, ClosestPointOutput>({ "ClosestPoint.onTetrahedron", 100 }, f.mTetrahedra, [](const TetrahedronInput &t) { ClosestPointOutput r; r.mPoint = ClosestPoint::GetClosestPointOnTetrahedron(t.mA, t.mB, t.mC, t.mD, r.mSet); return r; });
 
 	AABox morton_bounds(Vec3::sReplicate(-100), Vec3::sReplicate(100));
 	Sweep<Vec3, uint32>("MortonCode.interleave", f.mVectorsA, [&](Vec3Arg v) { return MortonCode::sGetMortonCode(v, morton_bounds); });
@@ -849,8 +877,8 @@ int main()
 	{
 		VertexList vertices;
 		IndexedTriangleList triangles;
-		Measure("VertexWelder.weld", [&] {
-			for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+		Measure({ "VertexWelder.weld", 10 }, [&](int inSweeps) {
+			for (int sweep = 0; sweep < inSweeps; ++sweep)
 			{
 				Indexify(f.mSoup, vertices, triangles);
 				BlackHole(vertices.data());
@@ -865,14 +893,14 @@ int main()
 	{
 		constexpr float cConvexRadius = 0.05f, cTolerance = 1.0e-4f;
 		GJKClosestPoint gjk;
-		Sweep<OrientedBox, OrientedBox, uint8_t>("GJK.intersects", f.mOrientedBoxesA, f.mOrientedBoxesB, [&](const OrientedBox &a, const OrientedBox &b) {
+		Sweep<OrientedBox, OrientedBox, uint8_t>({ "GJK.intersects", 100 }, f.mOrientedBoxesA, f.mOrientedBoxesB, [&](const OrientedBox &a, const OrientedBox &b) {
 			AABox box_a(-a.mHalfExtents, a.mHalfExtents), box_b(-b.mHalfExtents, b.mHalfExtents);
 			TransformedConvexObject<AABox> core_a(a.mOrientation, box_a), core_b(b.mOrientation, box_b);
 			AddConvexRadius<TransformedConvexObject<AABox>> rounded_a(core_a, cConvexRadius);
 			Vec3 v = Vec3::sAxisX();
 			return uint8_t(gjk.Intersects(rounded_a, core_b, cTolerance, v));
 		});
-		Sweep<OrientedBox, OrientedBox, GJKClosestPointsOutput>("GJK.closestPoints", f.mOrientedBoxesA, f.mOrientedBoxesB, [&](const OrientedBox &a, const OrientedBox &b) {
+		Sweep<OrientedBox, OrientedBox, GJKClosestPointsOutput>({ "GJK.closestPoints", 10 }, f.mOrientedBoxesA, f.mOrientedBoxesB, [&](const OrientedBox &a, const OrientedBox &b) {
 			AABox box_a(-a.mHalfExtents, a.mHalfExtents), box_b(-b.mHalfExtents, b.mHalfExtents);
 			TransformedConvexObject<AABox> core_a(a.mOrientation, box_a), core_b(b.mOrientation, box_b);
 			AddConvexRadius<TransformedConvexObject<AABox>> rounded_a(core_a, cConvexRadius);
@@ -881,13 +909,13 @@ int main()
 			r.mDistanceSq = gjk.GetClosestPoints(rounded_a, core_b, cTolerance, FLT_MAX, v, r.mPointA, r.mPointB);
 			return r;
 		});
-		Sweep<RayInput, OrientedBox, float>("GJK.castRay", f.mBoxRays, f.mOrientedBoxesA, [&](const RayInput &ray, const OrientedBox &a) {
+		Sweep<RayInput, OrientedBox, float>({ "GJK.castRay", 10 }, f.mBoxRays, f.mOrientedBoxesA, [&](const RayInput &ray, const OrientedBox &a) {
 			AABox box_a(-a.mHalfExtents, a.mHalfExtents);
 			TransformedConvexObject<AABox> core_a(a.mOrientation, box_a);
 			float fraction = 1.0f;
 			return gjk.CastRay(ray.mOrigin, ray.mDirection, cTolerance, core_a, fraction) ? fraction : FLT_MAX;
 		});
-		Sweep<OrientedBox, Vec3, OrientedBox, GJKShapeCastOutput>("GJK.castShape", f.mOrientedBoxesA, f.mBoxCastDirections, f.mOrientedBoxesB, [&](const OrientedBox &a, Vec3Arg direction, const OrientedBox &b) {
+		Sweep<OrientedBox, Vec3, OrientedBox, GJKShapeCastOutput>({ "GJK.castShape", 10 }, f.mOrientedBoxesA, f.mBoxCastDirections, f.mOrientedBoxesB, [&](const OrientedBox &a, Vec3Arg direction, const OrientedBox &b) {
 			AABox box_a(-a.mHalfExtents, a.mHalfExtents), box_b(-b.mHalfExtents, b.mHalfExtents);
 			TransformedConvexObject<AABox> core_b(b.mOrientation, box_b);
 			GJKShapeCastOutput r { 1.0f, Vec3::sZero(), Vec3::sZero(), Vec3::sZero() };
@@ -903,7 +931,7 @@ int main()
 	{
 		constexpr float cConvexRadius = 0.05f, cTolerance = 1.0e-4f;
 		EPAPenetrationDepth epa;
-		Sweep<OrientedBox, OrientedBox, EPAPenetrationOutput>("EPA.penetrationDepth", f.mOrientedBoxesA, f.mPenetratingBoxes, [&](const OrientedBox &a, const OrientedBox &b) {
+		Sweep<OrientedBox, OrientedBox, EPAPenetrationOutput>({ "EPA.penetrationDepth", 1 }, f.mOrientedBoxesA, f.mPenetratingBoxes, [&](const OrientedBox &a, const OrientedBox &b) {
 			AABox box_a(-a.mHalfExtents, a.mHalfExtents), box_b(-b.mHalfExtents, b.mHalfExtents);
 			TransformedConvexObject<AABox> core_a(a.mOrientation, box_a), core_b(b.mOrientation, box_b);
 			AddConvexRadius<TransformedConvexObject<AABox>> rounded_a(core_a, cConvexRadius), rounded_b(core_b, cConvexRadius);
@@ -921,8 +949,8 @@ int main()
 	{
 		const Array<Vec3> &points = f.mHullPoints;
 		ConvexHullBuilder2D::Edges hull;
-		Measure("ConvexHullBuilder2D.build", [&] {
-			for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+		Measure({ "ConvexHullBuilder2D.build", 100 }, [&](int inSweeps) {
+			for (int sweep = 0; sweep < inSweeps; ++sweep)
 			{
 				int idx1 = -1;
 				float max_dist_sq = -1.0f;
@@ -973,8 +1001,8 @@ int main()
 	// call, and keeps them as its output.
 	{
 		constexpr float cHullTolerance = 1.0e-3f;
-		Measure("ConvexHullBuilder.build", [&] {
-			for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+		Measure({ "ConvexHullBuilder.build", 1 }, [&](int inSweeps) {
+			for (int sweep = 0; sweep < inSweeps; ++sweep)
 				for (const Array<Vec3> &cloud : f.mGameClouds)
 				{
 					ConvexHullBuilder builder(cloud);
@@ -984,8 +1012,8 @@ int main()
 					BlackHole(builder.GetFaces().data());
 				}
 		});
-		Measure("ConvexHullBuilder.buildRandomPoints", [&] {
-			for (int sweep = 0; sweep < cSweepsPerIteration; ++sweep)
+		Measure({ "ConvexHullBuilder.buildRandomPoints", 100 }, [&](int inSweeps) {
+			for (int sweep = 0; sweep < inSweeps; ++sweep)
 			{
 				ConvexHullBuilder builder(f.mHullPoints3D);
 				const char *error = nullptr;

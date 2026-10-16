@@ -135,12 +135,14 @@ def build_jolt(cmake, visual_studio, jolt_version):
 
 
 def jolt_round(executable):
+    """One run of the Jolt harness. Its figures are per iteration, so they are
+    divided by each benchmark's sweeps per iteration: per 1,000 operations."""
     report = json.loads(run([executable], HERE))
-    scale = 1000 / report["operationsPerIteration"]
     return report["jolt"], {
         name: {
-            "ns": metrics["wallClockNs"][2] * scale,
-            "count": metrics[COUNTER][2] * scale,
+            "sweeps": metrics["sweepsPerIteration"],
+            "ns": metrics["wallClockNs"][2] / metrics["sweepsPerIteration"],
+            "count": metrics[COUNTER][2] / metrics["sweepsPerIteration"],
             "mallocs": metrics["mallocs"][-1],
         }
         for name, metrics in report["benchmarks"].items()
@@ -170,7 +172,12 @@ def swift_round(runner, name_filters):
         if metrics[COUNTER] is None:
             sys.exit(f"compare.py: this machine doesn't expose {COUNTER} to BenchmarkRunner")
         mallocs = metrics["mallocs"]
-        results[name] = {"ns": metrics["wallClockNs"][2], "count": metrics[COUNTER][2], "mallocs": None if mallocs is None else mallocs[-1]}
+        results[name] = {
+            "sweeps": metrics["sweepsPerIteration"],
+            "ns": metrics["wallClockNs"][2],
+            "count": metrics[COUNTER][2],
+            "mallocs": None if mallocs is None else mallocs[-1],
+        }
     return results
 
 
@@ -181,6 +188,7 @@ def combine(rounds):
         samples = [r[name] for r in rounds if name in r]
         mallocs = [s["mallocs"] for s in samples if s["mallocs"] is not None]
         combined[name] = {
+            "sweeps": samples[0]["sweeps"],
             "ns": statistics.median(s["ns"] for s in samples),
             "count": statistics.median(s["count"] for s in samples),
             "mallocs": max(mallocs) if mallocs else None,
@@ -232,6 +240,11 @@ def main():
     names = sorted(set(swift) & set(jolt))
     unmatched = sorted(set(swift) ^ set(jolt))
     several_compilers = len(jolt_executables) > 1
+    # Both sides must run the same sweeps per iteration, the count each Swift
+    # benchmark sets (Benchmarks/Sources/BenchmarkSupport/Measurement.swift).
+    mismatched = [f"{name} ({swift[name]['sweeps']} in Swift, {jolt[name]['sweeps']} in Jolt)" for name in names if swift[name]["sweeps"] != jolt[name]["sweeps"]]
+    if mismatched:
+        sys.exit(f"compare.py: sweeps per iteration differ between the two sides: {', '.join(mismatched)}")
 
     unit = "cycles" if COUNTER == "cycles" else "instr"
     header = ["Benchmark", "Swift ns", "Jolt ns", "Moonbounce is", f"Swift {unit}", f"Jolt {unit}", "Mallocs S/J"]

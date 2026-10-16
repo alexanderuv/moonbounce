@@ -9,34 +9,57 @@
 // picoseconds per operation, and its instruction count divided by 1,000 is
 // instructions per operation.
 //
-// Each measured iteration runs `MeasurementRules.sweepsPerIteration` (1,000)
-// sweeps, about a millisecond, which keeps clock and counter overhead
-// negligible. Sweeping the same small arrays keeps the working set in L1, so
-// the numbers reflect compute rather than memory. Results go to an output
-// array that is handed to `blackHole` once per sweep, so the compiler cannot
-// drop the work and the sink adds nothing per operation.
+// Each measured iteration runs the benchmark's `sweepsPerIteration` sweeps,
+// enough work that clock and counter overhead is negligible. Most benchmarks
+// run `MeasurementRules.defaultSweepsPerIteration` (1,000), about a
+// millisecond. An iteration must also be short enough that
+// `MeasurementRules.minIterations` of them fit in `maxDuration`, at most
+// 20 ms. So a benchmark whose sweep takes longer than about 10 µs, such as
+// building a thousand convex hulls, runs fewer sweeps: the largest power of
+// ten whose iterations take at most about 10 ms on every tier 1 platform, in
+// this runner and in the Jolt harness: half that limit, so a slower machine
+// still gets the minimum in time.
+// Figures stay per sweep, so the count changes how many samples a benchmark
+// gets, not what its figures mean. The Jolt harness runs each benchmark with
+// the same count, and `compare.py` checks that the two agree.
+//
+// Sweeping the same small arrays keeps the working set in L1, so the numbers
+// reflect compute rather than memory. Results go to an output array that is
+// handed to `blackHole` once per sweep, so the compiler cannot drop the work
+// and the sink adds nothing per operation.
 
 /// The iteration rules the runner applies to every benchmark.
 public enum MeasurementRules {
     /// Iterations run, unmeasured, before the first measured one.
     public static let warmupIterations = 5
-    /// Sweeps per measured iteration.
-    public static let sweepsPerIteration = 1000
+    /// Sweeps per measured iteration, unless a benchmark sets its own.
+    public static let defaultSweepsPerIteration = 1000
     /// A benchmark stops after this many measured iterations…
     public static let maxIterations = 1000
     /// …or once this much wall time has passed since the first measured
-    /// iteration started, whichever comes first. The time between
-    /// measurements counts too: each iteration's setup, such as allocating
-    /// its outputs, and the runner's own bookkeeping. Both limits are checked
-    /// before each iteration.
+    /// iteration started, whichever comes first, as long as it has measured
+    /// `minIterations`. The time between measurements counts too: each
+    /// iteration's setup, such as allocating its outputs, and the runner's
+    /// own bookkeeping. The limits are checked before each iteration.
     public static let maxDuration: Duration = .seconds(2)
+    /// A benchmark measures at least this many iterations, however long they
+    /// take, so its percentiles describe a distribution: 100 is the fewest for
+    /// which the nearest-rank p99 is not the slowest iteration. A benchmark
+    /// that needs more than `maxDuration` to reach it runs too many sweeps per
+    /// iteration for the machine, and the runner says so.
+    public static let minIterations = 100
 }
 
 /// One measured iteration, as the runner hands it to a benchmark body.
 ///
 /// The runner measures only what runs between the two calls and owns
-/// everything about the measurement: clocks, counters, thread priority.
+/// everything about the measurement: clocks, counters, thread priority and
+/// the number of sweeps.
 public protocol MeasuredIteration {
+    /// The sweeps to run between the two calls: the benchmark's
+    /// `sweepsPerIteration`.
+    var sweeps: Int { get }
+
     /// Called once per iteration, right before the first sweep. The runner
     /// reads its counters and starts the clock here.
     func startMeasurement()
@@ -50,14 +73,25 @@ public struct SuiteBenchmark: Sendable {
     /// `Type.operation`, the name the Jolt counterpart has too.
     public let name: String
 
+    /// Sweeps per measured iteration: `MeasurementRules.defaultSweepsPerIteration`,
+    /// or fewer for a sweep longer than about 10 µs (see the comment at the
+    /// top of this file). The Jolt counterpart runs the same count.
+    public let sweepsPerIteration: Int
+
     /// Runs one iteration. The runner calls it once per iteration, warm-ups
-    /// included. It prepares its outputs, calls `startMeasurement()`, runs
-    /// `MeasurementRules.sweepsPerIteration` sweeps, then calls
+    /// included. It prepares its outputs, reads the iteration's `sweeps`,
+    /// calls `startMeasurement()`, runs that many sweeps, then calls
     /// `stopMeasurement()`, each exactly once.
     public let run: @Sendable (any MeasuredIteration) -> Void
 
-    public init(name: String, run: @escaping @Sendable (any MeasuredIteration) -> Void) {
+    public init(
+        name: String,
+        sweepsPerIteration: Int = MeasurementRules.defaultSweepsPerIteration,
+        run: @escaping @Sendable (any MeasuredIteration) -> Void
+    ) {
+        precondition(sweepsPerIteration > 0, "\(name) must run at least one sweep per iteration")
         self.name = name
+        self.sweepsPerIteration = sweepsPerIteration
         self.run = run
     }
 }
@@ -93,8 +127,9 @@ public func sweep<Input, Output: BitwiseCopyable>(
     _ transform: (Input) -> Output
 ) {
     var outputs = zeroedOutputs(Output.self, count: inputs.count)
+    let sweeps = iteration.sweeps
     iteration.startMeasurement()
-    for _ in 0..<MeasurementRules.sweepsPerIteration {
+    for _ in 0..<sweeps {
         let input = inputs.span
         var output = outputs.mutableSpan
         for i in input.indices {
@@ -118,8 +153,9 @@ public func sweep<A, B, Output: BitwiseCopyable>(
 ) {
     precondition(a.count == b.count)
     var outputs = zeroedOutputs(Output.self, count: a.count)
+    let sweeps = iteration.sweeps
     iteration.startMeasurement()
-    for _ in 0..<MeasurementRules.sweepsPerIteration {
+    for _ in 0..<sweeps {
         let lhs = a.span, rhs = b.span
         var output = outputs.mutableSpan
         for i in lhs.indices {
@@ -150,8 +186,9 @@ public func sweep<A, B, State: ~Copyable, Output: BitwiseCopyable>(
 ) {
     precondition(a.count == b.count)
     var outputs = zeroedOutputs(Output.self, count: a.count)
+    let sweeps = iteration.sweeps
     iteration.startMeasurement()
-    for _ in 0..<MeasurementRules.sweepsPerIteration {
+    for _ in 0..<sweeps {
         let lhs = a.span, rhs = b.span
         var output = outputs.mutableSpan
         for i in lhs.indices {
@@ -176,8 +213,9 @@ public func sweep<A, B, C, Output: BitwiseCopyable>(
 ) {
     precondition(a.count == b.count && b.count == c.count)
     var outputs = zeroedOutputs(Output.self, count: a.count)
+    let sweeps = iteration.sweeps
     iteration.startMeasurement()
-    for _ in 0..<MeasurementRules.sweepsPerIteration {
+    for _ in 0..<sweeps {
         let first = a.span, second = b.span, third = c.span
         var output = outputs.mutableSpan
         for i in first.indices {
@@ -205,8 +243,9 @@ public func sweep<A, B, C, State: ~Copyable, Output: BitwiseCopyable>(
 ) {
     precondition(a.count == b.count && b.count == c.count)
     var outputs = zeroedOutputs(Output.self, count: a.count)
+    let sweeps = iteration.sweeps
     iteration.startMeasurement()
-    for _ in 0..<MeasurementRules.sweepsPerIteration {
+    for _ in 0..<sweeps {
         let first = a.span, second = b.span, third = c.span
         var output = outputs.mutableSpan
         for i in first.indices {

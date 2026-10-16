@@ -15,6 +15,10 @@ extension SuiteBenchmark {
         // which leaves a function call per element. A closure literal cannot be
         // marked `@inline(always)`; a local function can, which matches the C++
         // harness, where every lambda inlines.
+        //
+        // A benchmark whose sweep is long sets fewer sweeps per iteration, by
+        // the rule in BenchmarkSupport's `Measurement.swift`. Its counterpart
+        // in the C++ harness runs the same count.
 
         return [
             SuiteBenchmark(name: "Vector3.normalized") { iteration in
@@ -60,8 +64,9 @@ extension SuiteBenchmark {
                 // A reduction: one loop-carried dependency, so this measures latency
                 // where the others measure throughput.
                 let boxes = fixtures.boxesA
+                let sweeps = iteration.sweeps
                 iteration.startMeasurement()
-                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                for _ in 0..<sweeps {
                     var bounds = AABB.empty
                     let span = boxes.span
                     for i in span.indices {
@@ -137,7 +142,7 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.rigidTransforms, operation)
             },
 
-            SuiteBenchmark(name: "Quaternion.slerp") { iteration in
+            SuiteBenchmark(name: "Quaternion.slerp", sweepsPerIteration: 100) { iteration in
                 @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a.slerp(to: b, 0.3) }
                 sweep(iteration, fixtures.rotationsA, fixtures.rotationsB, operation)
             },
@@ -186,7 +191,7 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.orientedBoxesA, fixtures.orientedBoxesB, operation)
             },
 
-            SuiteBenchmark(name: "Ellipse.closestPoint") { iteration in
+            SuiteBenchmark(name: "Ellipse.closestPoint", sweepsPerIteration: 100) { iteration in
                 @inline(always) func operation(_ ellipse: Ellipse, _ point: SIMD2<Float>) -> SIMD2<Float> {
                     ellipse.closestPoint(to: point)
                 }
@@ -198,12 +203,12 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.simplexTriangles, operation)
             },
 
-            SuiteBenchmark(name: "ClosestPoint.onTetrahedron") { iteration in
+            SuiteBenchmark(name: "ClosestPoint.onTetrahedron", sweepsPerIteration: 100) { iteration in
                 @inline(always) func operation(_ t: Tetrahedron) -> ClosestPoint { ClosestPoint.onTetrahedron(t.a, t.b, t.c, t.d) }
                 sweep(iteration, fixtures.tetrahedra, operation)
             },
 
-            SuiteBenchmark(name: "Polygon.clipAgainstPolygon") { iteration in
+            SuiteBenchmark(name: "Polygon.clipAgainstPolygon", sweepsPerIteration: 100) { iteration in
                 // Both faces are built from their corners in local storage
                 // sized to them, as a contact manifold will build box faces,
                 // then clipped into one output polygon, reused. The result is
@@ -228,7 +233,7 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.vectorsA, operation)
             },
 
-            SuiteBenchmark(name: "VertexWelder.weld") { iteration in
+            SuiteBenchmark(name: "VertexWelder.weld", sweepsPerIteration: 10) { iteration in
                 // One weld of the whole soup per sweep, so an operation is a
                 // triangle. The welder and its outputs are reused, as by a
                 // mesh builder: one weld before the clock starts sizes them.
@@ -237,8 +242,9 @@ extension SuiteBenchmark {
                 var vertices: [Vector3] = []
                 var triangles: [IndexedTriangle] = []
                 welder.weld(soup.span, materialIndices: materials.span, vertices: &vertices, triangles: &triangles)
+                let sweeps = iteration.sweeps
                 iteration.startMeasurement()
-                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                for _ in 0..<sweeps {
                     welder.weld(soup.span, materialIndices: materials.span, vertices: &vertices, triangles: &triangles)
                     blackHole(vertices)
                     blackHole(triangles)
@@ -246,7 +252,7 @@ extension SuiteBenchmark {
                 iteration.stopMeasurement()
             },
 
-            SuiteBenchmark(name: "GJK.intersects") { iteration in
+            SuiteBenchmark(name: "GJK.intersects", sweepsPerIteration: 100) { iteration in
                 // A box grown by a convex radius against a box, as a narrow
                 // phase tests shape cores. One GJK is reused, and each query
                 // starts along x.
@@ -258,7 +264,7 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.orientedBoxesA, fixtures.orientedBoxesB, state: &gjk, operation)
             },
 
-            SuiteBenchmark(name: "GJK.closestPoints") { iteration in
+            SuiteBenchmark(name: "GJK.closestPoints", sweepsPerIteration: 10) { iteration in
                 // The same pairs, with no limit on the distance.
                 var gjk = GJK()
                 @inline(always) func operation(_ a: OrientedBox, _ b: OrientedBox, _ gjk: inout GJK) -> GJK.ClosestPoints {
@@ -271,7 +277,7 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.orientedBoxesA, fixtures.orientedBoxesB, state: &gjk, operation)
             },
 
-            SuiteBenchmark(name: "GJK.castRay") { iteration in
+            SuiteBenchmark(name: "GJK.castRay", sweepsPerIteration: 10) { iteration in
                 // Rays from each box B's center toward box A, cast against A
                 // over their full length. One GJK is reused; a miss gives
                 // the largest float, as Jolt's harness records it.
@@ -282,7 +288,7 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.boxRays, fixtures.orientedBoxesA, state: &gjk, operation)
             },
 
-            SuiteBenchmark(name: "GJK.castShape") { iteration in
+            SuiteBenchmark(name: "GJK.castShape", sweepsPerIteration: 10) { iteration in
                 // Box A moved toward box B, both cores with a convex radius
                 // of 0.05. A miss gives the largest float as the fraction.
                 var gjk = GJK()
@@ -299,7 +305,7 @@ extension SuiteBenchmark {
                     operation)
             },
 
-            SuiteBenchmark(name: "EPA.penetrationDepth") { iteration in
+            SuiteBenchmark(name: "EPA.penetrationDepth", sweepsPerIteration: 1) { iteration in
                 // Box B centered inside box A, both cores grown by a convex
                 // radius of 0.05, so every pair needs EPA, with Jolt's
                 // default tolerances. One EPA is reused, and each query
@@ -317,7 +323,7 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.orientedBoxesA, fixtures.penetratingBoxes, state: &epa, operation)
             },
 
-            SuiteBenchmark(name: "ConvexHullBuilder2D.build") { iteration in
+            SuiteBenchmark(name: "ConvexHullBuilder2D.build", sweepsPerIteration: 100) { iteration in
                 // One hull of all the points per sweep, so an operation is a
                 // point, with Jolt's tolerance in its hull tests. The builder
                 // and its output are reused: one build before the clock
@@ -326,15 +332,16 @@ extension SuiteBenchmark {
                 var builder = ConvexHullBuilder2D()
                 var hull: [Int] = []
                 _ = builder.build(points.span, tolerance: 1.0e-3, into: &hull)
+                let sweeps = iteration.sweeps
                 iteration.startMeasurement()
-                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                for _ in 0..<sweeps {
                     blackHole(builder.build(points.span, tolerance: 1.0e-3, into: &hull))
                     blackHole(hull)
                 }
                 iteration.stopMeasurement()
             },
 
-            SuiteBenchmark(name: "ConvexHullBuilder.build") { iteration in
+            SuiteBenchmark(name: "ConvexHullBuilder.build", sweepsPerIteration: 1) { iteration in
                 // The hull of each of 1,000 game models per sweep, so an
                 // operation is a hull, with Jolt's default hull tolerance.
                 // The builder and its outputs are reused: one sweep before
@@ -351,14 +358,15 @@ extension SuiteBenchmark {
                     }
                 }
                 buildEach()
+                let sweeps = iteration.sweeps
                 iteration.startMeasurement()
-                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                for _ in 0..<sweeps {
                     buildEach()
                 }
                 iteration.stopMeasurement()
             },
 
-            SuiteBenchmark(name: "ConvexHullBuilder.buildRandomPoints") { iteration in
+            SuiteBenchmark(name: "ConvexHullBuilder.buildRandomPoints", sweepsPerIteration: 100) { iteration in
                 // One hull of all the points per sweep, so an operation is a
                 // point, with Jolt's default hull tolerance. The builder and
                 // its outputs are reused: one build before the clock starts
@@ -368,8 +376,9 @@ extension SuiteBenchmark {
                 var faces: [Range<Int>] = []
                 var indices: [Int] = []
                 _ = builder.build(points.span, tolerance: 1.0e-3, faces: &faces, indices: &indices)
+                let sweeps = iteration.sweeps
                 iteration.startMeasurement()
-                for _ in 0..<MeasurementRules.sweepsPerIteration {
+                for _ in 0..<sweeps {
                     blackHole(builder.build(points.span, tolerance: 1.0e-3, faces: &faces, indices: &indices))
                     blackHole(indices)
                 }
