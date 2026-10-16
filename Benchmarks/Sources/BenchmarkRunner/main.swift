@@ -228,7 +228,7 @@ if benchmarks.isEmpty {
 /// `stopMeasurement()`, nested so the counter reads stay outside the
 /// wall-time window.
 final class CountingIteration: MeasuredIteration {
-    private(set) var sweeps = 0
+    let sweeps: Int
     private(set) var startTicks: Int64 = 0, stopTicks: Int64 = 0
     private(set) var startCounter: UInt64 = 0, stopCounter: UInt64 = 0
     private(set) var startAllocations: UInt64 = 0, stopAllocations: UInt64 = 0
@@ -248,13 +248,18 @@ final class CountingIteration: MeasuredIteration {
         stops += 1
     }
 
-    /// Runs one iteration of `benchmark`, which must start and stop the
-    /// measurement exactly once.
-    func run(_ benchmark: SuiteBenchmark) {
-        sweeps = benchmark.sweepsPerIteration
+    init(sweeps: Int) {
+        self.sweeps = sweeps
+    }
+
+    /// Runs `body` with `state` as one iteration of `benchmark`, which must
+    /// start and stop the measurement exactly once.
+    func run<State: ~Copyable>(
+        _ body: (any MeasuredIteration, inout State) -> Void, keeping state: inout State, of benchmark: SuiteBenchmark
+    ) {
         starts = 0
         stops = 0
-        benchmark.run(self)
+        body(self, &state)
         precondition(starts == 1 && stops == 1, "\(benchmark.name) must start and stop its measurement once per iteration")
     }
 }
@@ -267,47 +272,71 @@ struct Samples {
     var allocations: [UInt64] = []
 }
 
-/// Runs the warm-up, then measured iterations until either limit in
-/// `MeasurementRules` is reached once `minIterations` are measured, checking
-/// before each iteration. Warns when reaching `minIterations` took longer
-/// than `maxDuration`.
-func measure(_ benchmark: SuiteBenchmark) -> Samples {
-    let iteration = CountingIteration()
-    for _ in 0..<MeasurementRules.warmupIterations {
-        iteration.run(benchmark)
+/// A benchmark's iterations under `MeasurementRules`: the warm-up, then
+/// measured iterations until either limit is reached once `minIterations`
+/// are measured, checking before each iteration.
+final class CountingIterations: MeasuredIterations {
+    let benchmark: SuiteBenchmark
+    private(set) var samples = Samples()
+    /// How many times the benchmark called `run(keeping:_:)`.
+    private(set) var runs = 0
+    /// Whether an iteration ran only to reach `minIterations`.
+    private(set) var overran = false
+    /// Wall time from the first measured iteration's setup to the end of the
+    /// last one.
+    private(set) var elapsedTicks: Int64 = 0
+
+    init(_ benchmark: SuiteBenchmark) {
+        self.benchmark = benchmark
     }
 
-    // Reserved up front so recording a sample never allocates between
-    // iterations.
-    var samples = Samples()
-    samples.ticks.reserveCapacity(MeasurementRules.maxIterations)
-    samples.counter.reserveCapacity(MeasurementRules.maxIterations)
-    samples.allocations.reserveCapacity(MeasurementRules.maxIterations)
-    let maxTicks = Counters.ticks(MeasurementRules.maxDuration)
-    // The time limit starts with the first measured iteration's setup, not its
-    // `startMeasurement()`.
-    let firstStart = Counters.ticks()
-    // Whether an iteration ran only to reach `minIterations`.
-    var overran = false
-    while samples.ticks.count < MeasurementRules.maxIterations {
-        if Counters.ticks() - firstStart >= maxTicks {
-            guard samples.ticks.count < MeasurementRules.minIterations else { break }
-            overran = true
+    func run<State: ~Copyable>(keeping state: inout State, _ body: (any MeasuredIteration, inout State) -> Void) {
+        runs += 1
+        guard runs == 1 else { return }
+        let iteration = CountingIteration(sweeps: benchmark.sweepsPerIteration)
+        for _ in 0..<MeasurementRules.warmupIterations {
+            iteration.run(body, keeping: &state, of: benchmark)
         }
-        iteration.run(benchmark)
-        samples.ticks.append(iteration.stopTicks - iteration.startTicks)
-        samples.counter.append(iteration.stopCounter - iteration.startCounter)
-        samples.allocations.append(iteration.stopAllocations - iteration.startAllocations)
+
+        // Reserved up front so recording a sample never allocates between
+        // iterations.
+        samples.ticks.reserveCapacity(MeasurementRules.maxIterations)
+        samples.counter.reserveCapacity(MeasurementRules.maxIterations)
+        samples.allocations.reserveCapacity(MeasurementRules.maxIterations)
+        let maxTicks = Counters.ticks(MeasurementRules.maxDuration)
+        // The time limit starts with the first measured iteration's setup, not
+        // its `startMeasurement()`.
+        let firstStart = Counters.ticks()
+        while samples.ticks.count < MeasurementRules.maxIterations {
+            if Counters.ticks() - firstStart >= maxTicks {
+                guard samples.ticks.count < MeasurementRules.minIterations else { break }
+                overran = true
+            }
+            iteration.run(body, keeping: &state, of: benchmark)
+            samples.ticks.append(iteration.stopTicks - iteration.startTicks)
+            samples.counter.append(iteration.stopCounter - iteration.startCounter)
+            samples.allocations.append(iteration.stopAllocations - iteration.startAllocations)
+        }
+        elapsedTicks = Counters.ticks() - firstStart
     }
-    if overran {
-        let tenths = Int((Counters.nanoseconds(Double(Counters.ticks() - firstStart)) / 1e8).rounded())
+}
+
+/// Runs `benchmark` under `MeasurementRules` and returns its measured
+/// iterations. Warns when reaching `minIterations` took longer than
+/// `maxDuration`.
+func measure(_ benchmark: SuiteBenchmark) -> Samples {
+    let iterations = CountingIterations(benchmark)
+    benchmark.measure(iterations)
+    precondition(iterations.runs == 1, "\(benchmark.name) must run its iterations exactly once")
+    if iterations.overran {
+        let tenths = Int((Counters.nanoseconds(Double(iterations.elapsedTicks)) / 1e8).rounded())
         printError("""
             \(benchmark.name) took \(tenths / 10).\(tenths % 10) s to measure \(MeasurementRules.minIterations) \
             iterations, past the \(MeasurementRules.maxDuration.components.seconds) s limit; \
             give it fewer sweeps per iteration
             """)
     }
-    return samples
+    return iterations.samples
 }
 
 /// The percentiles the Jolt harness reports, by the same nearest-rank rule.
