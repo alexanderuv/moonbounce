@@ -9,19 +9,14 @@
 // picoseconds per operation, and its instruction count divided by 1,000 is
 // instructions per operation.
 //
-// Each measured iteration runs the benchmark's `sweepsPerIteration` sweeps,
-// enough work that clock and counter overhead is negligible. Most benchmarks
-// run `MeasurementRules.defaultSweepsPerIteration` (1,000), about a
-// millisecond. An iteration must also be short enough that
-// `MeasurementRules.minIterations` of them fit in `maxDuration`, at most
-// 20 ms. So a benchmark whose sweep takes longer than about 10 µs, such as
-// building a thousand convex hulls, runs fewer sweeps: the largest power of
-// ten whose iterations take at most about 10 ms on every tier 1 platform, in
-// this runner and in the Jolt harness: half that limit, so a slower machine
-// still gets the minimum in time.
-// Figures stay per sweep, so the count changes how many samples a benchmark
-// gets, not what its figures mean. The Jolt harness runs each benchmark with
-// the same count, and `compare.py` checks that the two agree.
+// Each measured iteration runs the benchmark's `sweepsPerIteration` sweeps:
+// enough work that clock and counter overhead is negligible, and little enough
+// that `MeasurementRules.minIterations` iterations fit in `maxDuration`. Most
+// benchmarks run `MeasurementRules.defaultSweepsPerIteration` (1,000); a
+// benchmark with a long sweep, such as building a thousand convex hulls, runs
+// fewer, by the rule in docs/validation.md (Benchmarks). Figures stay per
+// sweep, so the count changes how many samples a benchmark gets, not what its
+// figures mean.
 //
 // Sweeping the same small arrays keeps the working set in L1, so the numbers
 // reflect compute rather than memory. Results go to an output array that is
@@ -43,10 +38,12 @@ public enum MeasurementRules {
     /// own bookkeeping. The limits are checked before each iteration.
     public static let maxDuration: Duration = .seconds(2)
     /// A benchmark measures at least this many iterations, however long they
-    /// take, so its percentiles describe a distribution: 100 is the fewest for
-    /// which the nearest-rank p99 is not the slowest iteration. A benchmark
-    /// that needs more than `maxDuration` to reach it runs too many sweeps per
-    /// iteration for the machine, and the runner says so.
+    /// take, so its percentiles describe a distribution. 100 is the fewest at
+    /// which p99, by the runner's rounding, has exactly one iteration in a
+    /// hundred above it: with fewer it has none above it, or more than one in
+    /// a hundred. A benchmark that needs more than `maxDuration` to reach it
+    /// runs too many sweeps per iteration for the machine, and the runner says
+    /// so.
     public static let minIterations = 100
 }
 
@@ -74,8 +71,8 @@ public struct SuiteBenchmark: Sendable {
     public let name: String
 
     /// Sweeps per measured iteration: `MeasurementRules.defaultSweepsPerIteration`,
-    /// or fewer for a sweep longer than about 10 µs (see the comment at the
-    /// top of this file). The Jolt counterpart runs the same count.
+    /// or fewer for a long sweep (see the comment at the top of this file).
+    /// The Jolt counterpart runs the same count.
     public let sweepsPerIteration: Int
 
     /// Runs one iteration. The runner calls it once per iteration, warm-ups

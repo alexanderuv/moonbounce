@@ -102,7 +102,11 @@ struct Figures: Codable {
 
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: Key.self)
-        sweepsPerIteration = try container.decode(Int.self, forKey: .sweepsPerIteration)
+        // A report saved before benchmarks set their own count ran every
+        // benchmark at the default.
+        sweepsPerIteration =
+            try container.decodeIfPresent(Int.self, forKey: .sweepsPerIteration)
+            ?? MeasurementRules.defaultSweepsPerIteration
         iterations = try container.decode(Int.self, forKey: .iterations)
         wallClockNs = try container.decode([Double].self, forKey: .wallClockNs)
         counter = try container.decodeIfPresent([Double].self, forKey: .counter)
@@ -296,10 +300,10 @@ func measure(_ benchmark: SuiteBenchmark) -> Samples {
         samples.allocations.append(iteration.stopAllocations - iteration.startAllocations)
     }
     if overran {
-        let seconds = Counters.nanoseconds(Double(Counters.ticks() - firstStart)) / 1e9
+        let tenths = Int((Counters.nanoseconds(Double(Counters.ticks() - firstStart)) / 1e8).rounded())
         printError("""
-            \(benchmark.name) took \(Int(seconds.rounded())) s to measure \(MeasurementRules.minIterations) \
-            iterations, past MeasurementRules.maxDuration (\(MeasurementRules.maxDuration)); \
+            \(benchmark.name) took \(tenths / 10).\(tenths % 10) s to measure \(MeasurementRules.minIterations) \
+            iterations, past the \(MeasurementRules.maxDuration.components.seconds) s limit; \
             give it fewer sweeps per iteration
             """)
     }

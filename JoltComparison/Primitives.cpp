@@ -720,7 +720,7 @@ static void Measure(const Benchmark &inBenchmark, Iteration inIteration)
 		allocations.push_back(allocations_after - allocations_before);
 	}
 	if (overran)
-		std::fprintf(stderr, "jolt_primitives: %s took %.0f s to measure %d iterations, past the %.0f s limit\n",
+		std::fprintf(stderr, "jolt_primitives: %s took %.1f s to measure %d iterations, past the %.0f s limit; give it fewer sweeps per iteration\n",
 			inBenchmark.mName, double(WallClockNs() - first_start) / 1e9, cMinIterations, double(cMaxDurationNs) / 1e9);
 
 	std::printf("%s    \"%s\": {\n", gFirstBenchmark ? "" : ",\n", inBenchmark.mName);
@@ -797,7 +797,7 @@ int main()
 
 	Fixtures f;
 
-	std::printf("{\n  \"jolt\": \"%s\",\n  \"benchmarks\": {\n", JOLT_VERSION);
+	std::printf("{\n  \"jolt\": \"%s\",\n  \"operationsPerSweep\": %d,\n  \"benchmarks\": {\n", JOLT_VERSION, cCount);
 
 	Sweep<Vec3, Vec3>("Vector3.normalized", f.mVectorsA, [](Vec3Arg v) { return v.Normalized(); });
 	Sweep<Vec3, Vec3, float>("Vector3.dot", f.mVectorsA, f.mVectorsB, [](Vec3Arg a, Vec3Arg b) { return a.Dot(b); });

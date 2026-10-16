@@ -52,7 +52,7 @@ A build below x86-64-v3 is supported for correctness only. Without FMA, each vec
 One runner, `Benchmarks/Sources/BenchmarkRunner`, measures the benchmarks on every platform, with the same suite libraries and `MeasurementRules` (`Benchmarks/Sources/BenchmarkSupport/Measurement.swift`):
 
 - **Warm-up.** 5 unmeasured iterations.
-- **Measured iterations.** Until 1,000 are measured or 2 seconds have passed, but never fewer than 100, so every percentile comes from a distribution: 100 is the fewest for which p99 is not the slowest iteration.
+- **Measured iterations.** Until 1,000 are measured or 2 seconds have passed, but never fewer than 100, so every percentile comes from a distribution. 100 is the fewest at which p99, by the runner's rounding, has exactly one iteration in a hundred above it.
 - **Sweeps per iteration.** 1,000 by default, or fewer for a long sweep ([Benchmarks](#benchmarks)). Figures are per sweep, so the count sets how many samples a benchmark gets, not what its figures mean.
 
 A benchmark that needs more than 2 seconds for its 100 iterations is measured anyway, and the runner warns that it runs too many sweeps per iteration. Only the runner's clocks and counters differ by platform:
@@ -73,8 +73,9 @@ A benchmark that needs more than 2 seconds for its 100 iterations is measured an
 Benchmarks live in the separate `Benchmarks/` package.
 
 - Names are `Type.operation`.
-- Each sweep runs 1,000 operations over seeded SplitMix64 fixtures, and each measured iteration runs 1,000 sweeps, about a millisecond.
-- A benchmark whose sweep takes longer than about 10 µs sets `sweepsPerIteration` to the largest power of ten that keeps an iteration within about 10 ms on both tier 1 platforms, for Moonbounce and for its Jolt counterpart. That is half the 20 ms at which 100 iterations would fill the 2-second limit, so a slower machine still gets them in time. `ConvexHullBuilder.build` builds 1,000 hulls per sweep and runs one sweep per iteration. Its Jolt counterpart runs the same count, and `JoltComparison/compare.py` stops if the two differ.
+- Each sweep runs 1,000 operations over seeded SplitMix64 fixtures. By default, each measured iteration runs 1,000 sweeps.
+- A benchmark whose iterations would take longer than about 10 ms sets `sweepsPerIteration` to the largest power of ten that keeps them within that, on both tier 1 platforms, for Moonbounce and for its Jolt counterpart. 10 ms is half the 20 ms at which 100 iterations fill the 2-second limit, so a slower machine still gets them in time. An iteration's time includes its setup, which counts toward the limit, such as the one sweep a body runs before the clock starts to size its outputs. A benchmark whose single sweep already takes longer runs one. `ConvexHullBuilder.build` builds 1,000 hulls per sweep. At one sweep plus its sizing sweep, an iteration takes about 14 ms on macOS arm64, so 100 iterations still fit in the limit, with less margin than the rule aims for.
+- The Jolt counterpart of each benchmark runs the same sweeps per iteration, and `JoltComparison/compare.py` stops if the two differ.
 - Metrics are wall time, retired instructions (thread cycles on Windows) and malloc count.
 - Each area of the library has its own suite library under `Benchmarks/Sources/`, such as `PrimitivesSuite` for math and geometry, built on `BenchmarkSupport`. It holds the bodies and fixtures; BenchmarkRunner registers them.
 - Each operation is a local `@inline(always)` function, not a closure literal, so it inlines into the sweep (see the comment in `PrimitivesSuite/Primitives.swift`).

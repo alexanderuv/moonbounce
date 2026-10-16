@@ -17,8 +17,8 @@ extension SuiteBenchmark {
         // harness, where every lambda inlines.
         //
         // A benchmark whose sweep is long sets fewer sweeps per iteration, by
-        // the rule in BenchmarkSupport's `Measurement.swift`. Its counterpart
-        // in the C++ harness runs the same count.
+        // the rule in docs/validation.md (Benchmarks). Its counterpart in the
+        // C++ harness runs the same count.
 
         return [
             SuiteBenchmark(name: "Vector3.normalized") { iteration in
