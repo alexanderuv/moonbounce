@@ -71,8 +71,8 @@ public struct SuiteBenchmark: Sendable {
     public let name: String
 
     /// Sweeps per measured iteration: `MeasurementRules.defaultSweepsPerIteration`,
-    /// or fewer for a long sweep (see the comment at the top of this file).
-    /// The Jolt counterpart runs the same count.
+    /// or fewer for a long sweep, by the rule in docs/validation.md
+    /// (Benchmarks). The Jolt counterpart runs the same count.
     public let sweepsPerIteration: Int
 
     /// Runs one iteration. The runner calls it once per iteration, warm-ups
