@@ -196,10 +196,11 @@ jobs:
       # version, and macOS the Swift that ships with its Xcode.
       SWIFT_VERSION: 6.4.1
       # The installer's features that CI doesn't use: the debugger and its
-      # Python, the editor tools, the Android SDKs, and the Windows SDKs for
-      # other architectures (with the matrix's other-sdk). By default it
-      # installs all of them, and they take most of its time.
-      SWIFT_INSTALLER_OPTIONS: OptionsInstallDBG=0 OptionsInstallPy=0 OptionsInstallIDE=0 OptionsInstallAndroidPlatform=0 OptionsInstallWindowsSDKX86=0 OptionsInstallWindowsRedistX86=0
+      # Python, the Android SDKs, and the Windows SDKs for other architectures
+      # (with the matrix's other-sdk). Leaving them out shrinks the install by
+      # about a third, and so the cached toolchain. The editor tools stay:
+      # swift-build loads libraries from their package.
+      SWIFT_INSTALLER_OPTIONS: OptionsInstallDBG=0 OptionsInstallPy=0 OptionsInstallAndroidPlatform=0 OptionsInstallWindowsSDKX86=0 OptionsInstallWindowsRedistX86=0
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
