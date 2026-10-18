@@ -70,6 +70,26 @@ struct SplitMix64: RandomNumberGenerator {
         return Matrix4x4(columns: c0, c1, c2, c3)
     }
 
+    /// A 6 × 6 matrix of elements in [-1, 1), drawn column by column.
+    mutating func matrix6x6() -> Matrix<6, 6> {
+        var m = Matrix<6, 6>.zero
+        for column in 0..<6 {
+            for row in 0..<6 {
+                m[row: row, column: column] = uniform(-1, 1)
+            }
+        }
+        return m
+    }
+
+    /// 6 elements in [-1, 1).
+    mutating func vector6() -> Vector<6> {
+        var v = Vector<6>.zero
+        for i in 0..<6 {
+            v[i] = uniform(-1, 1)
+        }
+        return v
+    }
+
     /// A comparison mask whose lanes are each all ones or all zeros, from the
     /// low four bits of one draw.
     mutating func mask() -> UInt32Vector4 {
@@ -296,6 +316,10 @@ struct Fixtures: Sendable {
     let hullPoints: [SIMD2<Float>]
     /// Points in the cube [-10, 10)³, for the 3D hull.
     let hullPoints3D: [Vector3]
+    /// General 6 × 6 systems `A · x = b`, elements in [-1, 1): none is
+    /// singular, and each needs pivoting.
+    let linearSystems: [Matrix<6, 6>]
+    let rightHandSides: [Vector<6>]
     /// 1,000 of the point clouds in `Assets/convex_hulls.bin`, game models
     /// of 4 to 100 points, spread evenly through the file: their points back
     /// to back, and each cloud's range of them.
@@ -374,6 +398,8 @@ struct Fixtures: Sendable {
             return SIMD2(x, y)
         }
         hullPoints3D = (0..<Self.count).map { _ in rng.vector3(-10, 10) }
+        linearSystems = (0..<Self.count).map { _ in rng.matrix6x6() }
+        rightHandSides = (0..<Self.count).map { _ in rng.vector6() }
 
         let clouds = Self.convexHullClouds()
         var points: [Vector3] = []
