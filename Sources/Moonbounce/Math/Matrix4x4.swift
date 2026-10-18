@@ -741,21 +741,21 @@ extension Matrix4x4 {
         let (m00, m11, m22) = (c0.x, c1.y, c2.z)
         let trace = m00 + m11 + m22
         if trace >= 0 {
-            let s = (trace + 1).squareRoot()
+            let s = (trace + 1).hardwareSquareRoot()
             let k = 0.5 / s
             return Quaternion(x: (c1.z - c2.y) * k, y: (c2.x - c0.z) * k, z: (c0.y - c1.x) * k, w: 0.5 * s)
         }
         if m00 >= m11 && m00 >= m22 {
-            let s = (m00 - m11 - m22 + 1).squareRoot()
+            let s = (m00 - m11 - m22 + 1).hardwareSquareRoot()
             let k = 0.5 / s
             return Quaternion(x: 0.5 * s, y: (c1.x + c0.y) * k, z: (c2.x + c0.z) * k, w: (c1.z - c2.y) * k)
         }
         if m11 >= m22 {
-            let s = (m11 - m22 - m00 + 1).squareRoot()
+            let s = (m11 - m22 - m00 + 1).hardwareSquareRoot()
             let k = 0.5 / s
             return Quaternion(x: (c1.x + c0.y) * k, y: 0.5 * s, z: (c2.y + c1.z) * k, w: (c2.x - c0.z) * k)
         }
-        let s = (m22 - m00 - m11 + 1).squareRoot()
+        let s = (m22 - m00 - m11 + 1).hardwareSquareRoot()
         let k = 0.5 / s
         return Quaternion(x: (c2.x + c0.z) * k, y: (c2.y + c1.z) * k, z: 0.5 * s, w: (c0.y - c1.x) * k)
     }

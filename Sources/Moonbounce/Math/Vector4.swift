@@ -142,7 +142,7 @@ extension Vector4 {
     public var reciprocal: Vector4 { Vector4(1 / simd) }
 
     @inline(always)
-    public var squareRoot: Vector4 { Vector4(simd.squareRoot()) }
+    public var squareRoot: Vector4 { Vector4(simd.hardwareSquareRoot()) }
 
     @inline(always)
     public var abs: Vector4 { Vector4(absolute(simd)) }
@@ -181,7 +181,7 @@ extension Vector4 {
     public var lengthSquared: Float { dot(self) }
 
     @inline(always)
-    public var length: Float { lengthSquared.squareRoot() }
+    public var length: Float { lengthSquared.hardwareSquareRoot() }
 
     @inline(always)
     public func normalized() -> Vector4 { self / length }

@@ -146,7 +146,7 @@ extension Vector3 {
     public var lengthSquared: Float { dot(self) }
 
     @inline(always)
-    public var length: Float { lengthSquared.squareRoot() }
+    public var length: Float { lengthSquared.hardwareSquareRoot() }
 
     /// This vector scaled to unit length. The result is not finite when the
     /// length is zero; use ``normalized(or:)`` when that can happen.
@@ -160,7 +160,7 @@ extension Vector3 {
     @inline(always)
     public func normalized(or fallback: Vector3) -> Vector3 {
         let lengthSquared = lengthSquared
-        return lengthSquared <= .leastNormalMagnitude ? fallback : self / lengthSquared.squareRoot()
+        return lengthSquared <= .leastNormalMagnitude ? fallback : self / lengthSquared.hardwareSquareRoot()
     }
 
     @inline(always)
@@ -233,7 +233,7 @@ extension Vector3 {
     public static func random<Generator: RandomNumberGenerator>(using generator: inout Generator) -> Vector3 {
         let z = Float.random(in: -1...1, using: &generator)
         let azimuth = Float.random(in: 0..<(2 * pi), using: &generator)
-        let r = Swift.max(1 - z * z, 0).squareRoot()
+        let r = Swift.max(1 - z * z, 0).hardwareSquareRoot()
         let (s, c) = Trigonometry.sinCos(azimuth)
         return Vector3(r * c, r * s, z)
     }
@@ -247,7 +247,7 @@ extension Vector3 {
     public var reciprocal: Vector3 { Vector3(storage: 1 / storage) }
 
     @inline(always)
-    public var squareRoot: Vector3 { Vector3(storage: storage.squareRoot()) }
+    public var squareRoot: Vector3 { Vector3(storage: storage.hardwareSquareRoot()) }
 
     /// 1 where the sign bit is clear and -1 where it is set, so -0 maps to -1.
     @inline(always)
@@ -412,7 +412,7 @@ extension Vector3 {
         let negatedXY = togglingSignBits(storage, SIMD4(0x8000_0000, 0x8000_0000, 0, 0)) // (-x, -y, z, z)
         let perpendicular = mb_select_float4(mb_0zyy(negatedXY), mb_z0xx(negatedXY), useX)
         let lengthSquared = mb_splat_x(mb_max(squares, swapped)) + mb_splat_z(squares)
-        return Vector3(storage: perpendicular / lengthSquared.squareRoot())
+        return Vector3(storage: perpendicular / lengthSquared.hardwareSquareRoot())
     }
 }
 

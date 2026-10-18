@@ -42,7 +42,7 @@ extension Float {
         if discriminant < 0 {
             return nil
         }
-        let squareRoot = discriminant.squareRoot()
+        let squareRoot = discriminant.hardwareSquareRoot()
         let q = -0.5 * (b < 0 ? b - squareRoot : b + squareRoot)
         let first = q / a
         // q is 0 only when b and the discriminant are, which makes c 0 too:
@@ -71,7 +71,7 @@ extension Float {
 @inlinable @inline(always)
 func nearestRootAhead(a: Float, h: Float, c: Float) -> Float {
     let discriminant = Float.differenceOfProducts(h, h, a, c)
-    let entry = c / (discriminant.squareRoot() - h)
+    let entry = c / (discriminant.hardwareSquareRoot() - h)
     let hit = h < 0 && discriminant >= 0
     return c <= 0 ? 0 : hit ? entry : .infinity
 }
