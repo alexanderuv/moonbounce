@@ -102,6 +102,25 @@ import Testing
         #expect(result.storage.w == result.storage.z, "\(operation)")
     }
 
+    @Test func transposedProductMatchesTransposingFirst() {
+        // Bit for bit in all four lanes, for any bits: random, signed zeros,
+        // infinities and NaN. The reference ends in a lane copy, so this
+        // also checks that lane w repeats lane z, NaN payloads included.
+        let specials: [Float] = [0, -0.0, 1, -1, .infinity, -.infinity, .nan, .greatestFiniteMagnitude, .leastNonzeroMagnitude]
+        var rng = SplitMix64()
+        func value() -> Float {
+            rng.next() % 4 == 0 ? specials[Int(rng.next() % UInt64(specials.count))] : Float(bitPattern: UInt32(truncatingIfNeeded: rng.next()))
+        }
+        func bits(_ v: Vector3) -> SIMD4<UInt32> { unsafe unsafeBitCast(v.storage, to: SIMD4<UInt32>.self) }
+        for _ in 0..<20_000 {
+            let m = Matrix4x4(
+                columns: Vector4(value(), value(), value(), value()), Vector4(value(), value(), value(), value()),
+                Vector4(value(), value(), value(), value()), Vector4(value(), value(), value(), value()))
+            let v = Vector3(value(), value(), value())
+            #expect(bits(m.transposedMultiply3x3(v)) == bits(m.transposed3x3().multiply3x3(v)))
+        }
+    }
+
     @Test func mutatorsKeepTheInvariant() {
         var v = Self.a
         v.z = 9

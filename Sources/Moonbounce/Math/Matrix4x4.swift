@@ -480,6 +480,8 @@ extension Matrix4x4 {
         // product's lane w repeats lane z's multiply-adds and already holds
         // z: `multiply3x3`'s shuffle would sit on the critical path of a
         // transformed shape's support, between the direction and the box.
+        // Without FMA, as at baseline x86-64, the extra lane costs two more
+        // `fmaf` calls; that build is for correctness, not speed.
         let t0 = mb_zip_low(c0, c1), t1 = mb_zip_low(c2, c2)
         let t2 = mb_zip_high(c0, c1), t3 = mb_zip_high(c2, c2)
         let transposed = Matrix4x4(mb_low_halves(t0, t1), mb_high_halves(t0, t1), mb_low_halves(t2, t3), .zero)
