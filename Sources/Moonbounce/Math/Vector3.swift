@@ -127,6 +127,12 @@ extension Vector3 {
     public func addingProduct(_ a: Float, _ b: Vector3) -> Vector3 {
         Vector3(storage: multiplyAdd(a, b.storage, storage))
     }
+
+    /// `self + a * b` component-wise, rounded once (a fused multiply-add).
+    @inline(always)
+    public func addingProduct(_ a: Vector3, _ b: Vector3) -> Vector3 {
+        Vector3(storage: multiplyAdd(a.storage, b.storage, storage))
+    }
 }
 
 // MARK: - Geometry

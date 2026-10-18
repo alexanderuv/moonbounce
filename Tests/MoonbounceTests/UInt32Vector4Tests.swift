@@ -116,4 +116,16 @@ import Testing
         #expect(MemoryLayout<UInt32Vector4>.alignment == 16)
         #endif
     }
+
+    // MARK: Jolt's UVec4Tests, completed for #26
+
+    @Test func description() {
+        #expect(UInt32Vector4(1, 2, 3, 4).description == "UInt32Vector4(1, 2, 3, 4)")
+    }
+
+    @Test func simdRoundTrip() {
+        let lanes = SIMD4<UInt32>(1, 0x8000_0000, 0xFFFF_FFFF, 7)
+        #expect(UInt32Vector4(lanes).simd == lanes)
+        #expect(UInt32Vector4(lanes) == UInt32Vector4(1, 0x8000_0000, 0xFFFF_FFFF, 7))
+    }
 }

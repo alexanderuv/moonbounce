@@ -400,4 +400,43 @@ import Testing
         #expect(MemoryLayout<Quaternion>.alignment == 16)
         #endif
     }
+
+    // MARK: Jolt's QuatTests, completed for #26
+
+    @Test func description() {
+        #expect(Quaternion(x: 1, y: 2, z: 3, w: 4).description == "Quaternion(1.0, 2.0, 3.0, 4.0)")
+    }
+
+    @Test func setComponents() {
+        var q = Quaternion.identity
+        q.x = 1
+        q.y = 2
+        q.z = 3
+        q.w = 4
+        #expect(q == Quaternion(x: 1, y: 2, z: 3, w: 4))
+        #expect(q.x == 1 && q.y == 2 && q.z == 3 && q.w == 4)
+    }
+
+    @Test func inequalityLaneByLane() {
+        let q = Quaternion(x: 1, y: 2, z: 3, w: 4)
+        #expect(q != Quaternion(x: 0, y: 2, z: 3, w: 4))
+        #expect(q != Quaternion(x: 1, y: 0, z: 3, w: 4))
+        #expect(q != Quaternion(x: 1, y: 2, z: 0, w: 4))
+        #expect(q != Quaternion(x: 1, y: 2, z: 3, w: 0))
+        #expect(!(q != q))
+    }
+
+    @Test func packedXYZ() {
+        // w is made non-negative first, so the sign of x, y and z follows.
+        #expect(Quaternion(x: 0.7071067, y: 0, z: 0, w: -0.7071067).packedXYZ == PackedVector3(-0.7071067, 0, 0))
+        #expect(Quaternion(x: 0, y: 0.7071067, z: 0, w: 0.7071067).packedXYZ == PackedVector3(0, 0.7071067, 0))
+        #expect(Quaternion(x: 0, y: 0, z: 1, w: 0).packedXYZ == PackedVector3(0, 0, 1))
+        var rng = SplitMix64(seed: 34)
+        for _ in 0..<1000 {
+            let q = Quaternion.random(using: &rng)
+            let back = Quaternion(packedXYZ: q.packedXYZ)
+            #expect(Self.sameRotation(back, q, tolerance: 1.0e-3))
+            #expect(back.w >= 0)
+        }
+    }
 }

@@ -146,4 +146,9 @@ import Testing
             #expect(inverse.parallelGate.w == inverse.parallelGate.z)
         }
     }
+
+    @Test func packedVector3KeepsTheInvariant() {
+        let v = Vector3(PackedVector3(1.5, -2, 3.25))
+        #expect(v.storage.w == v.storage.z)
+    }
 }

@@ -210,4 +210,10 @@ import Testing
         #expect(MemoryLayout<Vector4>.alignment == 16)
         #endif
     }
+
+    // MARK: Jolt's Vec4Tests, completed for #26
+
+    @Test func description() {
+        #expect(Vector4(1, 2, 3, 4).description == "Vector4(1.0, 2.0, 3.0, 4.0)")
+    }
 }

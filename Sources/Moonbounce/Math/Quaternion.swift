@@ -135,6 +135,24 @@ extension Quaternion {
         Quaternion(togglingSignBits(simd, mb_usplat_w(mb_float4_bits(simd)) & signMask))
     }
 
+    /// x, y and z of ``withNonNegativeW``, for storing a unit quaternion
+    /// in 12 bytes: w is recovered from them, as ``init(packedXYZ:)`` does.
+    @inlinable
+    public var packedXYZ: PackedVector3 {
+        let q = withNonNegativeW
+        return PackedVector3(q.x, q.y, q.z)
+    }
+
+    /// The unit quaternion whose x, y and z are `packed` and whose w is
+    /// non-negative, the inverse of ``packedXYZ``. A w that rounding would
+    /// make imaginary becomes 0.
+    @inlinable
+    public init(packedXYZ packed: PackedVector3) {
+        let lengthSquared = packed.x * packed.x + packed.y * packed.y + packed.z * packed.z
+        let w = Swift.max(1 - lengthSquared, 0).hardwareSquareRoot()
+        self.init(x: packed.x, y: packed.y, z: packed.z, w: w)
+    }
+
     /// A quaternion orthogonal to this one in 4D (their dot product is 0).
     @inline(always)
     public var perpendicular: Quaternion { Quaternion(x: z, y: w, z: -x, w: -y) }
