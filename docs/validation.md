@@ -138,7 +138,7 @@ Both engines must start from the same state, so some scenes reproduce the refere
 
 ## Reference results
 
-Jolt v5.6.0, Distribution build. Each figure covers 1,000 operations and is the median over interleaved rounds of the p50. Neither side allocates.
+Jolt v5.6.0, Distribution build. Each figure covers 1,000 operations and is the median over three interleaved rounds of the p50, from `JoltComparison/compare.py`. Moonbounce allocates nothing in any benchmark; Jolt's hull builders and `Indexify`, behind `VertexWelder.weld`, allocate on every call.
 
 ### Math core, macOS arm64
 
@@ -152,3 +152,115 @@ Jolt v5.6.0, Distribution build. Each figure covers 1,000 operations and is the 
 | `Vector3.cross` | 629 | 615 | even | 14.0 | 14.0 |
 | `Vector3.dot` | 292 | 281 | even | 9.1 | 9.0 |
 | `Vector3.normalized` | 825 | 826 | even | 11.1 | 11.0 |
+
+### Phase 1, macOS arm64
+
+Apple M4, macOS 27.0.1. Moonbounce at 6ef70ec, built with Swift 6.4; Jolt built with Apple clang 21.0.0.
+
+| Benchmark | Moonbounce ns | Jolt ns | Moonbounce is | Moonbounce instr/op | Jolt instr/op |
+|---|---|---|---|---|---|
+| `AABB.encapsulate` | 427 | 486 | 14% faster | 6.0 | 9.0 |
+| `AABB.overlaps` | 377 | 402 | 7% faster | 14.1 | 15.0 |
+| `AABB.rayDistance` | 1,260 | 2,063 | 64% faster | 26.1 | 38.0 |
+| `AABB4.overlaps` | 1,124 | 1,231 | 10% faster | 27.1 | 29.0 |
+| `AABB4.rayDistance` | 3,067 | 3,179 | even | 58.1 | 60.0 |
+| `Capsule.rayDistance` | 1,887 | 2,797 | 48% faster | 52.6 | 63.7 |
+| `ClosestPoint.onTetrahedron` | 12,028 | 17,425 | 45% faster | 232.3 | 347.0 |
+| `ClosestPoint.onTriangle` | 4,539 | 6,356 | 40% faster | 87.3 | 121.5 |
+| `ConvexHullBuilder.build` | 6,169,500 | 7,074,125 | 15% faster | 112,882 | 143,467 |
+| `ConvexHullBuilder.buildRandomPoints` | 46,768 | 49,957 | 7% faster | 1,046 | 1,100 |
+| `ConvexHullBuilder2D.build` | 7,105 | 8,342 | 17% faster | 145.5 | 199.5 |
+| `Cylinder.rayDistance` | 1,571 | 2,353 | 50% faster | 43.7 | 55.8 |
+| `DoubleMatrix4x4.transformPoint` | 815 | 1,126 | 38% faster | 21.1 | 27.0 |
+| `DoubleVector3.add` | 493 | 522 | 6% faster | 6.7 | 10.0 |
+| `EPA.penetrationDepth` | 1,567,375 | 1,666,875 | 6% faster | 18,875 | 20,564 |
+| `Ellipse.closestPoint` | 7,911 | 23,578 | 198% faster | 81.2 | 132.3 |
+| `Float16Vector4.fromVector4` | 135 | 5,169 | 3730% faster | 3.7 | 147.6 |
+| `GJK.castRay` | 109,300 | 138,612 | 27% faster | 1,085 | 1,447 |
+| `GJK.castShape` | 162,633 | 210,525 | 29% faster | 1,923 | 2,506 |
+| `GJK.closestPoints` | 174,996 | 253,571 | 45% faster | 2,365 | 3,156 |
+| `GJK.intersects` | 44,138 | 59,950 | 36% faster | 575.2 | 786.5 |
+| `GaussianElimination.solve6x6` | 97,021 | 181,438 | 87% faster | 2,055 | 2,417 |
+| `Matrix4x4.inversed` | 4,085 | 5,217 | 28% faster | 74.1 | 89.0 |
+| `Matrix4x4.inversedRotationTranslation` | 907 | 935 | even | 20.1 | 18.0 |
+| `Matrix4x4.multiply` | 1,038 | 1,022 | even | 27.1 | 24.0 |
+| `Matrix4x4.transformPoint` | 430 | 429 | even | 11.1 | 10.0 |
+| `MortonCode.interleave` | 1,369 | 1,361 | even | 35.1 | 34.0 |
+| `OrientedBox.overlaps` | 5,672 | 6,791 | 20% faster | 119.9 | 140.1 |
+| `Polygon.clipAgainstPolygon` | 18,337 | 19,394 | 6% faster | 451.3 | 516.0 |
+| `Quaternion.multiply` | 502 | 1,158 | 131% faster | 14.1 | 25.0 |
+| `Quaternion.rotate` | 1,185 | 1,252 | 6% faster | 24.1 | 25.0 |
+| `Quaternion.slerp` | 8,273 | 16,212 | 96% faster | 121.1 | 182.1 |
+| `Quaternion.swingTwist` | 2,024 | 2,435 | 20% faster | 26.1 | 36.0 |
+| `Sphere.rayDistance` | 1,386 | 1,891 | 36% faster | 35.6 | 38.1 |
+| `SymmetricEigendecomposition.solve3x3` | 170,671 | 187,492 | 10% faster | 1,397 | 1,449 |
+| `Triangle.rayDistance` | 2,685 | 4,024 | 50% faster | 56.8 | 67.0 |
+| `Triangle4.rayDistance` | 5,110 | 5,030 | even | 91.1 | 91.0 |
+| `UInt32Vector4.countTrues` | 252 | 248 | even | 6.1 | 6.0 |
+| `UInt32Vector4.select` | 271 | 269 | even | 7.1 | 7.4 |
+| `Vector3.cross` | 555 | 553 | even | 14.1 | 14.0 |
+| `Vector3.dot` | 259 | 256 | even | 9.1 | 9.0 |
+| `Vector3.normalized` | 896 | 896 | even | 11.1 | 11.0 |
+| `Vector3.normalizedPerpendicular` | 1,133 | 1,233 | 9% faster | 20.1 | 28.0 |
+| `Vector4.atan2` | 2,185 | 2,902 | 33% faster | 42.1 | 44.0 |
+| `Vector4.multiplyAdd` | 270 | 268 | even | 6.2 | 6.2 |
+| `Vector4.reduceMin` | 135 | 134 | even | 3.6 | 3.7 |
+| `Vector4.sinCos` | 1,814 | 2,553 | 41% faster | 42.1 | 45.0 |
+| `VertexWelder.weld` | 72,717 | 80,283 | 10% faster | 1,325 | 1,891 |
+
+Three rows retire more instructions than Jolt, though they take no more time: `Matrix4x4.multiply`, `transformPoint` and `inversedRotationTranslation`, by one to three instructions per operation. Each extra instruction is a pointer increment in the benchmark loop, not in the operation. Swift's compiler gives each array in the loop its own pointer, offset so that a load can't advance it, and adds to it separately; clang folds the same increments into Jolt's loads. The operations themselves are as long as Jolt's or shorter. `Matrix4x4.transformPoint`'s wall time also moves between builds with the same instructions, from 429 to 503 ns, with code and data layout ([#47](https://github.com/alexanderuv/moonbounce/issues/47)).
+
+### Phase 1, Windows x86-64
+
+Intel Core i9-12900KF, Windows 11 25H2 (build 26200.9711). Moonbounce at 6ef70ec, built with Swift 6.4 at x86-64-v3; Jolt built with MSVC 19.44 and with clang-cl 19.1.5, and the faster build is the reference for each benchmark. Cycles are the measuring thread's, at the time-stamp counter's rate.
+
+| Benchmark | Moonbounce ns | Jolt ns | Moonbounce is | Moonbounce cycles/op | Jolt cycles/op | Jolt build |
+|---|---|---|---|---|---|---|
+| `AABB.encapsulate` | 762 | 780 | even | 2.4 | 2.5 | clang-cl |
+| `AABB.overlaps` | 560 | 767 | 37% faster | 1.8 | 2.4 | clang-cl |
+| `AABB.rayDistance` | 2,641 | 2,632 | even | 8.4 | 8.3 | MSVC |
+| `AABB4.overlaps` | 1,171 | 1,386 | 18% faster | 3.7 | 4.4 | clang-cl |
+| `AABB4.rayDistance` | 3,757 | 4,671 | 24% faster | 11.9 | 14.8 | clang-cl |
+| `Capsule.rayDistance` | 2,787 | 4,342 | 56% faster | 8.9 | 13.8 | clang-cl |
+| `ClosestPoint.onTetrahedron` | 22,998 | 22,866 | even | 73.2 | 72.7 | clang-cl |
+| `ClosestPoint.onTriangle` | 9,283 | 9,273 | even | 29.5 | 29.5 | clang-cl |
+| `ConvexHullBuilder.build` | 9,213,700 | 14,947,900 | 62% faster | 29,246 | 47,273 | clang-cl |
+| `ConvexHullBuilder.buildRandomPoints` | 64,679 | 91,146 | 41% faster | 205.4 | 289.6 | clang-cl |
+| `ConvexHullBuilder2D.build` | 9,092 | 11,013 | 21% faster | 28.9 | 35.1 | clang-cl |
+| `Cylinder.rayDistance` | 1,952 | 3,466 | 78% faster | 6.2 | 11.0 | clang-cl |
+| `DoubleMatrix4x4.transformPoint` | 982 | 1,017 | even | 3.1 | 3.2 | clang-cl |
+| `DoubleVector3.add` | 559 | 551 | even | 1.8 | 1.8 | clang-cl |
+| `EPA.penetrationDepth` | 2,093,900 | 2,330,200 | 11% faster | 6,661 | 7,417 | clang-cl |
+| `Ellipse.closestPoint` | 12,519 | 29,059 | 132% faster | 39.9 | 92.4 | clang-cl |
+| `Float16Vector4.fromVector4` | 123 | 1,297 | 958% faster | 0.4 | 4.1 | clang-cl |
+| `GJK.castRay` | 145,750 | 131,460 | 11% slower | 463.9 | 418.5 | clang-cl |
+| `GJK.castShape` | 226,110 | 231,350 | even | 719.8 | 735.1 | MSVC |
+| `GJK.closestPoints` | 269,110 | 277,080 | even | 856.3 | 881.0 | clang-cl |
+| `GJK.intersects` | 64,911 | 61,999 | even | 205.6 | 197.1 | clang-cl |
+| `GaussianElimination.solve6x6` | 172,020 | 229,520 | 33% faster | 547.5 | 728.7 | clang-cl |
+| `Matrix4x4.inversed` | 5,013 | 6,839 | 36% faster | 15.9 | 21.7 | MSVC |
+| `Matrix4x4.inversedRotationTranslation` | 1,186 | 1,154 | even | 3.8 | 3.7 | clang-cl |
+| `Matrix4x4.multiply` | 1,918 | 2,134 | 11% faster | 6.1 | 6.8 | clang-cl |
+| `Matrix4x4.transformPoint` | 818 | 897 | 10% faster | 2.6 | 2.9 | MSVC |
+| `MortonCode.interleave` | 3,398 | 3,807 | 12% faster | 10.8 | 12.1 | clang-cl |
+| `OrientedBox.overlaps` | 8,949 | 10,548 | 18% faster | 28.5 | 33.5 | clang-cl |
+| `Polygon.clipAgainstPolygon` | 27,641 | 36,448 | 32% faster | 87.8 | 115.4 | MSVC |
+| `Quaternion.multiply` | 668 | 810 | 21% faster | 2.1 | 2.6 | clang-cl |
+| `Quaternion.rotate` | 857 | 1,204 | 41% faster | 2.7 | 3.8 | clang-cl |
+| `Quaternion.slerp` | 15,824 | 22,041 | 39% faster | 50.4 | 70.1 | MSVC |
+| `Quaternion.swingTwist` | 1,824 | 1,867 | even | 5.8 | 5.9 | clang-cl |
+| `Sphere.rayDistance` | 2,314 | 2,739 | 18% faster | 7.3 | 8.7 | clang-cl |
+| `SymmetricEigendecomposition.solve3x3` | 254,810 | 261,710 | even | 806.0 | 828.3 | clang-cl |
+| `Triangle.rayDistance` | 4,790 | 6,227 | 30% faster | 15.2 | 19.8 | clang-cl |
+| `Triangle4.rayDistance` | 5,371 | 6,651 | 24% faster | 17.0 | 21.1 | clang-cl |
+| `UInt32Vector4.countTrues` | 344 | 407 | 19% faster | 1.1 | 1.3 | clang-cl |
+| `UInt32Vector4.select` | 426 | 686 | 61% faster | 1.4 | 2.2 | clang-cl |
+| `Vector3.cross` | 354 | 609 | 72% faster | 1.1 | 1.9 | clang-cl |
+| `Vector3.dot` | 399 | 606 | 52% faster | 1.3 | 1.9 | clang-cl |
+| `Vector3.normalized` | 1,205 | 1,196 | even | 3.8 | 3.8 | clang-cl |
+| `Vector3.normalizedPerpendicular` | 1,333 | 1,324 | even | 4.2 | 4.2 | clang-cl |
+| `Vector4.atan2` | 4,546 | 4,831 | 6% faster | 14.5 | 15.4 | clang-cl |
+| `Vector4.multiplyAdd` | 428 | 670 | 57% faster | 1.4 | 2.1 | clang-cl |
+| `Vector4.reduceMin` | 277 | 438 | 58% faster | 0.9 | 1.4 | MSVC |
+| `Vector4.sinCos` | 3,504 | 3,742 | 7% faster | 11.2 | 11.9 | MSVC |
+| `VertexWelder.weld` | 185,270 | 225,320 | 22% faster | 589.3 | 716.8 | MSVC |
