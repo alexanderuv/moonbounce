@@ -125,6 +125,23 @@ import Testing
         #expect(SymmetricEigendecomposition(m) == nil)
     }
 
+    @Test func infiniteInputGivesNil() {
+        // Rotations converge on infinite eigenvalues, or on NaN ones for an
+        // all-infinite matrix; neither is a decomposition.
+        var m = Matrix<2, 2>.identity
+        m[row: 0, column: 1] = .infinity
+        #expect(SymmetricEigendecomposition(m) == nil)
+        #expect(SymmetricEigendecomposition(Matrix<2, 2>(repeating: .infinity)) == nil)
+        #expect(SymmetricEigendecomposition(Matrix<3, 3>(diagonal: Vector([1, .infinity, 2]))) == nil)
+    }
+
+    @Test func oneByOneAndEmpty() throws {
+        let one = try #require(SymmetricEigendecomposition(Matrix<1, 1>(repeating: -2.5)))
+        #expect(one.eigenvalues == Vector([-2.5]))
+        #expect(one.eigenvectors == .identity)
+        #expect(SymmetricEigendecomposition(Matrix<0, 0>.zero) != nil)
+    }
+
     @Test func upperLeftOfMatrix4x4() {
         let m = Matrix4x4(columnMajor: InlineArray { Float($0) })
         let block = Matrix<3, 3>(upperLeftOf: m)

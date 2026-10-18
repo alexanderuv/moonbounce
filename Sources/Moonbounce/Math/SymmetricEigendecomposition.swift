@@ -2,8 +2,8 @@
 /// such as an inertia tensor, whose eigenvectors are its principal axes.
 ///
 /// For each `i`, `matrix * eigenvectors[column: i]` equals
-/// `eigenvalues[i] * eigenvectors[column: i]`, and the eigenvectors are
-/// orthonormal. The pairs are in no particular order.
+/// `eigenvalues[i] * eigenvectors[column: i]` up to rounding, and the
+/// eigenvectors are orthonormal. The pairs are in no particular order.
 @frozen
 public struct SymmetricEigendecomposition<let size: Int>: Sendable, BitwiseCopyable {
     /// The eigenvalues, one per column of ``eigenvectors``.
@@ -14,25 +14,36 @@ public struct SymmetricEigendecomposition<let size: Int>: Sendable, BitwiseCopya
 
     /// Decomposes `matrix`, of which only the upper triangle is read: the
     /// lower one is taken to mirror it. `nil` when the rotations have not
-    /// converged after 50 sweeps.
+    /// converged after 50 sweeps, or when an eigenvalue is not finite, as
+    /// for a matrix with an infinite or NaN element.
     ///
-    /// Each sweep applies one Jacobi rotation per element above the
-    /// diagonal, which zeroes it, until every such element is below
-    /// `Float.leastNormalMagnitude` on average. The rotations are Jolt's
-    /// (from Numerical Recipes, paragraph 11.1), with a threshold for the
-    /// first sweeps and, from the sixth, elements too small to change the
-    /// diagonal set to 0 rather than rotated away. Repeated eigenvalues and
+    /// Each sweep applies a Jacobi rotation, which zeroes it, to each
+    /// element above the diagonal that is above the sweep's threshold,
+    /// until the sum of their magnitudes divided by `size * size` is below
+    /// `Float.leastNormalMagnitude`. The rotations are Jolt's (from
+    /// Numerical Recipes, paragraph 11.1), with a higher threshold for the
+    /// first four sweeps and, from the sixth, elements too small to change
+    /// the diagonal set to 0 rather than rotated away. Repeated eigenvalues and
     /// diagonal input need no special case: a diagonal matrix converges at
     /// once, with the identity as its eigenvectors. The method suits small
     /// sizes; its cost grows with the cube of `size` per sweep.
+    // Setup code, but `@inline(always)` rather than `@inlinable`: left to
+    // the optimizer it isn't inlined, which costs 10% more instructions in
+    // `SymmetricEigendecomposition.solve3x3`.
     @inline(always)
     public init?(_ matrix: Matrix<size, size>) {
+        if size == 0 {
+            eigenvalues = .zero
+            eigenvectors = .identity
+            return
+        }
         var a = matrix
         var eigenvalues = Vector<size> { i in matrix[row: i, column: i] }
         var eigenvectors = Matrix<size, size>.identity
         // The diagonal at the start of the sweep, and what the sweep has
-        // added to it so far: accumulated apart, as in Jolt, so rounding in
-        // one rotation doesn't carry into the next sweep's thresholds.
+        // added to it so far. A sweep's changes are summed apart and added
+        // to the diagonal once, which loses less to rounding than adding
+        // each one (Numerical Recipes, paragraph 11.1).
         var diagonal = eigenvalues
         var change = Vector<size>.zero
 
@@ -128,6 +139,9 @@ public struct SymmetricEigendecomposition<let size: Int>: Sendable, BitwiseCopya
             }
         }
         if !converged {
+            return nil
+        }
+        for i in 0..<size where !eigenvalues[i].isFinite {
             return nil
         }
         self.eigenvalues = eigenvalues
