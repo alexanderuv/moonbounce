@@ -33,13 +33,15 @@
 // The shims are imported publicly because `@inlinable` bodies reference them.
 public import _MoonbounceShims
 
-/// Lane-wise minimum. A NaN lane yields the other operand's lane.
+/// Lane-wise minimum, each target's native instruction: the same on every
+/// target unless a lane is NaN or the lanes are zeros of opposite sign; see
+/// `mb_min` (docs/adr/0002).
 @inlinable @inline(always)
 func minimum(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
     mb_min(a, b)
 }
 
-/// Lane-wise maximum. A NaN lane yields the other operand's lane.
+/// Lane-wise maximum, as ``minimum(_:_:)``.
 @inlinable @inline(always)
 func maximum(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
     mb_max(a, b)

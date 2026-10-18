@@ -25,7 +25,8 @@ public enum MortonCode {
         let size = bounds.max.storage - bounds.min.storage
         let fraction = (point.storage - bounds.min.storage) / size
         let inBox = mb_select_float4(.zero, fraction, mb_greater(size, .zero))
-        // The maximum takes 0 over NaN.
+        // The maximum takes 0 over NaN on every target: NaN is the first
+        // operand, and x86-64's `maxps` returns the second.
         let clamped = minimum(maximum(inBox, .zero), SIMD4(repeating: 1))
         // 0.5 + 1023 · fraction, rounded once, then truncated: the nearest
         // step, halves rounding up.
