@@ -36,6 +36,7 @@
 #include <Jolt/Geometry/RaySphere.h>
 #include <Jolt/Geometry/RayTriangle.h>
 #include <Jolt/Geometry/Sphere.h>
+#include <Jolt/Math/EigenValueSymmetric.h>
 #include <Jolt/Math/Mat44.h>
 #include <Jolt/Math/Matrix.h>
 #include <Jolt/Math/Quat.h>
@@ -202,6 +203,15 @@ struct EPAPenetrationOutput
 // SplitMix64::Matrix() hides Jolt's Matrix inside SplitMix64.
 using Matrix6x6 = Matrix<6, 6>;
 using Matrix6x1 = Matrix<6, 1>;
+using Matrix3x3 = Matrix<3, 3>;
+
+// A 3 × 3 eigendecomposition, laid out like the benchmarks'
+// Eigendecomposition3x3: 48 bytes.
+struct Eigendecomposition3x3
+{
+	Vector<3> mEigenvalues;
+	Matrix<3, 3> mEigenvectors;
+};
 
 // Identical to SplitMix64 in Fixtures.swift.
 struct SplitMix64
@@ -296,6 +306,21 @@ struct SplitMix64
 		for (uint r = 0; r < 6; ++r)
 			v(r, 0) = Uniform(-1, 1);
 		return v;
+	}
+
+	// Same as symmetric3x3() in Fixtures.swift: the upper triangle in [-1, 1),
+	// row by row, mirrored below the diagonal.
+	Matrix3x3 Symmetric3x3()
+	{
+		Matrix3x3 m;
+		for (uint r = 0; r < 3; ++r)
+			for (uint c = r; c < 3; ++c)
+			{
+				float element = Uniform(-1, 1);
+				m(r, c) = element;
+				m(c, r) = element;
+			}
+		return m;
 	}
 
 	// Same as mask() in Fixtures.swift: lane i is all ones when bit i is set.
@@ -473,6 +498,7 @@ struct Fixtures
 	// Same as linearSystems and rightHandSides in Fixtures.swift.
 	std::vector<Matrix6x6> mLinearSystems;
 	std::vector<Matrix6x1> mRightHandSides;
+	std::vector<Matrix3x3> mSymmetricMatrices;
 	std::vector<Array<Vec3>> mGameClouds;
 
 	Fixtures()
@@ -576,6 +602,7 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mHullPoints3D.push_back(rng.Vector(-10, 10));
 		for (int i = 0; i < cCount; ++i) mLinearSystems.push_back(rng.LinearSystem());
 		for (int i = 0; i < cCount; ++i) mRightHandSides.push_back(rng.RightHandSide());
+		for (int i = 0; i < cCount; ++i) mSymmetricMatrices.push_back(rng.Symmetric3x3());
 
 		// Same as convexHullClouds() and gameClouds in Fixtures.swift: the
 		// clouds in the format Assets/README.md gives, and every 6.755th one.
@@ -873,6 +900,18 @@ int main()
 		Matrix6x1 x = inB;
 		GaussianElimination(a, x);
 		return x;
+	});
+	// The eigenvalues and eigenvectors of each matrix, as in the Swift
+	// benchmark; one that doesn't converge gives zeros.
+	Sweep<Matrix3x3, Eigendecomposition3x3>({ "SymmetricEigendecomposition.solve3x3", 10 }, f.mSymmetricMatrices, [](const Matrix3x3 &inM) {
+		Eigendecomposition3x3 r;
+		r.mEigenvectors = Matrix3x3::sIdentity();
+		if (!EigenValueSymmetric(inM, r.mEigenvectors, r.mEigenvalues))
+		{
+			r.mEigenvalues = Vector<3>::sZero();
+			r.mEigenvectors = Matrix3x3::sZero();
+		}
+		return r;
 	});
 	Sweep<Quat, Quat, Quat>({ "Quaternion.slerp", 100 }, f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 	Sweep<RayInput, Sphere, float>("Sphere.rayDistance", f.mSphereRays, f.mSpheres, [](const RayInput &r, const Sphere &s) { return RaySphere(r.mOrigin, r.mDirection, s.GetCenter(), s.GetRadius()); });
