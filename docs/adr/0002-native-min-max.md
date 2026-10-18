@@ -21,6 +21,6 @@ Code that must skip NaN lanes says so, and either masks them first or puts the p
 
 ## Consequences
 
-- Each float min and max is one instruction on both tier 1 platforms, and each double one at x86-64-v3; baseline x86-64 takes two SSE2 halves for doubles.
+- A float min or max is one instruction on both tier 1 platforms. A double vector's takes one at x86-64-v3, and one per half on arm64 and baseline x86-64.
 - A computation that reaches min or max with a NaN, or with zeros of opposite sign, can give different bits on arm64 and x86-64. Cross-platform determinism, when it lands, has to keep both out of min and max or mask them.
 - New code that needs NaN lanes ignored can't rely on min or max for it, and must mask the lanes as `lowestLane` does or order the operands as `clamped` does.
