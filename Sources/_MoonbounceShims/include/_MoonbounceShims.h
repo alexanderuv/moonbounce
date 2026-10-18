@@ -19,6 +19,7 @@ typedef float mb_float4 __attribute__((ext_vector_type(4)));
 typedef unsigned int mb_uint4 __attribute__((ext_vector_type(4)));
 typedef int mb_int4 __attribute__((ext_vector_type(4)));
 
+typedef unsigned short mb_ushort4 __attribute__((ext_vector_type(4)));
 typedef double mb_double4 __attribute__((ext_vector_type(4)));
 typedef unsigned long long mb_ulong4 __attribute__((ext_vector_type(4)));
 typedef long long mb_long4 __attribute__((ext_vector_type(4)));
@@ -27,6 +28,11 @@ typedef long long mb_long4 __attribute__((ext_vector_type(4)));
 
 #if defined(__aarch64__)
 #include <arm_neon.h>
+#endif
+
+#if defined(__F16C__)
+#include <immintrin.h>
+typedef unsigned short mb_ushort8 __attribute__((ext_vector_type(8)));
 #endif
 
 // MARK: - Fused multiply-add
@@ -425,6 +431,156 @@ MB_INLINE mb_double4 mb_dsplat_z(mb_double4 v) { return __builtin_shufflevector(
 MB_INLINE mb_double4 mb_dcross(mb_double4 a, mb_double4 b) {
     mb_double4 t = a * mb_dyzxx(b) - mb_dyzxx(a) * b;
     return mb_dyzxx(t);
+}
+
+// MARK: - Half floats
+//
+// Conversions between `Float` and IEEE 754 binary16, four lanes at a time.
+// Each has a portable form built from integer operations, which every target
+// can run, and uses the hardware instruction where the target has one: F16C
+// on x86-64 (part of x86-64-v3), and NEON's conversions on arm64. The two
+// give the same bits for every input, NaN payloads included, so a mesh
+// stored as half floats decodes the same everywhere.
+//
+// `mode` is 0 to round to nearest, ties to even; 1 to round toward -∞; 2 to
+// round toward +∞. It is a constant at every call, so the branches on it
+// fold away.
+
+/// Four floats to half floats with integer operations only.
+///
+/// Rounding works on the float's bits. Lanes the half range can represent
+/// as normal numbers drop 13 mantissa bits; smaller ones become subnormal
+/// halves or zero, dropping more, with the implicit leading 1 made explicit
+/// first. The dropped bits decide whether to add 1 to the result's
+/// magnitude: above half, or exactly half with an odd result, to round to
+/// nearest; any, toward the direction of the lane's sign for the directed
+/// modes. Adding 1 to the largest finite half's bits gives infinity, so
+/// overflow needs no special case except for the directed modes, which stop
+/// at the largest finite half when rounding toward zero. NaN keeps its sign
+/// and the top 9 bits of its payload, and becomes quiet, as the hardware
+/// conversions do.
+MB_INLINE mb_ushort4 mb_float4_to_half4_portable(mb_float4 v, int mode) {
+    mb_uint4 bits = (mb_uint4)v;
+    mb_uint4 sign = (bits >> 16) & 0x8000u;
+    mb_uint4 magnitude = bits & 0x7FFFFFFFu;
+    mb_int4 negative = (mb_int4)(sign != 0);
+
+    // Normal halves: 2^-14 <= |v| < 2^16 before rounding. Rebias the
+    // exponent from 127 to 15 and drop 13 mantissa bits.
+    mb_uint4 normal = (magnitude - 0x38000000u) >> 13;
+    mb_uint4 normal_dropped = magnitude & 0x1FFFu;
+
+    // Subnormal halves: |v| < 2^-14. The value in units of 2^-24 is the
+    // full mantissa shifted right by (126 - exponent); shifts of 25 or more
+    // leave nothing but dropped bits.
+    mb_uint4 exponent = magnitude >> 23;
+    mb_uint4 full_mantissa = (magnitude & 0x7FFFFFu) | 0x800000u;
+    mb_uint4 shift = 126u - exponent;
+    mb_int4 tiny = (mb_int4)(shift > 24u);
+    mb_uint4 clamped_shift = shift > 24u ? (mb_uint4)24u : shift;
+    mb_uint4 subnormal = (full_mantissa >> clamped_shift) & (mb_uint4)~tiny;
+    mb_uint4 subnormal_dropped_mask = ((mb_uint4)1u << clamped_shift) - 1u;
+    mb_uint4 subnormal_dropped = (full_mantissa & subnormal_dropped_mask) | ((full_mantissa & (mb_uint4)tiny) != 0 ? (mb_uint4)1u : (mb_uint4)0u);
+    // A float zero or float subnormal: nothing to round but itself.
+    mb_int4 float_zero_or_subnormal = (mb_int4)(exponent == 0u);
+    subnormal = subnormal & (mb_uint4)~float_zero_or_subnormal;
+    subnormal_dropped = float_zero_or_subnormal ? magnitude : subnormal_dropped;
+    mb_uint4 half_point_subnormal = shift > 24u ? (mb_uint4)0x80000000u : ((mb_uint4)1u << clamped_shift) >> 1;
+    half_point_subnormal = float_zero_or_subnormal ? (mb_uint4)0x80000000u : half_point_subnormal;
+
+    mb_int4 is_normal = (mb_int4)(magnitude >= 0x38800000u);
+    mb_uint4 result = is_normal ? normal : subnormal;
+    mb_uint4 dropped = is_normal ? normal_dropped : subnormal_dropped;
+    mb_uint4 half_point = is_normal ? (mb_uint4)0x1000u : half_point_subnormal;
+
+    mb_int4 round_up;
+    if (mode == 0) {
+        round_up = (mb_int4)(dropped > half_point) | ((mb_int4)(dropped == half_point) & (mb_int4)((result & 1u) != 0));
+    } else {
+        // Toward -∞ rounds a negative value's magnitude up; toward +∞ a
+        // positive one's.
+        mb_int4 away = mode == 1 ? negative : ~negative;
+        round_up = away & (mb_int4)(dropped != 0);
+    }
+    result = result + (round_up ? (mb_uint4)1u : (mb_uint4)0u);
+
+    // Too large for a finite half: infinity, or the largest finite half when
+    // the directed mode rounds toward zero. 65520 = 0x477FF000 is where
+    // round to nearest reaches infinity; the add above already carries
+    // smaller overflows there.
+    mb_int4 overflow = (mb_int4)(result >= 0x7C00u);
+    if (mode != 0) {
+        mb_int4 toward_zero = mode == 1 ? ~negative : negative;
+        result = overflow ? (toward_zero ? (mb_uint4)0x7BFFu : (mb_uint4)0x7C00u) : result;
+    } else {
+        result = overflow ? (mb_uint4)0x7C00u : result;
+    }
+
+    // Infinity stays infinity; NaN becomes a quiet half NaN with the top of
+    // its payload.
+    mb_int4 is_inf = (mb_int4)(magnitude == 0x7F800000u);
+    mb_int4 is_nan = (mb_int4)(magnitude > 0x7F800000u);
+    result = is_inf ? (mb_uint4)0x7C00u : result;
+    result = is_nan ? (0x7E00u | ((magnitude >> 13) & 0x3FFu)) : result;
+
+    return __builtin_convertvector(result | sign, mb_ushort4);
+}
+
+/// Four half floats to floats, exactly, with integer operations only.
+///
+/// A normal half rebiases its exponent and widens its mantissa. A subnormal
+/// one is renormalized by a float subtraction, which is exact: it takes the
+/// mantissa as the low bits of a float 2^-14 times 1.mantissa and subtracts
+/// 2^-14. Infinity and NaN set every exponent bit; NaN becomes quiet with
+/// its payload, as the hardware conversions do.
+MB_INLINE mb_float4 mb_half4_to_float4_portable(mb_ushort4 h) {
+    mb_uint4 value = __builtin_convertvector(h, mb_uint4);
+    mb_uint4 sign = (value & 0x8000u) << 16;
+    mb_uint4 exponent = value & 0x7C00u;
+    mb_uint4 mantissa = value & 0x03FFu;
+    mb_uint4 normal = ((value & 0x7FFFu) << 13) + 0x38000000u;
+    mb_float4 renormalized = (mb_float4)(0x38800000u | (mantissa << 13)) - (mb_float4)(mb_uint4)0x38800000u;
+    mb_uint4 subnormal = (mb_uint4)renormalized;
+    mb_uint4 special = 0x7F800000u | (mantissa << 13) | (mantissa != 0 ? (mb_uint4)0x00400000u : (mb_uint4)0u);
+    mb_uint4 result = exponent == 0u ? subnormal : (exponent == 0x7C00u ? special : normal);
+    return (mb_float4)(result | sign);
+}
+
+/// Four floats to half floats, in hardware where the target converts with
+/// this rounding.
+MB_INLINE mb_ushort4 mb_float4_to_half4(mb_float4 v, int mode) {
+#if defined(__F16C__)
+    __m128i converted;
+    if (mode == 0) {
+        converted = _mm_cvtps_ph((__m128)v, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+    } else if (mode == 1) {
+        converted = _mm_cvtps_ph((__m128)v, _MM_FROUND_TO_NEG_INF | _MM_FROUND_NO_EXC);
+    } else {
+        converted = _mm_cvtps_ph((__m128)v, _MM_FROUND_TO_POS_INF | _MM_FROUND_NO_EXC);
+    }
+    return __builtin_shufflevector((mb_ushort8)converted, (mb_ushort8)converted, 0, 1, 2, 3);
+#elif defined(__aarch64__)
+    // NEON converts with the rounding mode in FPCR, round to nearest by
+    // default; the directed modes take the portable path.
+    if (mode == 0) {
+        return (mb_ushort4)vreinterpret_u16_f16(vcvt_f16_f32((float32x4_t)v));
+    }
+    return mb_float4_to_half4_portable(v, mode);
+#else
+    return mb_float4_to_half4_portable(v, mode);
+#endif
+}
+
+/// Four half floats to floats, exactly, in hardware where the target has it.
+MB_INLINE mb_float4 mb_half4_to_float4(mb_ushort4 h) {
+#if defined(__F16C__)
+    __m128i wide = (__m128i)__builtin_shufflevector(h, h, 0, 1, 2, 3, 0, 1, 2, 3);
+    return (mb_float4)_mm_cvtph_ps(wide);
+#elif defined(__aarch64__)
+    return (mb_float4)vcvt_f32_f16(vreinterpret_f16_u16((uint16x4_t)h));
+#else
+    return mb_half4_to_float4_portable(h);
+#endif
 }
 
 #endif

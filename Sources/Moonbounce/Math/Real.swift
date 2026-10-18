@@ -19,6 +19,10 @@ public typealias RealVector3 = DoubleVector3
 /// A transform that places an object in the world: ``DoubleMatrix4x4`` with
 /// the `DoublePrecision` trait.
 public typealias RealMatrix4x4 = DoubleMatrix4x4
+
+/// A world position for storage, without SIMD padding:
+/// ``PackedDoubleVector3`` with the `DoublePrecision` trait.
+public typealias PackedRealVector3 = PackedDoubleVector3
 #else
 /// A world coordinate: `Float`, or `Double` with the `DoublePrecision` trait.
 public typealias Real = Float
@@ -30,4 +34,8 @@ public typealias RealVector3 = Vector3
 /// A transform that places an object in the world: ``Matrix4x4``, or
 /// ``DoubleMatrix4x4`` with the `DoublePrecision` trait.
 public typealias RealMatrix4x4 = Matrix4x4
+
+/// A world position for storage, without SIMD padding: ``PackedVector3``,
+/// or ``PackedDoubleVector3`` with the `DoublePrecision` trait.
+public typealias PackedRealVector3 = PackedVector3
 #endif
