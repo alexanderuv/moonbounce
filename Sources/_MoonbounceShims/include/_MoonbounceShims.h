@@ -68,11 +68,17 @@ MB_INLINE mb_float4 mb_negate(mb_float4 v) { return -v; }
 
 // MARK: - Min, max and reductions
 
+#if defined(__aarch64__)
 /// Lane-wise IEEE 754 minNum: a NaN operand yields the other operand.
 MB_INLINE mb_float4 mb_min(mb_float4 a, mb_float4 b) { return __builtin_elementwise_min(a, b); }
 
 /// Lane-wise IEEE 754 maxNum: a NaN operand yields the other operand.
 MB_INLINE mb_float4 mb_max(mb_float4 a, mb_float4 b) { return __builtin_elementwise_max(a, b); }
+#else
+// EXPERIMENT: x86's native minps/maxps semantics (b when either is NaN).
+MB_INLINE mb_float4 mb_min(mb_float4 a, mb_float4 b) { return a < b ? a : b; }
+MB_INLINE mb_float4 mb_max(mb_float4 a, mb_float4 b) { return a > b ? a : b; }
+#endif
 
 /// Lane-wise IEEE 754-2019 minimum: a NaN operand yields NaN. One `fmin` on
 /// arm64; for clamps that must not turn a NaN input into a plausible value.
@@ -91,8 +97,17 @@ MB_INLINE mb_float4 mb_max_nan(mb_float4 a, mb_float4 b) { return __builtin_elem
 MB_INLINE float mb_reduce_min(mb_float4 v) { return vminnmvq_f32((float32x4_t)v); }
 MB_INLINE float mb_reduce_max(mb_float4 v) { return vmaxnmvq_f32((float32x4_t)v); }
 #else
-MB_INLINE float mb_reduce_min(mb_float4 v) { return __builtin_reduce_min(v); }
-MB_INLINE float mb_reduce_max(mb_float4 v) { return __builtin_reduce_max(v); }
+// EXPERIMENT: two shuffles and two native min/max.
+MB_INLINE float mb_reduce_min(mb_float4 v) {
+    mb_float4 m = mb_min(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
+    m = mb_min(m, __builtin_shufflevector(m, m, 1, 0, 3, 2));
+    return m.x;
+}
+MB_INLINE float mb_reduce_max(mb_float4 v) {
+    mb_float4 m = mb_max(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
+    m = mb_max(m, __builtin_shufflevector(m, m, 1, 0, 3, 2));
+    return m.x;
+}
 #endif
 
 #if defined(__aarch64__)
