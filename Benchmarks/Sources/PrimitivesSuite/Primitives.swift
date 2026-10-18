@@ -153,6 +153,42 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.linearSystems, fixtures.rightHandSides, operation)
             },
 
+            SuiteBenchmark(name: "GaussianEliminationVariant.solve6x6A", sweepsPerIteration: 10) { iteration in
+                @inline(always) func operation(_ a: Matrix<6, 6>, _ b: Vector<6>) -> Vector<6> {
+                    var a = a, x = b
+                    _ = GaussianEliminationVariants.solve(&a, &x, branchFreeSearch: false, rowElimination: false)
+                    return x
+                }
+                sweep(iteration, fixtures.linearSystems, fixtures.rightHandSides, operation)
+            },
+
+            SuiteBenchmark(name: "GaussianEliminationVariant.solve6x6B", sweepsPerIteration: 10) { iteration in
+                @inline(always) func operation(_ a: Matrix<6, 6>, _ b: Vector<6>) -> Vector<6> {
+                    var a = a, x = b
+                    _ = GaussianEliminationVariants.solve(&a, &x, branchFreeSearch: true, rowElimination: false)
+                    return x
+                }
+                sweep(iteration, fixtures.linearSystems, fixtures.rightHandSides, operation)
+            },
+
+            SuiteBenchmark(name: "GaussianEliminationVariant.solve6x6C", sweepsPerIteration: 10) { iteration in
+                @inline(always) func operation(_ a: Matrix<6, 6>, _ b: Vector<6>) -> Vector<6> {
+                    var a = a, x = b
+                    _ = GaussianEliminationVariants.solve(&a, &x, branchFreeSearch: false, rowElimination: true)
+                    return x
+                }
+                sweep(iteration, fixtures.linearSystems, fixtures.rightHandSides, operation)
+            },
+
+            SuiteBenchmark(name: "GaussianEliminationVariant.solve6x6D", sweepsPerIteration: 10) { iteration in
+                @inline(always) func operation(_ a: Matrix<6, 6>, _ b: Vector<6>) -> Vector<6> {
+                    var a = a, x = b
+                    _ = GaussianEliminationVariants.solve(&a, &x, branchFreeSearch: true, rowElimination: true)
+                    return x
+                }
+                sweep(iteration, fixtures.linearSystems, fixtures.rightHandSides, operation)
+            },
+
             SuiteBenchmark(name: "Quaternion.slerp", sweepsPerIteration: 100) { iteration in
                 @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a.slerp(to: b, 0.3) }
                 sweep(iteration, fixtures.rotationsA, fixtures.rotationsB, operation)
