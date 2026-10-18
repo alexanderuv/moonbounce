@@ -168,15 +168,22 @@ struct EPAQueueEntry: Sendable, BitwiseCopyable {
 struct EPAWalkStep: Sendable, BitwiseCopyable {
     /// The triangle, or -1 for none.
     @usableFromInline var triangle: Int32
-    /// The edge the walk came in by; it leaves by the ones after it.
+    /// The edge to look across next.
     @usableFromInline var edge: Int32
-    @usableFromInline var iteration: Int32
+    /// How many edges, from `edge` on, are left to look across.
+    @usableFromInline var remaining: Int32
 
     @inlinable @inline(always)
-    init(triangle: Int32, edge: Int32, iteration: Int32) {
+    init(triangle: Int32, edge: Int32, remaining: Int32) {
         self.triangle = triangle
         self.edge = edge
-        self.iteration = iteration
+        self.remaining = remaining
+    }
+
+    /// The edge after `edge`, counterclockwise.
+    @inlinable @inline(always)
+    static func next(_ edge: Int32) -> Int32 {
+        edge == 2 ? 0 : edge &+ 1
     }
 }
 
@@ -498,22 +505,22 @@ struct EPAHull: ~Copyable, @unchecked Sendable {
         unsafe triangles[Int(facing)].removed = true
         // The step under way stays in registers; the walk holds the ones
         // waiting under it, so it touches memory only to go down or back up.
-        var step = EPAWalkStep(triangle: facing, edge: 0, iteration: -1)
+        var step = EPAWalkStep(triangle: facing, edge: 0, remaining: 3)
         var waiting = 0
         var count = 0
         // The start of the edge expected next; another means an island.
         var nextStart: Int32 = -1
         while true {
-            step.iteration &+= 1
-            if step.iteration >= 3 {
+            if step.remaining == 0 {
                 unlink(step.triangle)
                 if waiting == 0 { break }
                 waiting &-= 1
                 step = unsafe walk[waiting]
                 continue
             }
-            let edge = unsafe triangles[Int(step.triangle)]
-                .edges[unchecked: Int((step.edge &+ step.iteration) % 3)]
+            step.remaining &-= 1
+            let edge = unsafe triangles[Int(step.triangle)].edges[unchecked: Int(step.edge)]
+            step.edge = EPAWalkStep.next(step.edge)
             let n = edge.neighbour
             guard unsafe n >= 0 && !triangles[Int(n)].removed else { continue }
             if unsafe triangles[Int(n)].isFacing(point) {
@@ -523,7 +530,7 @@ struct EPAHull: ~Copyable, @unchecked Sendable {
                 unsafe walk[waiting] = step
                 waiting &+= 1
                 // The edge it came in by needs no second look.
-                step = EPAWalkStep(triangle: n, edge: edge.neighbourEdge, iteration: 0)
+                step = EPAWalkStep(triangle: n, edge: EPAWalkStep.next(edge.neighbourEdge), remaining: 2)
             } else {
                 // With islands there are at least two breaks, so the first
                 // and last edges needn't be compared.
