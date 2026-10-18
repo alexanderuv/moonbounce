@@ -15,9 +15,11 @@ enum GaussianEliminationVariants {
         }
         return unsafe a.withUnsafeMutableElements { a, aRowStride, aColumnStride in
             unsafe b.withUnsafeMutableElements { b, bRowStride, bColumnStride in
-                withUnsafeTemporaryAllocation(of: Bool.self, capacity: n) { pivoted in
-                    withUnsafeTemporaryAllocation(of: Float.self, capacity: n) { factors in
-                        unsafe pivoted.initialize(repeating: false)
+                withUnsafeTemporaryAllocation(byteCount: n &* 5, alignment: 4) { scratch in
+                    do {
+                        let factors = unsafe scratch.baseAddress!.bindMemory(to: Float.self, capacity: n)
+                        let pivoted = unsafe (scratch.baseAddress! + n &* 4).bindMemory(to: Bool.self, capacity: n)
+                        unsafe pivoted.initialize(repeating: false, count: n)
                         @inline(always) func at(_ row: Int, _ column: Int) -> UnsafeMutablePointer<Float> {
                             unsafe a + (row &* aRowStride &+ column &* aColumnStride)
                         }
