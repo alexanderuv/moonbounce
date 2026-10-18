@@ -177,7 +177,8 @@ extension ClosestPoint {
         // These lengths and the normal's are in series before the first
         // branch, where two rounds of pairwise sums per length double its
         // latency. Scalar adds of all four lanes, (x + y) + (z + w), are those
-        // rounds' sums: the same bits, NaN from an overflowing lane w included.
+        // rounds' sums: the same bits, including the NaN lane w holds, as
+        // w * 0, when an edge is infinite.
         let baLengths = SIMD4<Float>(repeating: (ba2.x + ba2.y) + (ba2.z + ba2.w))
         let bcLengths = SIMD4<Float>(repeating: (bc2.x + bc2.y) + (bc2.z + bc2.w))
         #endif
