@@ -278,6 +278,7 @@ extension ConvexHullBuilder2D {
     }
 
     /// A new edge starting at point `start`, from the free list when it can.
+    @inline(always)
     mutating func addEdge(start: Int) -> Int32 {
         let edge = ConvexHullEdge2D(start: Int32(truncatingIfNeeded: start))
         if let free = freeEdges.popLast() {
@@ -293,11 +294,13 @@ extension ConvexHullBuilder2D {
         return Int32(truncatingIfNeeded: edges.count &- 1)
     }
 
+    @inline(always)
     mutating func link(_ from: Int32, _ to: Int32) {
         edges[Int(from)].next = to
         edges[Int(to)].previous = from
     }
 
+    @inline(always)
     mutating func computeNormalAndCenter(_ e: Int32, _ points: Span<SIMD2<Float>>) {
         let start = points[Int(edges[Int(e)].start)]
         let end = points[Int(edges[Int(edges[Int(e)].next)].start)]
@@ -308,6 +311,7 @@ extension ConvexHullBuilder2D {
         edges[Int(e)].normal = SIMD2(edge.y, -edge.x)
     }
 
+    @inline(always)
     func isFacing(_ e: Int32, _ point: SIMD2<Float>) -> Bool {
         Self.dot(edges[Int(e)].normal, point - edges[Int(e)].center) > 0
     }
@@ -315,6 +319,7 @@ extension ConvexHullBuilder2D {
     /// Gives point `i` to whichever of the edges it is furthest outside, or
     /// to none when it is inside them all. The furthest point an edge gets
     /// is held apart from its list.
+    @inline(always)
     mutating func assign(_ i: Int, _ points: Span<SIMD2<Float>>, to a: Int32, _ b: Int32, _ c: Int32 = -1) {
         let point = points[i]
         var best: Int32 = -1
@@ -340,6 +345,7 @@ extension ConvexHullBuilder2D {
 
     /// Makes edge `e` the `best` so far when `point` is further outside it
     /// than `distanceSquared`.
+    @inline(always)
     func consider(_ e: Int32, _ point: SIMD2<Float>, best: inout Int32, distanceSquared: inout Float) {
         let normal = edges[Int(e)].normal
         let dot = Self.dot(normal, point - edges[Int(e)].center)
@@ -351,6 +357,7 @@ extension ConvexHullBuilder2D {
         }
     }
 
+    @inline(always)
     mutating func appendOutside(_ point: Int32, to e: Int32) {
         nextOutside[Int(point)] = -1
         let last = edges[Int(e)].lastOutside
