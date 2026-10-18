@@ -162,6 +162,8 @@ extension Vector3 {
     /// length is zero; use ``normalized(or:)`` when that can happen.
     @inline(always)
     public func normalized() -> Vector3 {
+        // A scalar root, unlike `normalizedPerpendicular`'s lane-wise one,
+        // which made this slower on Apple M4.
         self / length
     }
 
@@ -438,7 +440,10 @@ extension Vector3 {
         let negatedXY = togglingSignBits(storage, SIMD4(0x8000_0000, 0x8000_0000, 0, 0)) // (-x, -y, z, z)
         let perpendicular = mb_select_float4(mb_0zyy(negatedXY), mb_z0xx(negatedXY), useX)
         let lengthSquared = mb_splat_x(mb_max(squares, swapped)) + mb_splat_z(squares)
-        return Vector3(storage: perpendicular / lengthSquared.hardwareSquareRoot())
+        // Every lane holds the same squared length, so LLVM would take one
+        // scalar root and splat it. The lane-wise root gives the same bits
+        // and is faster on Apple M4, about a sixth less time in a sweep.
+        return Vector3(storage: perpendicular / opaque(lengthSquared).hardwareSquareRoot())
     }
 }
 

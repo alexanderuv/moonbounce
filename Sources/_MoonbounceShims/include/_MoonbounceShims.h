@@ -32,6 +32,9 @@ typedef long long mb_long4 __attribute__((ext_vector_type(4)));
 
 #if defined(__x86_64__)
 #include <emmintrin.h>
+#if defined(__SSE3__)
+#include <pmmintrin.h>
+#endif
 #endif
 
 #if defined(__F16C__) || defined(__AVX__)
@@ -363,17 +366,22 @@ MB_INLINE mb_float4 mb_opaque(mb_float4 v) { __asm__("" : "+x"(v)); return v; }
 MB_INLINE mb_float4 mb_opaque(mb_float4 v) { return v; }
 #endif
 
-/// `(a.x + a.y, a.z + a.w, b.x + b.y, b.z + b.w)`: one `faddp` on arm64, and
-/// the same sums in the same order everywhere, which `__builtin_reduce_add`
-/// does not promise for floats.
+/// `(a.x + a.y, a.z + a.w, b.x + b.y, b.z + b.w)`: one `faddp` on arm64 or
+/// `haddps` with SSE3, and the same pairs summed everywhere, which
+/// `__builtin_reduce_add` does not promise for floats. Every sum that isn't
+/// NaN has the same bits on every target; which NaN comes out of two NaNs
+/// can differ.
 ///
-/// arm64 calls the intrinsic. Spelled as shuffles, the sum lowers to `uzp1`,
-/// `uzp2` and `fadd` plus lane moves whenever LLVM can see that an input lane
-/// is zero.
+/// Both call the intrinsic. Spelled as shuffles, LLVM sees each lane's
+/// source, and where an input lane is known to be zero, as after `mb_xyz0`,
+/// it splits the products and sums into lane moves: on x86-64 that made the
+/// closest-point and GJK code a third longer, with spills.
 #if defined(__aarch64__)
 MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) {
     return (mb_float4)vpaddq_f32((float32x4_t)a, (float32x4_t)b);
 }
+#elif defined(__x86_64__) && defined(__SSE3__)
+MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) { return (mb_float4)_mm_hadd_ps((__m128)a, (__m128)b); }
 #else
 MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) {
     return __builtin_shufflevector(a, b, 0, 2, 4, 6) + __builtin_shufflevector(a, b, 1, 3, 5, 7);
