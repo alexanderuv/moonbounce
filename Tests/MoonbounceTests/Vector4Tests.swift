@@ -239,4 +239,19 @@ import Testing
         #expect(Vector4(-1, .nan, .nan, 4).lowestComponentIndex == 0)
         #expect(Vector4(.nan, 2, 1, 1).lowestComponentIndex == 2)
     }
+
+    // MARK: Jolt's Vec4Tests, completed for #26
+
+    @Test func description() {
+        #expect(Vector4(1, 2, 3, 4).description == "Vector4(1.0, 2.0, 3.0, 4.0)")
+    }
+
+    @Test func signedZeroSumsFollowIEEE() {
+        // Sums keep IEEE signed zeros: -0 only when every lane is -0. Jolt's
+        // deterministic build gives the same, as its Vec4 tests expect.
+        #expect(Vector4(-0.0, -0.0, -0.0, -0.0).reduceSum().sign == .minus)
+        #expect(Vector4(-0.0, -0.0, 0, -0.0).reduceSum().sign == .plus)
+        #expect(Vector4(-0.0, -0.0, -0.0, -0.0).dot(Vector4(1, 1, 1, 1)).sign == .minus)
+        #expect(Vector4(-0.0, 0, -0.0, -0.0).dot(Vector4(1, 1, 1, 1)).sign == .plus)
+    }
 }

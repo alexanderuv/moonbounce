@@ -35,6 +35,7 @@ import Testing
         ("* Float", a * 3),
         ("/ Float", a / 3),
         ("addingProduct", a.addingProduct(2, b)),
+        ("addingProduct Vector3", a.addingProduct(b, a)),
         ("cross", a.cross(b)),
         ("normalized", a.normalized()),
         ("normalized(or:)", Vector3.zero.normalized(or: b)),
@@ -145,5 +146,10 @@ import Testing
             #expect(inverse.reciprocal.w == inverse.reciprocal.z)
             #expect(inverse.parallelGate.w == inverse.parallelGate.z)
         }
+    }
+
+    @Test func packedVector3KeepsTheInvariant() {
+        let v = Vector3(PackedVector3(1.5, -2, 3.25))
+        #expect(v.storage.w == v.storage.z)
     }
 }

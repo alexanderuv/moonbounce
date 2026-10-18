@@ -119,6 +119,10 @@ extension Vector3 {
     @inline(always)
     public static func *= (lhs: inout Vector3, rhs: Float) { lhs.storage *= rhs }
 
+    /// Component-wise product, in place.
+    @inline(always)
+    public static func *= (lhs: inout Vector3, rhs: Vector3) { lhs.storage *= rhs.storage }
+
     @inline(always)
     public static func /= (lhs: inout Vector3, rhs: Float) { lhs.storage /= rhs }
 
@@ -126,6 +130,12 @@ extension Vector3 {
     @inline(always)
     public func addingProduct(_ a: Float, _ b: Vector3) -> Vector3 {
         Vector3(storage: multiplyAdd(a, b.storage, storage))
+    }
+
+    /// `self + a * b` component-wise, rounded once (a fused multiply-add).
+    @inline(always)
+    public func addingProduct(_ a: Vector3, _ b: Vector3) -> Vector3 {
+        Vector3(storage: multiplyAdd(a.storage, b.storage, storage))
     }
 }
 
@@ -284,9 +294,13 @@ extension Vector3 {
     /// instructions over ``cross(_:)``.
     @inline(always)
     public func preciseCross(_ other: Vector3) -> Vector3 {
+        // Opaque, LLVM can't move the negation in `differenceOfProducts`
+        // through the shuffle of `a`, which takes it out of the fused
+        // multiply-subtract, nor push the last shuffle into what reads the
+        // result.
         let a = Vector4(storage), b = Vector4(other.storage)
-        let t = Vector4.differenceOfProducts(a, Vector4(mb_yzxx(b.simd)), Vector4(mb_yzxx(a.simd)), b)
-        return Vector3(storage: mb_yzxx(t.simd))
+        let t = Vector4.differenceOfProducts(a, Vector4(mb_yzxx(b.simd)), Vector4(opaque(mb_yzxx(a.simd))), b)
+        return Vector3(storage: opaque(mb_yzxx(t.simd)))
     }
 
     /// Each component converted to a signed 32-bit integer, rounding toward
