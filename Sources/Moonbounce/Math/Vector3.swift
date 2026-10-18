@@ -119,6 +119,10 @@ extension Vector3 {
     @inline(always)
     public static func *= (lhs: inout Vector3, rhs: Float) { lhs.storage *= rhs }
 
+    /// Component-wise product, in place.
+    @inline(always)
+    public static func *= (lhs: inout Vector3, rhs: Vector3) { lhs.storage *= rhs.storage }
+
     @inline(always)
     public static func /= (lhs: inout Vector3, rhs: Float) { lhs.storage /= rhs }
 

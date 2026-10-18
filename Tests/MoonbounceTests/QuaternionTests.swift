@@ -431,6 +431,12 @@ import Testing
         #expect(Quaternion(x: 0.7071067, y: 0, z: 0, w: -0.7071067).packedXYZ == PackedVector3(-0.7071067, 0, 0))
         #expect(Quaternion(x: 0, y: 0.7071067, z: 0, w: 0.7071067).packedXYZ == PackedVector3(0, 0.7071067, 0))
         #expect(Quaternion(x: 0, y: 0, z: 1, w: 0).packedXYZ == PackedVector3(0, 0, 1))
+        // A w of -0 counts as negative, as in Jolt: the same rotation.
+        let flipped = Quaternion(x: 0, y: 0, z: 1, w: -0.0).packedXYZ
+        #expect(flipped.x.bitPattern == (-0.0 as Float).bitPattern && flipped.z == -1)
+        // Rounding past unit length gives w = 0, not NaN.
+        #expect(Quaternion(packedXYZ: PackedVector3(1, 1.0e-3, 0)).w == 0)
+        #expect(Quaternion(packedXYZ: PackedVector3(Float(1).nextUp, 0, 0)).w == 0)
         var rng = SplitMix64(seed: 34)
         for _ in 0..<1000 {
             let q = Quaternion.random(using: &rng)

@@ -160,6 +160,7 @@ import Testing
         #expect(Vector3.select(a, b, where: UInt32Vector4(0x8000_0000, 0, 0x8000_0000, 0)) == Vector3(4, 2, 6))
         #expect(Vector3.select(a, b, where: UInt32Vector4(0, 0x8000_0000, 0, 0x8000_0000)) == Vector3(1, 5, 3))
         #expect(Vector3.select(a, b, where: UInt32Vector4(0xFFFF_FFFF, 0x7FFF_FFFF, 0xFFFF_FFFF, 0x7FFF_FFFF)) == Vector3(4, 2, 6))
+        #expect(Vector3.select(a, b, where: UInt32Vector4(0x7FFF_FFFF, 0xFFFF_FFFF, 0x7FFF_FFFF, 0xFFFF_FFFF)) == Vector3(1, 5, 3))
     }
 
     @Test func bitwiseOperations() {
@@ -303,6 +304,9 @@ import Testing
     @Test func fusedMultiplyAddOfVectors() {
         #expect(Vector3(7, 8, 9).addingProduct(Vector3(1, 2, 3), Vector3(4, 5, 6)) == Vector3(1 * 4 + 7, 2 * 5 + 8, 3 * 6 + 9))
         #expect(Vector3(1, 1, 1).addingProduct(2, Vector3(1, 2, 3)) == Vector3(3, 5, 7))
+        // Rounded once: only a fused operation keeps the 2⁻²⁴ term.
+        let a = Vector3(repeating: 1 + 0x1p-12)
+        #expect((-Vector3(repeating: 1 + 0x1p-11)).addingProduct(a, a) == Vector3(repeating: 0x1p-24))
     }
 
     @Test func normalizedOrAtTheNormalThreshold() {
@@ -343,6 +347,12 @@ import Testing
 
     @Test func description() {
         #expect(Vector3(1, 2, 3).description == "Vector3(1.0, 2.0, 3.0)")
+    }
+
+    @Test func componentWiseMultiplyInPlace() {
+        var v = Vector3(1, 2, 3)
+        v *= Vector3(4, 5, 6)
+        #expect(v == Vector3(4, 10, 18))
     }
 
     @Test func signedZeroSumsFollowIEEE() {

@@ -35,6 +35,7 @@ import Testing
         ("* Float", a * 3),
         ("/ Float", a / 3),
         ("addingProduct", a.addingProduct(2, b)),
+        ("addingProduct Vector3", a.addingProduct(b, a)),
         ("cross", a.cross(b)),
         ("normalized", a.normalized()),
         ("normalized(or:)", Vector3.zero.normalized(or: b)),
