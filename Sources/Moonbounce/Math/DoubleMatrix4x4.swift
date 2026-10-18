@@ -6,9 +6,10 @@ public import _MoonbounceShims
 ///
 /// It acts like ``Matrix4x4``: on column vectors, with the linear part's
 /// columns `axisX`, `axisY` and `axisZ` and (0, 0, 0, 1) as its bottom row.
-/// Only the translation is double precision. A point is transformed in
-/// double precision throughout, the linear part widened exactly, so an
-/// object's position keeps its precision however far it is from the origin.
+/// Only the translation is double precision. A ``DoubleVector3`` point is
+/// transformed in double precision throughout, the linear part widened
+/// exactly, so an object's position keeps its precision however far it is
+/// from the origin.
 @frozen
 public struct DoubleMatrix4x4: Equatable, Sendable, BitwiseCopyable {
     /// The first three columns: the linear part, w lanes 0.

@@ -161,5 +161,16 @@ import Testing
             #expect(v == SIMD4(1, 2, 3, 4))
         }
     }
+
+    static let rawDoubleVectors: [(String, SIMD4<Double>)] = [("SIMD4<Double>", SIMD4(1, 2, 3, 4))]
+
+    /// The same for a 256-bit vector, which `DoubleLaneStorage` works
+    /// around. A toolchain might fix one width before the other.
+    @Test(arguments: rawDoubleVectors)
+    func rawDoubleSIMD4IsStillCorrupted(_ label: String, _ v: SIMD4<Double>) {
+        withKnownIssue("swiftlang/swift#90813: SIMD4<Double> arguments to async calls arrive corrupted") {
+            #expect(v == SIMD4(1, 2, 3, 4))
+        }
+    }
     #endif
 }

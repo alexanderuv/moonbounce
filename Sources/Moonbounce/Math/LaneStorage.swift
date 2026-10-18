@@ -1,24 +1,28 @@
 // TODO: Remove this file and every `#if os(Windows) && arch(x86_64)` branch
-// that uses `FloatLaneStorage` or `UInt32LaneStorage` once a Swift toolchain
-// ships with the codegen bug below fixed (swiftlang/swift#90813). Then
-// `Vector3`, `Vector4`, `Quaternion`, `UInt32Vector4`, `Matrix4x4`,
-// `RayInverseDirection`, `Sphere`, `Plane`, `DoubleVector3` and its mask
-// store SIMD vectors on every platform again (`DoubleLaneStorage` and
-// `UInt64LaneStorage` go too). The test `AsyncArgumentTests.rawSIMD4IsStillCorrupted` starts failing
-// when the bug stops reproducing through Swift Testing; confirm with the
-// snippet below before removing anything, since a change in Swift Testing
-// alone could also trip it. Recheck the `mb_round` carve-out in the shim
-// header at the same time; it works around a different Windows toolchain gap.
+// that uses `FloatLaneStorage`, `UInt32LaneStorage`, `DoubleLaneStorage` or
+// `UInt64LaneStorage` once a Swift toolchain ships with the codegen bug below
+// fixed (swiftlang/swift#90813). Then `Vector3`, `Vector4`, `Quaternion`,
+// `UInt32Vector4`, `Matrix4x4`, `RayInverseDirection`, `Sphere`, `Plane`,
+// `DoubleVector3` and its mask store SIMD vectors on every platform again.
+// The tests `AsyncArgumentTests.rawSIMD4IsStillCorrupted` and
+// `rawDoubleSIMD4IsStillCorrupted` start failing when the bug stops
+// reproducing through Swift Testing, for 128-bit and 256-bit vectors in
+// turn; confirm with the snippet below before removing anything, since a
+// change in Swift Testing alone could also trip it. Recheck the `mb_round`
+// carve-out in the shim header at the same time; it works around a different
+// Windows toolchain gap.
 //
 // To check a toolchain, build this on x86-64 Windows with `-Onone` and with
 // `-O`. While the bug is present it crashes or prints "BAD"; once it is fixed,
-// both builds print "ok":
+// both builds print "ok" twice:
 //
 //     func call<T>(_ x: T, _ body: (T) async -> Void) async { await body(x) }
 //     @main struct Main {
 //         static func main() async {
 //             let v = SIMD4<Float>(1, 2, 3, 4)
 //             await call(("a", v, v)) { _, _, b in print(b == v ? "ok" : "BAD") }
+//             let d = SIMD4<Double>(1, 2, 3, 4)
+//             await call(("a", d, d)) { _, _, b in print(b == d ? "ok" : "BAD") }
 //         }
 //     }
 
@@ -99,6 +103,7 @@ extension UInt32LaneStorage: CustomReflectable {
     @usableFromInline
     var customMirror: Mirror { Mirror(self, children: ["simd": simd], displayStyle: .struct) }
 }
+
 /// The `SIMD4<Double>` counterpart of `FloatLaneStorage`, for the same
 /// codegen bug, which hits 256-bit vectors as well. Four `UInt64`s make a
 /// 32-byte value that travels through memory Swift manages. The conversions

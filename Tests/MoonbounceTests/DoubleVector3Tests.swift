@@ -260,6 +260,37 @@ import Testing
         }
     }
 
+    @Test func directedRoundingIsExactOutsideTheFloatRange() {
+        // Beyond the float range, in the subnormal range and at the special
+        // values, as well as normal ones: each result is on the right side
+        // and is the closest float there.
+        let values: [Double] = [
+            1.0e39, -1.0e39, 3.5e38, -3.5e38, Double(Float.greatestFiniteMagnitude),
+            2.0e-45, -2.0e-45, 1.0e-40, -1.0e-40, 1.0e-50, -1.0e-50, Double(Float.leastNonzeroMagnitude),
+            Double(Float.leastNormalMagnitude) * 0.75, 0.0, -0.0, .infinity, -.infinity, 0.1, -0.1, 1.0e30,
+        ]
+        for value in values {
+            let v = DoubleVector3(value, value, value)
+            let down = Vector3(roundingDown: v).x, up = Vector3(roundingUp: v).x
+            #expect(Double(down) <= value, "\(value) down")
+            #expect(Double(up) >= value, "\(value) up")
+            if !down.isInfinite || !value.isInfinite {
+                #expect(Double(down.nextUp) > value || down == up, "\(value) down is the closest")
+            }
+            if !up.isInfinite || !value.isInfinite {
+                #expect(Double(up.nextDown) < value || down == up, "\(value) up is the closest")
+            }
+        }
+        #expect(Vector3(roundingDown: DoubleVector3(1.0e39, 0, 0)).x == .greatestFiniteMagnitude)
+        #expect(Vector3(roundingUp: DoubleVector3(-1.0e39, 0, 0)).x == -.greatestFiniteMagnitude)
+        #expect(Vector3(roundingUp: DoubleVector3(1.0e-50, 0, 0)).x == .leastNonzeroMagnitude)
+        #expect(Vector3(roundingDown: DoubleVector3(-1.0e-50, 0, 0)).x == -.leastNonzeroMagnitude)
+        // Zero rounds to itself, keeping its sign.
+        #expect(Vector3(roundingDown: DoubleVector3(-0.0, 0, 0)).x.sign == .minus)
+        #expect(Vector3(roundingUp: DoubleVector3(0.0, 0, 0)).x.sign == .plus)
+        #expect(Vector3(roundingDown: .nan).x.isNaN && Vector3(roundingUp: .nan).x.isNaN)
+    }
+
     @Test func keepsPrecisionFarFromTheOrigin() {
         // 1e7 plus a millimetre: a Float can't hold the millimetre.
         let far = DoubleVector3(1.0e7, 0, 0) + Vector3(0.001, 0, 0)

@@ -2,15 +2,15 @@
 
 Problems outside Moonbounce that it works around or can't yet work around. Each entry says what is affected, what Moonbounce does about it, and how to tell when it can be removed.
 
-## x86-64 Windows: `SIMD4` arguments to async calls are corrupted
+## x86-64 Windows: SIMD vector arguments to async calls are corrupted
 
 - **Affects:** x86-64 Windows, every optimization level. Upstream: [swiftlang/swift#90813](https://github.com/swiftlang/swift/issues/90813).
 - **Cause:** a bug in LLVM's x86 backend.
-  - The Win64 calling convention passes a 128-bit vector argument by pointer to a temporary copy.
+  - The Win64 calling convention passes a vector argument by pointer to a temporary copy. This covers 128-bit vectors such as `SIMD4<Float>` and `SIMD2<Double>`, and 256-bit ones such as `SIMD4<Double>`.
   - Every Swift async call is a guaranteed tail call. For one of those, LLVM puts the copy in the caller's frame and frees that frame before the jump.
-  - So a `SIMD4` passed into async code arrives corrupted, or crashes the process. Swift Testing's parameterized arguments take this path.
-- **Workaround (#29):** on that target only, public types store their lanes as two `UInt64`s (`Sources/Moonbounce/Math/LaneStorage.swift`).
-- **Removal:** the TODO at the top of `LaneStorage.swift` has a standalone check. The test `AsyncArgumentTests.rawSIMD4IsStillCorrupted` starts failing once the bug stops reproducing.
+  - So a SIMD vector passed into async code arrives corrupted, or crashes the process. Swift Testing's parameterized arguments take this path.
+- **Workaround (#29, #24):** on that target only, public types store their lanes as integers (`Sources/Moonbounce/Math/LaneStorage.swift`): two `UInt64`s for a 128-bit vector, four for a 256-bit one (`DoubleVector3` and its mask).
+- **Removal:** the TODO at the top of `LaneStorage.swift` has a standalone check. The tests `AsyncArgumentTests.rawSIMD4IsStillCorrupted` and `rawDoubleSIMD4IsStillCorrupted` start failing once the bug stops reproducing for each width.
 
 ## x86-64 Windows without SSE4.1: no `roundevenf`
 

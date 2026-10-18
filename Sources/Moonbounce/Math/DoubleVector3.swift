@@ -231,46 +231,22 @@ extension Vector3 {
         self.init(storage: mb_double4_to_float4(v.storage))
     }
 
-    /// `v`'s components, each rounded to a `Float` no greater than it, for
-    /// the lower corner of a bounding box that must contain `v`.
+    /// `v`'s components, each rounded to the largest `Float` no greater
+    /// than it, for the lower corner of a bounding box that must contain
+    /// `v`. Exact for every input: a component beyond the `Float` range
+    /// becomes the largest finite `Float` or -infinity, one in the subnormal
+    /// range a subnormal or zero no greater than it, and NaN stays NaN.
     @inline(always)
     public init(roundingDown v: DoubleVector3) {
-        let negative = v .< .zero
-        self.init(DoubleVector3.select(v.preparedToRoundTowardZero, v.preparedToRoundAwayFromZero, where: negative))
+        self.init(storage: mb_double4_to_float4_directed(v.storage, 1))
     }
 
-    /// `v`'s components, each rounded to a `Float` no less than it, for the
-    /// upper corner of a bounding box that must contain `v`.
+    /// `v`'s components, each rounded to the smallest `Float` no less than
+    /// it, for the upper corner of a bounding box that must contain `v`.
+    /// Exact for every input, as ``init(roundingDown:)``.
     @inline(always)
     public init(roundingUp v: DoubleVector3) {
-        let negative = v .< .zero
-        self.init(DoubleVector3.select(v.preparedToRoundAwayFromZero, v.preparedToRoundTowardZero, where: negative))
-    }
-}
-
-extension DoubleVector3 {
-    /// The 29 low mantissa bits a `Double` loses when rounded to a `Float`.
-    @inlinable @inline(always)
-    static var floatMantissaLoss: SIMD4<UInt64> { SIMD4(repeating: (1 << 29) - 1) }
-
-    /// The components with the bits a `Float` can't hold cleared, so the
-    /// nearest `Float` is the one toward zero.
-    @inlinable @inline(always)
-    var preparedToRoundTowardZero: DoubleVector3 {
-        DoubleVector3(storage: mb_double4_from_bits(mb_double4_bits(storage) & ~Self.floatMantissaLoss))
-    }
-
-    /// The components with the bits a `Float` can't hold all set when any of
-    /// them was, so the nearest `Float` is the one away from zero.
-    @inlinable @inline(always)
-    var preparedToRoundAwayFromZero: DoubleVector3 {
-        let bits = mb_double4_bits(storage)
-        let lost = bits & Self.floatMantissaLoss
-        // All ones where any lost bit is set: `lost | -lost` has its top
-        // bit set exactly when `lost` is not zero.
-        let zero = SIMD4<UInt64>(repeating: 0)
-        let inexact = zero &- ((lost | (zero &- lost)) &>> 63)
-        return DoubleVector3(storage: mb_double4_from_bits(bits | (Self.floatMantissaLoss & inexact)))
+        self.init(storage: mb_double4_to_float4_directed(v.storage, 0))
     }
 }
 

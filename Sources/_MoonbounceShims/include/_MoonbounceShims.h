@@ -366,6 +366,31 @@ MB_INLINE mb_double4 mb_float4_to_double4(mb_float4 v) { return __builtin_conver
 /// Each lane narrowed from double to float, rounding to nearest, ties to even.
 MB_INLINE mb_float4 mb_double4_to_float4(mb_double4 v) { return __builtin_convertvector(v, mb_float4); }
 
+/// Each lane narrowed to the largest float no greater than it (`down`
+/// nonzero) or the smallest no less than it (`down` zero), for any input:
+/// subnormal, beyond the float range, signed zero, infinite or NaN.
+///
+/// Narrowing rounds to nearest, so the result is at most one float off the
+/// wanted side. Where widening it back lands on the wrong side of `v`, it
+/// steps one float toward that side by its bits: away from or toward zero
+/// for a nonzero float, to the signed smallest subnormal from zero, and to
+/// the largest finite float from infinity. NaN compares false and stays.
+MB_INLINE mb_float4 mb_double4_to_float4_directed(mb_double4 v, int down) {
+    mb_float4 nearest = __builtin_convertvector(v, mb_float4);
+    mb_double4 widened = __builtin_convertvector(nearest, mb_double4);
+    mb_long4 wrong_side = down ? (mb_long4)(widened > v) : (mb_long4)(widened < v);
+    mb_int4 step = __builtin_convertvector(wrong_side, mb_int4);
+    mb_uint4 bits = (mb_uint4)nearest;
+    mb_int4 negative = (mb_int4)bits < 0;
+    mb_int4 zero = (bits & 0x7FFFFFFFu) == 0;
+    // Down: a negative float's magnitude grows (+1), a positive one's
+    // shrinks (-1). Up: the reverse.
+    mb_uint4 delta = down ? (mb_uint4)((negative & 2) - 1) : (mb_uint4)(1 - (negative & 2));
+    mb_uint4 from_zero = down ? 0x80000001u : 0x00000001u;
+    mb_uint4 stepped = ((bits + delta) & (mb_uint4)~zero) | (from_zero & (mb_uint4)zero);
+    return (mb_float4)((stepped & (mb_uint4)step) | (bits & (mb_uint4)~step));
+}
+
 MB_INLINE mb_ulong4 mb_dequal(mb_double4 a, mb_double4 b) { return (mb_ulong4)(a == b); }
 MB_INLINE mb_ulong4 mb_dless(mb_double4 a, mb_double4 b) { return (mb_ulong4)(a < b); }
 MB_INLINE mb_ulong4 mb_dless_equal(mb_double4 a, mb_double4 b) { return (mb_ulong4)(a <= b); }
