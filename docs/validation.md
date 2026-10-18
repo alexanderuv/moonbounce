@@ -22,7 +22,7 @@ A slower result blocks the feature. Find the cause and fix it; don't loosen the 
 | 2 | Linux, x86-64 and arm64 | Build and tests |
 | 2 | Windows, arm64 | Build and tests |
 
-CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`. On each platform it also builds [BenchmarkRunner](#measuring), at x86-64-v3 on x86-64, and runs one benchmark. That checks that the runner builds and runs, passes its x86-64-v3 check, and on macOS and Linux sees the Swift runtime's allocations. Four things are not covered yet:
+CI (`.github/workflows/ci.yml`) builds and tests every platform in the table, in Debug and Release, on each pull request and push to `main`. It also tests Debug with the `DoublePrecision` package trait, which switches world positions to double precision. On each platform it also builds [BenchmarkRunner](#measuring), at x86-64-v3 on x86-64, and runs one benchmark. That checks that the runner builds and runs, passes its x86-64-v3 check, and on macOS and Linux sees the Swift runtime's allocations. Four things are not covered yet:
 
 - **Windows Release tests.** Swift Testing finds no tests in Windows Release builds, so Windows is tested in Debug only ([#32](https://github.com/alexanderuv/moonbounce/issues/32), [KNOWN_ISSUES.md](../KNOWN_ISSUES.md)).
 - **x86-64-v3.** CI tests x86-64 at the default baseline only, so the [x86-64-v3](#x86-64-instruction-set) build that Moonbounce is measured at is built but untested.

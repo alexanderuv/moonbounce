@@ -2,8 +2,9 @@
 // that uses `FloatLaneStorage` or `UInt32LaneStorage` once a Swift toolchain
 // ships with the codegen bug below fixed (swiftlang/swift#90813). Then
 // `Vector3`, `Vector4`, `Quaternion`, `UInt32Vector4`, `Matrix4x4`,
-// `RayInverseDirection`, `Sphere` and `Plane` store `SIMD4` on every platform
-// again. The test `AsyncArgumentTests.rawSIMD4IsStillCorrupted` starts failing
+// `RayInverseDirection`, `Sphere`, `Plane`, `DoubleVector3` and its mask
+// store SIMD vectors on every platform again (`DoubleLaneStorage` and
+// `UInt64LaneStorage` go too). The test `AsyncArgumentTests.rawSIMD4IsStillCorrupted` starts failing
 // when the bug stops reproducing through Swift Testing; confirm with the
 // snippet below before removing anything, since a change in Swift Testing
 // alone could also trip it. Recheck the `mb_round` carve-out in the shim
@@ -95,6 +96,60 @@ struct UInt32LaneStorage: Equatable, Sendable, BitwiseCopyable {
 extension UInt32LaneStorage: CustomReflectable {
     /// Shows the lanes, not the two integers, in `print`, `dump` and test
     /// failure output.
+    @usableFromInline
+    var customMirror: Mirror { Mirror(self, children: ["simd": simd], displayStyle: .struct) }
+}
+/// The `SIMD4<Double>` counterpart of `FloatLaneStorage`, for the same
+/// codegen bug, which hits 256-bit vectors as well. Four `UInt64`s make a
+/// 32-byte value that travels through memory Swift manages. The conversions
+/// reinterpret all 32 bytes at once.
+@frozen @usableFromInline
+struct DoubleLaneStorage: Sendable, BitwiseCopyable {
+    @usableFromInline var x: UInt64
+    @usableFromInline var y: UInt64
+    @usableFromInline var z: UInt64
+    @usableFromInline var w: UInt64
+
+    @inlinable @inline(always)
+    init(_ simd: SIMD4<Double>) {
+        self = unsafe unsafeBitCast(simd, to: DoubleLaneStorage.self)
+    }
+
+    @inlinable @inline(always)
+    var simd: SIMD4<Double> { unsafe unsafeBitCast(self, to: SIMD4<Double>.self) }
+}
+
+extension DoubleLaneStorage: Equatable {
+    /// Compares as doubles, like `SIMD4<Double>`.
+    @inlinable @inline(always)
+    static func == (lhs: DoubleLaneStorage, rhs: DoubleLaneStorage) -> Bool {
+        lhs.simd == rhs.simd
+    }
+}
+
+extension DoubleLaneStorage: CustomReflectable {
+    @usableFromInline
+    var customMirror: Mirror { Mirror(self, children: ["simd": simd], displayStyle: .struct) }
+}
+
+/// The `SIMD4<UInt64>` counterpart, for the masks of `DoubleVector3`.
+@frozen @usableFromInline
+struct UInt64LaneStorage: Equatable, Sendable, BitwiseCopyable {
+    @usableFromInline var x: UInt64
+    @usableFromInline var y: UInt64
+    @usableFromInline var z: UInt64
+    @usableFromInline var w: UInt64
+
+    @inlinable @inline(always)
+    init(_ simd: SIMD4<UInt64>) {
+        self = unsafe unsafeBitCast(simd, to: UInt64LaneStorage.self)
+    }
+
+    @inlinable @inline(always)
+    var simd: SIMD4<UInt64> { unsafe unsafeBitCast(self, to: SIMD4<UInt64>.self) }
+}
+
+extension UInt64LaneStorage: CustomReflectable {
     @usableFromInline
     var customMirror: Mirror { Mirror(self, children: ["simd": simd], displayStyle: .struct) }
 }

@@ -21,6 +21,12 @@ let package = Package(
     products: [
         .library(name: "Moonbounce", targets: ["Moonbounce"]),
     ],
+    traits: [
+        .trait(
+            name: "DoublePrecision",
+            description: "World positions and transforms in double precision: Real, RealVector3 and RealMatrix4x4 become Double, DoubleVector3 and DoubleMatrix4x4."
+        ),
+    ],
     targets: [
         .target(
             name: "Moonbounce",

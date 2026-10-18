@@ -165,6 +165,16 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.symmetricMatrices, operation)
             },
 
+            SuiteBenchmark(name: "DoubleVector3.add") { iteration in
+                @inline(always) func operation(_ a: DoubleVector3, _ b: DoubleVector3) -> DoubleVector3 { a + b }
+                sweep(iteration, fixtures.doubleVectorsA, fixtures.doubleVectorsB, operation)
+            },
+
+            SuiteBenchmark(name: "DoubleMatrix4x4.transformPoint") { iteration in
+                @inline(always) func operation(_ m: DoubleMatrix4x4, _ v: DoubleVector3) -> DoubleVector3 { m * v }
+                sweep(iteration, fixtures.doubleTransforms, fixtures.doubleVectorsB, operation)
+            },
+
             SuiteBenchmark(name: "Quaternion.slerp", sweepsPerIteration: 100) { iteration in
                 @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a.slerp(to: b, 0.3) }
                 sweep(iteration, fixtures.rotationsA, fixtures.rotationsB, operation)

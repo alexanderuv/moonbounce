@@ -2,9 +2,10 @@
 # docs/validation.md (Platforms), as rule 4 of the definition of done requires.
 # Each platform is its own job, so each reports as its own status check.
 #
-# Every job builds and tests in Debug, then builds in Release, where the
-# optimizer inlines the hot paths and the shim's builtins. macOS and Linux also
-# test the Release build; Windows can't yet (see the windows job).
+# Every job builds and tests in Debug, tests again with the DoublePrecision
+# trait, then builds in Release, where the optimizer inlines the hot paths and
+# the shim's builtins. macOS and Linux also test the Release build; Windows
+# can't yet (see the windows job).
 # `-enable-testing` lets the Release build serve the tests' `@testable import`.
 # Every job then runs one benchmark with BenchmarkRunner.
 #
@@ -81,6 +82,13 @@ jobs:
         run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
         run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
+      # Again with the DoublePrecision package trait, which switches Real,
+      # RealVector3 and RealMatrix4x4 to double precision
+      # (Sources/Moonbounce/Math/Real.swift), so both configurations build
+      # and pass. Debug only: the trait changes which types the aliases name,
+      # not how the optimizer treats them.
+      - name: Test double precision
+        run: .github/scripts/swift-test.sh --traits DoublePrecision -Xswiftc -enable-incremental-file-hashing
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
@@ -156,6 +164,9 @@ jobs:
         run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
         run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
+      # As on macOS.
+      - name: Test double precision
+        run: .github/scripts/swift-test.sh --traits DoublePrecision -Xswiftc -enable-incremental-file-hashing
       - name: Build release
         run: swift build -c release --build-tests -Xswiftc -enable-testing
       - name: Test release
@@ -271,6 +282,9 @@ jobs:
         run: swift build --build-tests -Xswiftc -enable-incremental-file-hashing
       - name: Test
         run: .github/scripts/swift-test.sh --skip-build -Xswiftc -enable-incremental-file-hashing
+      # As on macOS.
+      - name: Test double precision
+        run: .github/scripts/swift-test.sh --traits DoublePrecision -Xswiftc -enable-incremental-file-hashing
       # Build only: Swift Testing finds no tests in Windows Release builds, so a
       # test step would pass while testing nothing. See KNOWN_ISSUES.md and #32.
       - name: Build release

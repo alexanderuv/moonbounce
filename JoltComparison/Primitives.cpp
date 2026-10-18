@@ -36,6 +36,8 @@
 #include <Jolt/Geometry/RaySphere.h>
 #include <Jolt/Geometry/RayTriangle.h>
 #include <Jolt/Geometry/Sphere.h>
+#include <Jolt/Math/DMat44.h>
+#include <Jolt/Math/DVec3.h>
 #include <Jolt/Math/EigenValueSymmetric.h>
 #include <Jolt/Math/Mat44.h>
 #include <Jolt/Math/Matrix.h>
@@ -234,6 +236,23 @@ struct SplitMix64
 		// rounds the product before the add.
 		float scaled = (inHigh - inLow) * unit;
 		return inLow + scaled;
+	}
+
+	// Same as uniformDouble in Fixtures.swift: the top 53 bits, and separate
+	// statements so the product is rounded before the add.
+	double UniformDouble(double inLow, double inHigh)
+	{
+		double unit = double(Next() >> 11) * 0x1p-53;
+		double scaled = (inHigh - inLow) * unit;
+		return inLow + scaled;
+	}
+
+	DVec3 DoubleVector(double inLow, double inHigh)
+	{
+		double x = UniformDouble(inLow, inHigh);
+		double y = UniformDouble(inLow, inHigh);
+		double z = UniformDouble(inLow, inHigh);
+		return DVec3(x, y, z);
 	}
 
 	// Explicit sequencing: C++ leaves argument evaluation order unspecified.
@@ -499,6 +518,10 @@ struct Fixtures
 	std::vector<Matrix6x6> mLinearSystems;
 	std::vector<Matrix6x1> mRightHandSides;
 	std::vector<Matrix3x3> mSymmetricMatrices;
+	// Same as doubleVectorsA, doubleVectorsB and doubleTransforms in
+	// Fixtures.swift.
+	std::vector<DVec3> mDoubleVectorsA, mDoubleVectorsB;
+	std::vector<DMat44> mDoubleTransforms;
 	std::vector<Array<Vec3>> mGameClouds;
 
 	Fixtures()
@@ -603,6 +626,9 @@ struct Fixtures
 		for (int i = 0; i < cCount; ++i) mLinearSystems.push_back(rng.LinearSystem());
 		for (int i = 0; i < cCount; ++i) mRightHandSides.push_back(rng.RightHandSide());
 		for (int i = 0; i < cCount; ++i) mSymmetricMatrices.push_back(rng.Symmetric3x3());
+		for (int i = 0; i < cCount; ++i) mDoubleVectorsA.push_back(rng.DoubleVector(-1.0e6, 1.0e6));
+		for (int i = 0; i < cCount; ++i) mDoubleVectorsB.push_back(rng.DoubleVector(-1.0e6, 1.0e6));
+		for (int i = 0; i < cCount; ++i) mDoubleTransforms.push_back(DMat44::sRotationTranslation(mRotationsA[i], mDoubleVectorsA[i]));
 
 		// Same as convexHullClouds() and gameClouds in Fixtures.swift: the
 		// clouds in the format Assets/README.md gives, and every 6.755th one.
@@ -913,6 +939,8 @@ int main()
 		}
 		return r;
 	});
+	Sweep<DVec3, DVec3, DVec3>("DoubleVector3.add", f.mDoubleVectorsA, f.mDoubleVectorsB, [](DVec3Arg a, DVec3Arg b) { return a + b; });
+	Sweep<DMat44, DVec3, DVec3>("DoubleMatrix4x4.transformPoint", f.mDoubleTransforms, f.mDoubleVectorsB, [](DMat44Arg m, DVec3Arg v) { return m * v; });
 	Sweep<Quat, Quat, Quat>({ "Quaternion.slerp", 100 }, f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 	Sweep<RayInput, Sphere, float>("Sphere.rayDistance", f.mSphereRays, f.mSpheres, [](const RayInput &r, const Sphere &s) { return RaySphere(r.mOrigin, r.mDirection, s.GetCenter(), s.GetRadius()); });
 	Sweep<RayInput, AxialInput, float>("Capsule.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCapsule(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });
