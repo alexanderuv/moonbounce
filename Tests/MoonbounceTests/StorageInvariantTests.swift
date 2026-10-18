@@ -111,6 +111,34 @@ import Testing
         #expect(v.storage.w == v.storage.z)
     }
 
+    @Test func doubleVector3KeepsTheInvariant() {
+        let a = DoubleVector3(1.5, -2, 3.25), b = DoubleVector3(-4, 0.5, 2)
+        let m = DoubleMatrix4x4(rotation: Self.q, translation: DoubleVector3(1.0e7, -3, 0.5))
+        let results: [(String, DoubleVector3)] = [
+            ("init(_:_:_:)", a),
+            ("init(Vector3)", DoubleVector3(Self.a)),
+            ("init(Vector4)", DoubleVector3(Vector4(1, 2, 3, 4))),
+            ("+", a + b), ("-", a - b), ("prefix -", -a),
+            ("+ Vector3", a + Self.b), ("* DoubleVector3", a * b), ("/ DoubleVector3", a / b),
+            ("* Double", a * 3), ("/ Double", a / 3), ("addingProduct", a.addingProduct(b, a)),
+            ("cross", a.cross(b)), ("normalized", a.normalized()), ("abs", a.abs),
+            ("reciprocal", a.reciprocal), ("squareRoot", a.abs.squareRoot), ("sign", a.sign),
+            ("min", DoubleVector3.min(a, b)), ("max", DoubleVector3.max(a, b)),
+            ("select", DoubleVector3.select(a, b, where: a .< b)), ("|", a | b),
+            ("DoubleMatrix4x4 * DoubleVector3", m * a), ("DoubleMatrix4x4 * Vector3", m * Self.a),
+            ("multiply3x3", m.multiply3x3(a)), ("translation", m.inversed().translation),
+        ]
+        for (operation, result) in results {
+            #expect(result.storage.w == result.storage.z, "\(operation)")
+        }
+        var v = a
+        v.z = 9
+        v[1] = 4
+        v += Self.b
+        #expect(v.storage.w == v.storage.z)
+        #expect((a .< b).lanes.w == (a .< b).lanes.z)
+    }
+
     @Test func rayInverseDirectionKeepsTheInvariant() {
         for direction in [Self.a, Vector3(1, 0, 0), Vector3(0, 1, 0), .zero] {
             let inverse = RayInverseDirection(direction)

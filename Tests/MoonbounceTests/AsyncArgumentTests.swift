@@ -4,8 +4,8 @@ import Testing
 /// Swift Testing hands the elements of a tuple argument to the test through
 /// an async call, the path that corrupts `SIMD4` arguments on x86-64 Windows
 /// (swiftlang/swift#90813). Every type that stores SIMD values goes through it
-/// here, so a type that loses its `FloatLaneStorage` or `UInt32LaneStorage`
-/// carve-out fails on Windows.
+/// here, so a type that loses its `FloatLaneStorage`, `UInt32LaneStorage`,
+/// `DoubleLaneStorage` or `UInt64LaneStorage` carve-out fails on Windows.
 @Suite struct AsyncArgumentTests {
     static let vector3 = Vector3(1, -2, 3.5)
     static let vector4 = Vector4(1, -2, 3.5, 4)
@@ -25,6 +25,9 @@ import Testing
     static let orientedBox = OrientedBox(orientation: matrix, halfExtents: Vector3(1, 2, 0.5))
     static let closestPoint = ClosestPoint(point: vector3, feature: [.a, .c])
     static let polygon = Polygon([vector3, Vector3(0, 1, 0), Vector3(-4, 0.5, 2), Vector3(2, 2, -1), vector3 * 2])
+    static let doubleVector3 = DoubleVector3(1.0e7, -2, 3.5)
+    static let doubleMask = DoubleVector3(1, 2, 3) .< DoubleVector3(2, 2, 4)
+    static let doubleMatrix = DoubleMatrix4x4(linear: matrix, translation: doubleVector3)
 
     @Test(arguments: [("Vector3", vector3, vector3)])
     func vector3Arrives(_ label: String, _ a: Vector3, _ b: Vector3) {
@@ -116,6 +119,24 @@ import Testing
         #expect(b == Self.polygon)
     }
 
+    @Test(arguments: [("DoubleVector3", doubleVector3, doubleVector3)])
+    func doubleVector3Arrives(_ label: String, _ a: DoubleVector3, _ b: DoubleVector3) {
+        #expect(a == Self.doubleVector3)
+        #expect(b == Self.doubleVector3)
+    }
+
+    @Test(arguments: [("DoubleVector3.Mask", doubleMask, doubleMask)])
+    func doubleMaskArrives(_ label: String, _ a: DoubleVector3.Mask, _ b: DoubleVector3.Mask) {
+        #expect(a == Self.doubleMask)
+        #expect(b == Self.doubleMask)
+    }
+
+    @Test(arguments: [("DoubleMatrix4x4", doubleMatrix, doubleMatrix)])
+    func doubleMatrixArrives(_ label: String, _ a: DoubleMatrix4x4, _ b: DoubleMatrix4x4) {
+        #expect(a == Self.doubleMatrix)
+        #expect(b == Self.doubleMatrix)
+    }
+
     @Test(arguments: [("RayInverseDirection", inverseDirection, inverseDirection)])
     func inverseDirectionArrives(_ label: String, _ a: RayInverseDirection, _ b: RayInverseDirection) {
         for value in [a, b] {
@@ -137,6 +158,17 @@ import Testing
     @Test(arguments: rawVectors)
     func rawSIMD4IsStillCorrupted(_ label: String, _ v: SIMD4<Float>) {
         withKnownIssue("swiftlang/swift#90813: SIMD4 arguments to async calls arrive corrupted") {
+            #expect(v == SIMD4(1, 2, 3, 4))
+        }
+    }
+
+    static let rawDoubleVectors: [(String, SIMD4<Double>)] = [("SIMD4<Double>", SIMD4(1, 2, 3, 4))]
+
+    /// The same for a 256-bit vector, which `DoubleLaneStorage` works
+    /// around. A toolchain might fix one width before the other.
+    @Test(arguments: rawDoubleVectors)
+    func rawDoubleSIMD4IsStillCorrupted(_ label: String, _ v: SIMD4<Double>) {
+        withKnownIssue("swiftlang/swift#90813: SIMD4<Double> arguments to async calls arrive corrupted") {
             #expect(v == SIMD4(1, 2, 3, 4))
         }
     }

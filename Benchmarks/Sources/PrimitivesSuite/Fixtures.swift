@@ -26,6 +26,20 @@ struct SplitMix64: RandomNumberGenerator {
         return low + (high - low) * unit
     }
 
+    /// A double in `[low, high)` built from the top 53 bits, which a
+    /// `Double` represents exactly.
+    mutating func uniformDouble(_ low: Double, _ high: Double) -> Double {
+        let unit = Double(next() >> 11) * 0x1p-53
+        return low + (high - low) * unit
+    }
+
+    mutating func doubleVector3(_ low: Double, _ high: Double) -> DoubleVector3 {
+        let x = uniformDouble(low, high)
+        let y = uniformDouble(low, high)
+        let z = uniformDouble(low, high)
+        return DoubleVector3(x, y, z)
+    }
+
     mutating func vector3(_ low: Float, _ high: Float) -> Vector3 {
         let x = uniform(low, high)
         let y = uniform(low, high)
@@ -336,6 +350,13 @@ struct Fixtures: Sendable {
     let rightHandSides: [Vector<6>]
     /// General symmetric 3 × 3 matrices, for the eigendecomposition.
     let symmetricMatrices: [Matrix<3, 3>]
+    /// World positions in [-1e6, 1e6), far enough out to need double
+    /// precision.
+    let doubleVectorsA: [DoubleVector3]
+    let doubleVectorsB: [DoubleVector3]
+    /// Rotation-translation transforms from `rotationsA` and
+    /// `doubleVectorsA`, with no further draws.
+    let doubleTransforms: [DoubleMatrix4x4]
     /// 1,000 of the point clouds in `Assets/convex_hulls.bin`, game models
     /// of 4 to 100 points, spread evenly through the file: their points back
     /// to back, and each cloud's range of them.
@@ -417,6 +438,9 @@ struct Fixtures: Sendable {
         linearSystems = (0..<Self.count).map { _ in rng.matrix6x6() }
         rightHandSides = (0..<Self.count).map { _ in rng.vector6() }
         symmetricMatrices = (0..<Self.count).map { _ in rng.symmetric3x3() }
+        doubleVectorsA = (0..<Self.count).map { _ in rng.doubleVector3(-1.0e6, 1.0e6) }
+        doubleVectorsB = (0..<Self.count).map { _ in rng.doubleVector3(-1.0e6, 1.0e6) }
+        doubleTransforms = zip(rotationsA, doubleVectorsA).map { DoubleMatrix4x4(rotation: $0, translation: $1) }
 
         let clouds = Self.convexHullClouds()
         var points: [Vector3] = []

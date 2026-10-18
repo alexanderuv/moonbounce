@@ -19,6 +19,10 @@ typedef float mb_float4 __attribute__((ext_vector_type(4)));
 typedef unsigned int mb_uint4 __attribute__((ext_vector_type(4)));
 typedef int mb_int4 __attribute__((ext_vector_type(4)));
 
+typedef double mb_double4 __attribute__((ext_vector_type(4)));
+typedef unsigned long long mb_ulong4 __attribute__((ext_vector_type(4)));
+typedef long long mb_long4 __attribute__((ext_vector_type(4)));
+
 #define MB_INLINE static inline __attribute__((always_inline))
 
 #if defined(__aarch64__)
@@ -333,6 +337,94 @@ MB_INLINE mb_float4 mb_rotate(mb_float4 q, mb_float4 p) {
     mb_float4 u_cross_u_cross_p = mb_yzxx(mb_yzxx(u_cross_p) * q - q_yzx * u_cross_p);
     mb_float4 v = q.w * u_cross_p + u_cross_u_cross_p;
     return p + (v + v);
+}
+
+// MARK: - Double lanes
+//
+// The double-precision counterparts of the builtins above, for
+// `DoubleVector3`. The importer maps `mb_double4` onto `SIMD4<Double>` and
+// `mb_ulong4` onto `SIMD4<UInt64>`. A mask lane is all 64 bits set when the
+// condition holds.
+
+/// Lane-wise `a * b + c`, rounded once.
+MB_INLINE mb_double4 mb_dfma(mb_double4 a, mb_double4 b, mb_double4 c) { return __builtin_elementwise_fma(a, b, c); }
+
+/// Each lane with its sign flipped, as IEEE 754 negation requires.
+MB_INLINE mb_double4 mb_dnegate(mb_double4 v) { return -v; }
+
+/// Lane-wise IEEE 754 minNum and maxNum: a NaN operand yields the other.
+MB_INLINE mb_double4 mb_dmin(mb_double4 a, mb_double4 b) { return __builtin_elementwise_min(a, b); }
+MB_INLINE mb_double4 mb_dmax(mb_double4 a, mb_double4 b) { return __builtin_elementwise_max(a, b); }
+
+/// The bits of `v`, unchanged, and the doubles whose bits are `v`.
+MB_INLINE mb_ulong4 mb_double4_bits(mb_double4 v) { return (mb_ulong4)v; }
+MB_INLINE mb_double4 mb_double4_from_bits(mb_ulong4 v) { return (mb_double4)v; }
+
+/// Each lane widened from float to double, exactly.
+MB_INLINE mb_double4 mb_float4_to_double4(mb_float4 v) { return __builtin_convertvector(v, mb_double4); }
+
+/// Each lane narrowed from double to float, rounding to nearest, ties to even.
+MB_INLINE mb_float4 mb_double4_to_float4(mb_double4 v) { return __builtin_convertvector(v, mb_float4); }
+
+/// Each lane narrowed to the largest float no greater than it (`down`
+/// nonzero) or the smallest no less than it (`down` zero), for any input:
+/// subnormal, beyond the float range, signed zero, infinite or NaN.
+///
+/// Narrowing rounds to nearest, so the result is at most one float off the
+/// wanted side. Where widening it back lands on the wrong side of `v`, it
+/// steps one float toward that side by its bits: away from or toward zero
+/// for a nonzero float, to the signed smallest subnormal from zero, and to
+/// the largest finite float from infinity. NaN compares false and stays.
+MB_INLINE mb_float4 mb_double4_to_float4_directed(mb_double4 v, int down) {
+    mb_float4 nearest = __builtin_convertvector(v, mb_float4);
+    mb_double4 widened = __builtin_convertvector(nearest, mb_double4);
+    mb_long4 wrong_side = down ? (mb_long4)(widened > v) : (mb_long4)(widened < v);
+    mb_int4 step = __builtin_convertvector(wrong_side, mb_int4);
+    mb_uint4 bits = (mb_uint4)nearest;
+    mb_int4 negative = (mb_int4)bits < 0;
+    mb_int4 zero = (bits & 0x7FFFFFFFu) == 0;
+    // Down: a negative float's magnitude grows (+1), a positive one's
+    // shrinks (-1). Up: the reverse.
+    mb_uint4 delta = down ? (mb_uint4)((negative & 2) - 1) : (mb_uint4)(1 - (negative & 2));
+    mb_uint4 from_zero = down ? 0x80000001u : 0x00000001u;
+    mb_uint4 stepped = ((bits + delta) & (mb_uint4)~zero) | (from_zero & (mb_uint4)zero);
+    return (mb_float4)((stepped & (mb_uint4)step) | (bits & (mb_uint4)~step));
+}
+
+MB_INLINE mb_ulong4 mb_dequal(mb_double4 a, mb_double4 b) { return (mb_ulong4)(a == b); }
+MB_INLINE mb_ulong4 mb_dless(mb_double4 a, mb_double4 b) { return (mb_ulong4)(a < b); }
+MB_INLINE mb_ulong4 mb_dless_equal(mb_double4 a, mb_double4 b) { return (mb_ulong4)(a <= b); }
+MB_INLINE mb_ulong4 mb_dgreater(mb_double4 a, mb_double4 b) { return (mb_ulong4)(a > b); }
+MB_INLINE mb_ulong4 mb_dgreater_equal(mb_double4 a, mb_double4 b) { return (mb_ulong4)(a >= b); }
+
+/// All ones in the lanes where `v` is NaN.
+MB_INLINE mb_ulong4 mb_dis_nan(mb_double4 v) { return (mb_ulong4)(v != v); }
+
+/// Lanes of `set` where the highest bit of `control` is 1, of `not_set` elsewhere.
+MB_INLINE mb_ulong4 mb_select_ulong4(mb_ulong4 not_set, mb_ulong4 set, mb_ulong4 control) {
+    mb_ulong4 mask = (mb_ulong4)((mb_long4)control >> 63);
+    return (set & mask) | (not_set & ~mask);
+}
+
+/// The highest bit of lane i in bit i of the result.
+MB_INLINE int mb_ulong_mask_bits(mb_ulong4 v) {
+    mb_ulong4 bit = (v >> 63) << (mb_ulong4){0, 1, 2, 3};
+    return (int)__builtin_reduce_or(bit);
+}
+
+/// `(y, z, x, x)` and `(x, y, z, z)` for double lanes.
+MB_INLINE mb_double4 mb_dyzxx(mb_double4 v) { return __builtin_shufflevector(v, v, 1, 2, 0, 0); }
+MB_INLINE mb_double4 mb_dxyzz(mb_double4 v) { return __builtin_shufflevector(v, v, 0, 1, 2, 2); }
+
+/// Every lane set to lane x, y or z of `v`.
+MB_INLINE mb_double4 mb_dsplat_x(mb_double4 v) { return __builtin_shufflevector(v, v, 0, 0, 0, 0); }
+MB_INLINE mb_double4 mb_dsplat_y(mb_double4 v) { return __builtin_shufflevector(v, v, 1, 1, 1, 1); }
+MB_INLINE mb_double4 mb_dsplat_z(mb_double4 v) { return __builtin_shufflevector(v, v, 2, 2, 2, 2); }
+
+/// The cross product of lanes x, y and z; the result's w lane repeats its z.
+MB_INLINE mb_double4 mb_dcross(mb_double4 a, mb_double4 b) {
+    mb_double4 t = a * mb_dyzxx(b) - mb_dyzxx(a) * b;
+    return mb_dyzxx(t);
 }
 
 #endif
