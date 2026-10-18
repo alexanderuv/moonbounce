@@ -346,8 +346,10 @@ MB_INLINE mb_float4 mb_opaque(mb_float4 v) { return v; }
 #endif
 
 /// `(a.x + a.y, a.z + a.w, b.x + b.y, b.z + b.w)`: one `faddp` on arm64 or
-/// `haddps` with SSE3, and the same sums in the same order everywhere, which
-/// `__builtin_reduce_add` does not promise for floats.
+/// `haddps` with SSE3, and the same pairs summed everywhere, which
+/// `__builtin_reduce_add` does not promise for floats. Every sum that isn't
+/// NaN has the same bits on every target; which NaN comes out of two NaNs
+/// can differ.
 ///
 /// Both call the intrinsic. Spelled as shuffles, LLVM sees each lane's
 /// source, and where an input lane is known to be zero, as after `mb_xyz0`,
@@ -357,7 +359,7 @@ MB_INLINE mb_float4 mb_opaque(mb_float4 v) { return v; }
 MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) {
     return (mb_float4)vpaddq_f32((float32x4_t)a, (float32x4_t)b);
 }
-#elif defined(__SSE3__)
+#elif defined(__x86_64__) && defined(__SSE3__)
 MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) { return (mb_float4)_mm_hadd_ps((__m128)a, (__m128)b); }
 #else
 MB_INLINE mb_float4 mb_pairwise_add(mb_float4 a, mb_float4 b) {
