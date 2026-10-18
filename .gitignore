@@ -8,3 +8,4 @@ DerivedData/
 __pycache__/
 /.build-double
 /.build-v3
+/.claude/worktrees/

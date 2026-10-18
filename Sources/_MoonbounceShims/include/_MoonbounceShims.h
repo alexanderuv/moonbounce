@@ -72,10 +72,11 @@ MB_INLINE mb_float4 mb_negate(mb_float4 v) { return -v; }
 /// their vector and double forms. The result is the correctly rounded IEEE
 /// square root, NaN for a negative input.
 ///
-/// Swift's `squareRoot()` compiles to a call to the C library's `sqrtf` on
-/// Windows, which LLVM keeps for negative inputs so the call can set
-/// `errno`: an inlined instruction for other inputs, and a function call
-/// into the C runtime for each negative one, as every ray that misses a
+/// Swift's `squareRoot()` is the C library's `sqrtf` or `sqrt`, and on every
+/// platform but Apple's (Windows and Linux) Swift's C importer compiles it
+/// with `-fmath-errno`. LLVM then keeps a call for negative inputs, so it
+/// can set `errno`: an inlined instruction for other inputs, and a function
+/// call into the C runtime for each negative one, as every ray that misses a
 /// sphere produces. The builtins here have no `errno` and never call.
 MB_INLINE float mb_sqrtf(float x) { return __builtin_elementwise_sqrt(x); }
 MB_INLINE double mb_sqrt(double x) { return __builtin_elementwise_sqrt(x); }
