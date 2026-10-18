@@ -166,6 +166,17 @@ extension ClosestPoint {
     ///   going through the barycentric coordinates.
     @inline(always)
     public static func onTriangle(_ a: Vector3, _ b: Vector3, _ c: Vector3, includesC: Bool = false) -> ClosestPoint {
+        onTriangle(a, b, c, includesC: includesC, inlinesDegenerate: false)
+    }
+
+    /// ``onTriangle(_:_:_:includesC:)``, with the degenerate fallback
+    /// inlined when `inlinesDegenerate`, a constant at each call site, is
+    /// true: for callers that meet degenerate triangles often, as GJK's casts
+    /// do.
+    @inlinable @inline(always)
+    static func onTriangle(
+        _ a: Vector3, _ b: Vector3, _ c: Vector3, includesC: Bool, inlinesDegenerate: Bool
+    ) -> ClosestPoint {
         // Swap a and c when bc is the shorter edge at b. Each squared length
         // is summed into every lane, so the comparison is already a full mask.
         let ba = a.storage - b.storage, bc = c.storage - b.storage
@@ -188,6 +199,9 @@ extension ClosestPoint {
         let normalSquares = normal * normal
         let normalLengthSquared = mb_pairwise_add(mb_pairwise_add(normalSquares, normalSquares), normalSquares).x
         guard normalLengthSquared >= 1.0e-10 else {
+            if inlinesDegenerate {
+                return nearestOnDegenerateTriangle(a, b, c, includesC: includesC)
+            }
             return onDegenerateTriangle(a, b, c, includesC: includesC)
         }
 
@@ -245,11 +259,19 @@ extension ClosestPoint {
     /// vertex before an edge on a tie, and only features that include `c`
     /// when `includesC` is true.
     ///
-    /// Degenerate triangles are rare, so this stays a call rather than
-    /// growing every inlined copy of ``onTriangle(_:_:_:includesC:)``, four
-    /// of them in ``onTetrahedron(_:_:_:_:includesD:)``.
+    /// Degenerate triangles are rare in most queries, so this stays a call
+    /// rather than growing every inlined copy of
+    /// ``onTriangle(_:_:_:includesC:)``, four of them in
+    /// ``onTetrahedron(_:_:_:_:includesD:)``. GJK's casts meet them in most
+    /// queries, and inline ``nearestOnDegenerateTriangle(_:_:_:includesC:)``.
     @usableFromInline @inline(never)
     static func onDegenerateTriangle(_ a: Vector3, _ b: Vector3, _ c: Vector3, includesC: Bool) -> ClosestPoint {
+        nearestOnDegenerateTriangle(a, b, c, includesC: includesC)
+    }
+
+    /// The body of ``onDegenerateTriangle(_:_:_:includesC:)``.
+    @inlinable @inline(always)
+    static func nearestOnDegenerateTriangle(_ a: Vector3, _ b: Vector3, _ c: Vector3, includesC: Bool) -> ClosestPoint {
         var closest = ClosestPoint(point: c, feature: .c)
         var bestDistanceSquared = c.lengthSquared
         @inline(always)
@@ -367,6 +389,15 @@ extension ClosestPoint {
     public static func onTetrahedron(
         _ a: Vector3, _ b: Vector3, _ c: Vector3, _ d: Vector3, includesD: Bool = false
     ) -> ClosestPoint {
+        onTetrahedron(a, b, c, d, includesD: includesD, inlinesDegenerate: false)
+    }
+
+    /// ``onTetrahedron(_:_:_:_:includesD:)``, passing `inlinesDegenerate` on
+    /// to each face's ``onTriangle(_:_:_:includesC:inlinesDegenerate:)``.
+    @inlinable @inline(always)
+    static func onTetrahedron(
+        _ a: Vector3, _ b: Vector3, _ c: Vector3, _ d: Vector3, includesD: Bool, inlinesDegenerate: Bool
+    ) -> ClosestPoint {
         var closest = ClosestPoint(point: .zero, feature: SimplexFeature.a.union(.b).union(.c).union(.d))
         var bestDistanceSquared = Float.greatestFiniteMagnitude
         let outside = originOutsideFaces(a, b, c, d)
@@ -377,14 +408,14 @@ extension ClosestPoint {
                 // not inside either; `a` stands in until a face with d wins.
                 closest = ClosestPoint(point: a, feature: .a)
             } else {
-                closest = onTriangle(a, b, c)
+                closest = onTriangle(a, b, c, includesC: false, inlinesDegenerate: inlinesDegenerate)
             }
             bestDistanceSquared = closest.point.lengthSquared
         }
         // Faces acd, abd and bcd keep d last and the earlier vertices in
         // order, so each face's feature maps back by moving its bits.
         if outside.y != 0 {
-            let face = onTriangle(a, c, d, includesC: includesD)
+            let face = onTriangle(a, c, d, includesC: includesD, inlinesDegenerate: inlinesDegenerate)
             let distanceSquared = face.point.lengthSquared
             if distanceSquared < bestDistanceSquared {
                 let bits = face.feature.rawValue
@@ -393,7 +424,7 @@ extension ClosestPoint {
             }
         }
         if outside.z != 0 {
-            let face = onTriangle(a, b, d, includesC: includesD)
+            let face = onTriangle(a, b, d, includesC: includesD, inlinesDegenerate: inlinesDegenerate)
             let distanceSquared = face.point.lengthSquared
             if distanceSquared < bestDistanceSquared {
                 let bits = face.feature.rawValue
@@ -402,7 +433,7 @@ extension ClosestPoint {
             }
         }
         if outside.w != 0 {
-            let face = onTriangle(b, c, d, includesC: includesD)
+            let face = onTriangle(b, c, d, includesC: includesD, inlinesDegenerate: inlinesDegenerate)
             if face.point.lengthSquared < bestDistanceSquared {
                 closest = ClosestPoint(point: face.point, feature: SimplexFeature(rawValue: face.feature.rawValue << 1))
             }

@@ -225,7 +225,7 @@ extension GJK {
     /// know that; the casts move it with every step along the cast.
     @inlinable @inline(always)
     func closestToOrigin(
-        below limit: Float, lastPointIncluded: Bool = true
+        below limit: Float, lastPointIncluded: Bool = true, inlinesDegenerate: Bool = false
     ) -> (point: Vector3, lengthSquared: Float, feature: UInt32)? {
         let closest: ClosestPoint
         switch count {
@@ -235,10 +235,12 @@ extension GJK {
             closest = unsafe ClosestPoint.onSegment(y[unchecked: 0], y[unchecked: 1])
         case 3:
             closest = unsafe ClosestPoint.onTriangle(
-                y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], includesC: lastPointIncluded)
+                y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], includesC: lastPointIncluded,
+                inlinesDegenerate: inlinesDegenerate)
         default:
             closest = unsafe ClosestPoint.onTetrahedron(
-                y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], y[unchecked: 3], includesD: lastPointIncluded)
+                y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], y[unchecked: 3], includesD: lastPointIncluded,
+                inlinesDegenerate: inlinesDegenerate)
         }
         let lengthSquared = closest.point.lengthSquared
         // Written so NaN fails.
