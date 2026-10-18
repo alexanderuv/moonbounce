@@ -50,20 +50,42 @@ public enum GaussianElimination {
                     }
 
                     for _ in 0..<n {
-                        // The last of the largest remaining elements, row by
-                        // row. Rows and columns pivoted on are skipped
+                        // The pivot is the last of the largest remaining
+                        // elements, row by row; a NaN element is never
+                        // picked. Rows and columns pivoted on are skipped
                         // together, because each pivot is swapped onto the
-                        // diagonal. A NaN element is never picked.
-                        var pivotRow = -1, pivotColumn = -1
-                        var largest: Float = 0
-                        for row in 0..<n where unsafe !pivoted[row] {
-                            for column in 0..<n where unsafe !pivoted[column] {
-                                let element = unsafe abs(at(row, column).pointee)
-                                if element >= largest {
-                                    largest = element
-                                    pivotRow = row
-                                    pivotColumn = column
+                        // diagonal.
+                        //
+                        // It is found in passes rather than by keeping a
+                        // running candidate, whose every update waits on the
+                        // last: each row's maximum, kept in `factors` until
+                        // the elimination needs it, then the largest of
+                        // those, then the last row and column that hold it.
+                        // -1 marks a row with no candidate.
+                        for row in 0..<n {
+                            var rowMaximum: Float = -1
+                            if unsafe !pivoted[row] {
+                                for column in 0..<n where unsafe !pivoted[column] {
+                                    let element = unsafe abs(at(row, column).pointee)
+                                    rowMaximum = element > rowMaximum ? element : rowMaximum
                                 }
+                            }
+                            unsafe factors[row] = rowMaximum
+                        }
+                        var largest: Float = -1
+                        for row in 0..<n {
+                            let rowMaximum = unsafe factors[row]
+                            largest = rowMaximum > largest ? rowMaximum : largest
+                        }
+                        var pivotRow = -1, pivotColumn = -1
+                        if largest >= 0 {
+                            pivotRow = n &- 1
+                            while unsafe factors[pivotRow] != largest {
+                                pivotRow &-= 1
+                            }
+                            pivotColumn = n &- 1
+                            while unsafe pivoted[pivotColumn] || abs(at(pivotRow, pivotColumn).pointee) != largest {
+                                pivotColumn &-= 1
                             }
                         }
                         if pivotColumn < 0 {
