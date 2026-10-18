@@ -10,7 +10,8 @@
 // turn; confirm with the snippet below before removing anything, since a
 // change in Swift Testing alone could also trip it. Recheck the `mb_round`
 // carve-out in the shim header at the same time; it works around a different
-// Windows toolchain gap.
+// Windows toolchain gap. GJK's `SimplexPoints` can then go back to an
+// `InlineArray<4, Vector3>`.
 //
 // To check a toolchain, build this on x86-64 Windows with `-Onone` and with
 // `-O`. While the bug is present it crashes or prints "BAD"; once it is fixed,
