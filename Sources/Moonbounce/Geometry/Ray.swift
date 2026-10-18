@@ -1,3 +1,9 @@
+// Only the ray-box test's lane-mask form, for targets other than arm64,
+// calls the shims directly.
+#if !(arch(arm64) || arch(arm64_32))
+public import _MoonbounceShims
+#endif
+
 /// A half-line starting at `origin` and extending along `direction`.
 ///
 /// `direction` need not be unit length: hit distances are measured in
@@ -100,13 +106,16 @@ extension AABB {
 
         // A parallel axis never bounds the interval: the gate forces its entry
         // to -inf and its exit to +inf.
-        let near = horizontalMaximum3(minimum(minimum(t1, t2), negated(gate)))
-        let far = horizontalMinimum3(maximum(maximum(t1, t2), gate))
-
-        // It only rejects rays whose origin lies outside that slab. With a
-        // reciprocal of 1, t1 = min - o and t2 = max - o, so the origin is
+        //
+        // The origin is only rejected by a parallel slab it lies outside. With
+        // a reciprocal of 1, t1 = min - o and t2 = max - o, so the origin is
         // outside exactly when t1 > 0 or t2 < 0. The gate turns other axes
         // into -inf.
+        #if arch(arm64) || arch(arm64_32)
+        // One instruction reduces each test to a scalar, and the scalar tests
+        // select without branching.
+        let near = horizontalMaximum3(minimum(minimum(t1, t2), negated(gate)))
+        let far = horizontalMinimum3(maximum(maximum(t1, t2), gate))
         let outsideParallelSlab = horizontalMaximum3(minimum(maximum(t1, negated(t2)), gate)) > 0
 
         // The difference of two distinct floats is never 0, so min - max > 0
@@ -115,6 +124,20 @@ extension AABB {
 
         let miss = near > far || far < 0 || outsideParallelSlab || invalid
         return miss ? .infinity : near
+        #else
+        // Reductions are shuffle trees here, which leave the result in every
+        // lane, so each test is a lane mask and one select decides. Scalar
+        // tests would select four times in a row. The lanes agree only
+        // without NaN, and both reduced vectors are NaN-free: their last
+        // min or max takes the gate, never NaN, as its second operand, which
+        // wins over NaN on every target.
+        let near = mb_splat_reduce_max(minimum(minimum(t1, t2), negated(gate)))
+        let far = mb_splat_reduce_min(maximum(maximum(t1, t2), gate))
+        let outsideParallelSlab = mb_greater(minimum(maximum(t1, negated(t2)), gate), .zero)
+        let miss = mb_less(far, near) | mb_less(far, .zero) | outsideParallelSlab
+            | mb_greater(min.storage, max.storage)
+        return mb_select_float4(near, SIMD4(repeating: .infinity), mb_splat_any(miss)).x
+        #endif
     }
 
     /// The distance along `ray` to the box, as in ``rayDistance(origin:inverseDirection:)``.

@@ -29,9 +29,10 @@ public enum MortonCode {
         // operand, and x86-64's `maxps` returns the second.
         let clamped = minimum(maximum(inBox, .zero), SIMD4(repeating: 1))
         // 0.5 + 1023 · fraction, rounded once, then truncated: the nearest
-        // step, halves rounding up.
+        // step, halves rounding up. The clamp keeps every lane in 0.5...1023.5,
+        // so the conversion needs no saturation.
         let steps = multiplyAdd(1023, clamped, SIMD4(repeating: 0.5))
-        return interleave(mb_float4_to_int(steps))
+        return interleave(mb_float4_to_int_in_range(steps))
     }
 
     /// The code of lanes x, y and z of `coordinates`, each below 1024. Lane w
