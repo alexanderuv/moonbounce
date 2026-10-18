@@ -14,7 +14,7 @@ public enum GaussianElimination {
     /// below `tolerance`, or a remaining block that is all NaN, means `a` is
     /// singular, and `a` and `b` are left partly reduced.
     ///
-    /// Bookkeeping takes five bytes per column of stack. Beyond 256
+    /// Bookkeeping takes five bytes per column of stack. Beyond 204
     /// columns it is a heap allocation instead.
     @inline(always)
     public static func solve<A: MatrixProtocol, B: MatrixProtocol>(
