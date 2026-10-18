@@ -74,7 +74,7 @@ Benchmarks live in the separate `Benchmarks/` package.
 
 - Names are `Type.operation`.
 - Each sweep runs 1,000 operations over seeded SplitMix64 fixtures. By default, each measured iteration runs 1,000 sweeps.
-- A benchmark whose iterations would take longer than about 10 ms sets `sweepsPerIteration` to the largest power of ten that keeps them within that, on both tier 1 platforms, for Moonbounce and for its Jolt counterpart. 10 ms is half the 20 ms at which 100 iterations fill the 2-second limit, so a slower machine still gets them in time. An iteration's time includes its setup outside the clock, which counts toward the limit. A benchmark whose single sweep already takes longer runs one. `ConvexHullBuilder.build` is one: Jolt builds its 1,000 hulls in about 11 ms on macOS arm64, and Moonbounce in about 7 ms there and 9.2 ms on Windows x86-64.
+- A benchmark whose iterations would take longer than about 10 ms sets `sweepsPerIteration` to the largest power of ten that keeps them within that, on both tier 1 platforms, for Moonbounce and for its Jolt counterpart. 10 ms is half the 20 ms at which 100 iterations fill the 2-second limit, so a slower machine still gets them in time. An iteration's time includes its setup outside the clock, which counts toward the limit. A benchmark whose single sweep already takes longer runs one. `ConvexHullBuilder.build` is one: a sweep of 1,000 hulls takes Jolt about 15 ms on Windows x86-64 and Moonbounce about 9 ms, and both 6 to 8 ms on macOS arm64.
 - A benchmark whose operation reuses storage it allocates, such as a builder, the welder or EPA, makes that storage once, before the warm-up, and keeps it across iterations (`SuiteBenchmark.keepingState`). For storage the operation sizes, that setup runs the operation once, so no iteration repeats the sizing. The Jolt harness keeps what Jolt lets a caller reuse: the outputs, `GJKClosestPoint` and `EPAPenetrationDepth`. Jolt's hull builders and `Indexify` allocate on every call, which the malloc column shows.
 - The Jolt counterpart of each benchmark runs the same sweeps per iteration, and `JoltComparison/compare.py` stops if the two differ.
 - Metrics are wall time, retired instructions (thread cycles on Windows) and malloc count.
@@ -138,20 +138,7 @@ Both engines must start from the same state, so some scenes reproduce the refere
 
 ## Reference results
 
-Jolt v5.6.0, Distribution build. Each figure covers 1,000 operations and is the median over three interleaved rounds of the p50, from `JoltComparison/compare.py`. Moonbounce allocates nothing in any benchmark; Jolt's hull builders and `Indexify`, behind `VertexWelder.weld`, allocate on every call.
-
-### Math core, macOS arm64
-
-| Benchmark | Moonbounce ns | Jolt ns | Moonbounce is | Moonbounce instr/op | Jolt instr/op |
-|---|---|---|---|---|---|
-| `AABB.encapsulate` | 499 | 548 | 10% faster | 6.0 | 9.0 |
-| `AABB.overlaps` | 490 | 503 | even | 14.0 | 15.0 |
-| `AABB.rayDistance` | 1,346 | 2,379 | 77% faster | 38.1 | 38.0 |
-| `Quaternion.multiply` | 762 | 1,362 | 79% faster | 16.1 | 25.0 |
-| `Quaternion.rotate` | 1,337 | 1,453 | 9% faster | 24.1 | 25.0 |
-| `Vector3.cross` | 629 | 615 | even | 14.0 | 14.0 |
-| `Vector3.dot` | 292 | 281 | even | 9.1 | 9.0 |
-| `Vector3.normalized` | 825 | 826 | even | 11.1 | 11.0 |
+Jolt v5.6.0, Distribution build, from `JoltComparison/compare.py`: each figure is the median over three interleaved rounds of the p50. Times cover 1,000 operations; instruction and cycle counts are per operation. Moonbounce allocates nothing in any benchmark on macOS, where allocations are counted.
 
 ### Phase 1, macOS arm64
 
@@ -208,7 +195,7 @@ Apple M4, macOS 27.0.1. Moonbounce at f292350, built with Swift 6.4; Jolt built 
 | `Vector4.sinCos` | 1,845 | 2,654 | 44% faster | 42.1 | 45.0 |
 | `VertexWelder.weld` | 73,988 | 81,842 | 11% faster | 1,325 | 1,891 |
 
-Three rows retire more instructions than Jolt, though they take no more time: `Matrix4x4.multiply`, `transformPoint` and `inversedRotationTranslation`, by one to three instructions per operation. Each extra instruction is a pointer increment in the benchmark loop, not in the operation. Swift's compiler gives each array in the loop its own pointer, offset so that a load can't advance it, and adds to it separately; clang folds the same increments into Jolt's loads. The operations themselves are as long as Jolt's or shorter. `Matrix4x4.transformPoint`'s wall time also moves between builds with the same instructions, from 429 to 503 ns, with code and data layout ([#47](https://github.com/alexanderuv/moonbounce/issues/47)).
+Three rows retire more than 5% more instructions than Jolt, with wall time even or faster: `Matrix4x4.multiply`, `transformPoint` and `inversedRotationTranslation`, by one to three instructions per operation. Each extra instruction is a pointer increment in the benchmark loop, not in the operation. Swift's compiler biases each array's pointer so its loads use negative offsets, which rules out post-indexed loads, and adds to each pointer separately; clang folds the same increments into Jolt's loads. The operations themselves are as long as Jolt's or shorter.
 
 ### Phase 1, Windows x86-64
 
@@ -265,4 +252,4 @@ Intel Core i9-12900KF, Windows 11 25H2 (build 26200.9711). Moonbounce at f292350
 | `Vector4.sinCos` | 3,487 | 3,744 | 7% faster | 11.1 | 11.9 | MSVC |
 | `VertexWelder.weld` | 182,150 | 225,030 | 24% faster | 579.0 | 716.1 | MSVC |
 
-Two rows are slower than Jolt, and [#105](https://github.com/alexanderuv/moonbounce/issues/105) tracks them. `GJK.castRay` runs the same iterations as Jolt with fewer instructions and branch mispredictions, but at lower throughput; the issue has the profile. `Matrix4x4.inversedRotationTranslation` has been 4 to 6% behind in every run, about 0.2 cycles per operation. `DoubleVector3.add` is not a gap: its code hasn't changed, and it measures 551 to 704 ns from build to build with code layout ([#47](https://github.com/alexanderuv/moonbounce/issues/47)), even with Jolt in most builds.
+Three rows are slower than Jolt in this run. Two trail it, and [#105](https://github.com/alexanderuv/moonbounce/issues/105) tracks them. `GJK.castRay` runs the same iterations as Jolt, and a profile shows fewer instructions and branch mispredictions per query, but fewer instructions per cycle; the issue has the profile. `Matrix4x4.inversedRotationTranslation` has been 3 to 6% behind across runs, about 0.2 cycles per operation. The third, `DoubleVector3.add`, measured even at 6ef70ec, 559 against 551 ns, and neither its code nor its benchmark has changed since; swings like this between builds of a small kernel are what [#47](https://github.com/alexanderuv/moonbounce/issues/47) tracks.
