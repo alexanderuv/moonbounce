@@ -70,6 +70,9 @@ import Testing
             Plane(point: a, normal: .axisX), Plane(point: b, normal: Vector3(1, 1, 0).normalized()),
             Plane(point: a, normal: Vector3(1, -2, 3).normalized())) ?? .zero),
         ("Ray.point(at:)", Ray(origin: a, direction: b).point(at: 0.5)),
+        ("Matrix4x4.transposedMultiply3x3", Matrix4x4(
+            columns: Vector4(1, -2, 3, 4), Vector4(0.5, 6, -7, 8), Vector4(9, 1, 2.5, -3), Vector4(4, 5, 6, 1)
+        ).transposedMultiply3x3(b)),
         ("init(Vector4)", Vector3(Vector4(1, 2, 3, 4))),
         ("init(bitPattern:)", Vector3(bitPattern: UInt32Vector4(1, 2, 3, 4))),
         ("select", Vector3.select(a, b, where: UInt32Vector4(0, 0, 0, 0xFFFF_FFFF))),
@@ -97,6 +100,29 @@ import Testing
     @Test(arguments: results)
     func fourthLaneRepeatsZ(_ operation: String, _ result: Vector3) {
         #expect(result.storage.w == result.storage.z, "\(operation)")
+    }
+
+    @Test func transposedProductMatchesTransposingFirst() {
+        // Bit for bit in all four lanes, for any bits: random, signed zeros,
+        // infinities and NaN, with lane w repeating lane z. A NaN only has to
+        // stay a NaN: which payload wins among NaN operands depends on their
+        // order, which the optimizer may swap, as it does on x86-64 without
+        // FMA, where each lane is a separate scalar chain.
+        let specials: [Float] = [0, -0.0, 1, -1, .infinity, -.infinity, .nan, .greatestFiniteMagnitude, .leastNonzeroMagnitude]
+        var rng = SplitMix64()
+        func value() -> Float {
+            rng.next() % 4 == 0 ? specials[Int(rng.next() % UInt64(specials.count))] : Float(bitPattern: UInt32(truncatingIfNeeded: rng.next()))
+        }
+        func same(_ a: Float, _ b: Float) -> Bool { a.bitPattern == b.bitPattern || (a.isNaN && b.isNaN) }
+        for _ in 0..<20_000 {
+            let m = Matrix4x4(
+                columns: Vector4(value(), value(), value(), value()), Vector4(value(), value(), value(), value()),
+                Vector4(value(), value(), value(), value()), Vector4(value(), value(), value(), value()))
+            let v = Vector3(value(), value(), value())
+            let product = m.transposedMultiply3x3(v).storage, reference = m.transposed3x3().multiply3x3(v).storage
+            #expect(same(product.x, reference.x) && same(product.y, reference.y) && same(product.z, reference.z))
+            #expect(same(product.w, product.z))
+        }
     }
 
     @Test func mutatorsKeepTheInvariant() {
