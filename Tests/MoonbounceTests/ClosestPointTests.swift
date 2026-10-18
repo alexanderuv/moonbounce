@@ -186,6 +186,18 @@ import Testing
         #expect(ClosestPoint.onTriangle(a, b, c) == ClosestPoint(point: c, feature: .c))
     }
 
+    @Test func faceExitKeepsItsBits() {
+        // A face exit whose centroid dot rounds differently in every other
+        // grouping of its x, y and z products (lane w is 0 here): arm64's
+        // pairwise sums and x86-64's scalar adds must give these exact bits.
+        let a = Vector3(10.2972975, 8.216216, 20.324324), b = Vector3(23.108109, -13.189189, -22.945946)
+        let c = Vector3(-20.702703, 25.135136, -8.243243)
+        let closest = ClosestPoint.onTriangle(a, b, c)
+        #expect(closest.feature == [.a, .b, .c])
+        #expect([closest.point.x.bitPattern, closest.point.y.bitPattern, closest.point.z.bitPattern]
+            == [1084498471, 1087410749, 3218757158])
+    }
+
     // MARK: Tetrahedron
 
     /// The corner tetrahedron with legs 2 along each axis, moved by
