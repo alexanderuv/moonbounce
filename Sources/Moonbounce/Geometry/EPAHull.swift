@@ -1,3 +1,19 @@
+extension Vector3 {
+    /// ``dot(_:)`` through `maskedDot3`: the same bits, and fewer
+    /// instructions in the hull's code, which is dense with dot products.
+    @inlinable @inline(always)
+    func hullDot(_ other: Vector3) -> Float {
+        maskedDot3(storage, other.storage)
+    }
+
+    @inlinable @inline(always)
+    var hullLengthSquared: Float { hullDot(self) }
+
+    /// The same vector, hidden from the optimizer; see `opaque`.
+    @inlinable @inline(always)
+    var opaqueToOptimizer: Vector3 { Vector3(storage: opaque(storage)) }
+}
+
 /// A neighbour across one edge of an ``EPAHull`` triangle.
 @usableFromInline
 struct EPAHullEdge: Sendable, BitwiseCopyable {
@@ -67,23 +83,27 @@ struct EPAHullTriangle: Sendable, BitwiseCopyable {
         inQueue = false
 
         centroid = (y0 + y1 + y2) / 3
-        let y10 = y1 - y0, y20 = y2 - y0, y21 = y2 - y1
-        let y20LengthSquared = y20.lengthSquared, y21LengthSquared = y21.lengthSquared
-        let y10LengthSquared = y10.lengthSquared
+        // Seen through, the sides tempt LLVM to fold the cross product's
+        // shuffles into the subtractions and pack other lanes into their w
+        // lanes, which costs a dozen lane moves.
+        let y10 = (y1 - y0).opaqueToOptimizer, y20 = (y2 - y0).opaqueToOptimizer
+        let y21 = (y2 - y1).opaqueToOptimizer
+        let y20LengthSquared = y20.hullLengthSquared, y21LengthSquared = y21.hullLengthSquared
+        let y10LengthSquared = y10.hullLengthSquared
         if y20LengthSquared < y21LengthSquared {
             normal = y10.preciseCross(y20)
-            let normalLengthSquared = normal.lengthSquared
+            let normalLengthSquared = normal.hullLengthSquared
             guard normalLengthSquared > EPA.minTriangleArea else { return }
             // The plane's distance from the centroid, signed: more accurate
             // than through the barycentric coordinates.
-            let centroidDotNormal = centroid.dot(normal)
+            let centroidDotNormal = centroid.hullDot(normal)
             closestLengthSquared = Swift.abs(centroidDotNormal) * centroidDotNormal / normalLengthSquared
             // v = y0 + l0·y10 + l1·y20 with v · y10 = v · y20 = 0, by
             // Cramer's rule.
-            let y10DotY20 = y10.dot(y20)
+            let y10DotY20 = y10.hullDot(y20)
             let determinant = Float.differenceOfProducts(y10LengthSquared, y20LengthSquared, y10DotY20, y10DotY20)
             guard determinant > 0 else { return }
-            let y0DotY10 = y0.dot(y10), y0DotY20 = y0.dot(y20)
+            let y0DotY10 = y0.hullDot(y10), y0DotY20 = y0.hullDot(y20)
             let l0 = Float.differenceOfProducts(y10DotY20, y0DotY20, y20LengthSquared, y0DotY10) / determinant
             let l1 = Float.differenceOfProducts(y10DotY20, y0DotY10, y10LengthSquared, y0DotY20) / determinant
             lambda0 = l0
@@ -92,15 +112,15 @@ struct EPAHullTriangle: Sendable, BitwiseCopyable {
             closestPointInterior = Self.isInterior(l0, l1)
         } else {
             normal = y10.preciseCross(y21)
-            let normalLengthSquared = normal.lengthSquared
+            let normalLengthSquared = normal.hullLengthSquared
             guard normalLengthSquared > EPA.minTriangleArea else { return }
-            let centroidDotNormal = centroid.dot(normal)
+            let centroidDotNormal = centroid.hullDot(normal)
             closestLengthSquared = Swift.abs(centroidDotNormal) * centroidDotNormal / normalLengthSquared
             // v = y1 + l0·(y0 - y1) + l1·y21 with v · y10 = v · y21 = 0.
-            let y10DotY21 = y10.dot(y21)
+            let y10DotY21 = y10.hullDot(y21)
             let determinant = Float.differenceOfProducts(y10LengthSquared, y21LengthSquared, y10DotY21, y10DotY21)
             guard determinant > 0 else { return }
-            let y1DotY10 = y1.dot(y10), y1DotY21 = y1.dot(y21)
+            let y1DotY10 = y1.hullDot(y10), y1DotY21 = y1.hullDot(y21)
             let l0 = Float.differenceOfProducts(y21LengthSquared, y1DotY10, y10DotY21, y1DotY21) / determinant
             let l1 = Float.differenceOfProducts(y10DotY21, y1DotY10, y10LengthSquared, y1DotY21) / determinant
             lambda0 = l0
@@ -119,13 +139,13 @@ struct EPAHullTriangle: Sendable, BitwiseCopyable {
     /// Whether `point` is strictly in front of the triangle's plane.
     @inlinable @inline(always)
     func isFacing(_ point: Vector3) -> Bool {
-        normal.dot(point - centroid) > 0
+        normal.hullDot(point - centroid) > 0
     }
 
     /// Whether the origin is strictly in front of the triangle's plane.
     @inlinable @inline(always)
     var isFacingOrigin: Bool {
-        normal.dot(centroid) < 0
+        normal.hullDot(centroid) < 0
     }
 }
 
@@ -419,9 +439,9 @@ struct EPAHull: ~Copyable, @unchecked Sendable {
             let t = unsafe queue[i].triangle
             guard unsafe !triangles[Int(t)].removed else { continue }
             let normal = unsafe triangles[Int(t)].normal
-            let dot = unsafe normal.dot(point - triangles[Int(t)].centroid)
+            let dot = unsafe normal.hullDot(point - triangles[Int(t)].centroid)
             guard dot > 0 else { continue }
-            let distanceSquared = dot * dot / normal.lengthSquared
+            let distanceSquared = dot * dot / normal.hullLengthSquared
             if distanceSquared > bestDistanceSquared {
                 best = t
                 bestDistanceSquared = distanceSquared
