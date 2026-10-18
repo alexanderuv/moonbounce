@@ -9,7 +9,7 @@ BenchmarkRunner requires: `Matrix4x4\..*` selects every Matrix4x4 benchmark,
 `Matrix4x4` selects none.
 
 Fetches Jolt at --jolt-version into JoltComparison/.build (git-ignored), builds its
-harness with CMake, then runs both suites in alternating rounds so background
+harness with CMake, then runs both sides in alternating rounds so background
 load and thermal drift hit both sides alike. Each figure is the median over
 rounds of the per-run p50, normalized to nanoseconds and instructions (cycles on
 Windows) per 1,000 operations. Instruction counts are deterministic; wall times
@@ -40,6 +40,9 @@ ROOT = HERE.parent
 BUILD = HERE / ".build"
 
 DEFAULT_JOLT_VERSION = "v5.6.0"
+# The harness's suites, each an executable of its own (CMakeLists.txt), in
+# the order BenchmarkRunner registers them.
+SUITES = ("primitives", "core")
 # Within this relative difference the two count as even.
 TOLERANCE = 0.05
 
@@ -108,11 +111,11 @@ def run(command, cwd):
 
 def build_jolt(cmake, visual_studio, jolt_version):
     """Builds the harness against Jolt in its Distribution configuration and
-    returns the executable for each compiler, by name."""
+    returns each suite's executable for each compiler, by name."""
     if not WINDOWS:
         run([cmake, "-S", HERE, "-B", BUILD, "-G", "Ninja", f"-DJOLT_VERSION={jolt_version}"], HERE)
         run([cmake, "--build", BUILD], HERE)
-        return {"Clang": BUILD / "jolt_primitives"}
+        return {"Clang": [BUILD / f"jolt_{suite}" for suite in SUITES]}
 
     # As Jolt's Build/cmake_vs20XX_cl.bat and cmake_vs20XX_clang.bat do. Jolt
     # selects its instruction set with /arch only under a Visual Studio
@@ -130,23 +133,25 @@ def build_jolt(cmake, visual_studio, jolt_version):
             f"-DJOLT_VERSION={jolt_version}",
         ], HERE)
         run([cmake, "--build", build, "--config", "Distribution"], HERE)
-        executables[name] = build / "Distribution" / "jolt_primitives.exe"
+        executables[name] = [build / "Distribution" / f"jolt_{suite}.exe" for suite in SUITES]
     return executables
 
 
-def jolt_round(executable):
-    """One run of the Jolt harness. Its figures are per iteration, so they are
-    scaled by each benchmark's sweeps per iteration to 1,000 operations."""
-    report = json.loads(run([executable], HERE))
+def jolt_round(executables):
+    """One run of each suite's Jolt harness, one after another. Their figures
+    are per iteration, so they are scaled by each benchmark's sweeps per
+    iteration to 1,000 operations."""
     results = {}
-    for name, metrics in report["benchmarks"].items():
-        scale = 1000 / (report["operationsPerSweep"] * metrics["sweepsPerIteration"])
-        results[name] = {
-            "sweeps": metrics["sweepsPerIteration"],
-            "ns": metrics["wallClockNs"][2] * scale,
-            "count": metrics[COUNTER][2] * scale,
-            "mallocs": metrics["mallocs"][-1],
-        }
+    for executable in executables:
+        report = json.loads(run([executable], HERE))
+        for name, metrics in report["benchmarks"].items():
+            scale = 1000 / (report["operationsPerSweep"] * metrics["sweepsPerIteration"])
+            results[name] = {
+                "sweeps": metrics["sweepsPerIteration"],
+                "ns": metrics["wallClockNs"][2] * scale,
+                "count": metrics[COUNTER][2] * scale,
+                "mallocs": metrics["mallocs"][-1],
+            }
     return report["jolt"], results
 
 
@@ -180,6 +185,20 @@ def swift_round(runner, name_filters):
             "mallocs": None if mallocs is None else mallocs[-1],
         }
     return results
+
+
+def check_counterparts(swift, jolt_builds, name_filters):
+    """Stops unless each benchmark has a counterpart of the same name on the
+    other side, in every Jolt build: each Swift benchmark that ran, and each
+    Jolt benchmark the filters select. The names are fixed in code, so one
+    round shows them."""
+    missing = []
+    for compiler, jolt in jolt_builds.items():
+        selected = {name for name in jolt if not name_filters or any(re.fullmatch(f, name) for f in name_filters)}
+        missing += [f"{name} (no Jolt {compiler} counterpart)" for name in sorted(set(swift) - selected)]
+        missing += [f"{name} (no Swift counterpart)" for name in sorted(selected - set(swift))]
+    if missing:
+        sys.exit(f"compare.py: benchmarks without a counterpart: {', '.join(missing)}")
 
 
 def check_sweeps(swift, jolt_builds):
@@ -248,14 +267,13 @@ def main():
             jolt_rounds[compiler].append(results)
         swift_rounds.append(swift_round(runner, arguments.filter))
         if len(swift_rounds) == 1:
-            check_sweeps(swift_rounds[0], {compiler: rounds[0] for compiler, rounds in jolt_rounds.items()})
+            first_jolt_round = {compiler: rounds[0] for compiler, rounds in jolt_rounds.items()}
+            check_counterparts(swift_rounds[0], first_jolt_round, arguments.filter)
+            check_sweeps(swift_rounds[0], first_jolt_round)
     jolt = fastest({compiler: combine(rounds) for compiler, rounds in jolt_rounds.items()})
     swift = combine(swift_rounds)
 
-    if arguments.filter:
-        jolt = {name: value for name, value in jolt.items() if any(re.fullmatch(f, name) for f in arguments.filter)}
-    names = sorted(set(swift) & set(jolt))
-    unmatched = sorted(set(swift) ^ set(jolt))
+    names = sorted(swift)
     several_compilers = len(jolt_executables) > 1
 
     unit = "cycles" if COUNTER == "cycles" else "instr"
@@ -288,8 +306,6 @@ def main():
         print("  ".join(cell.ljust(widths[i]) if i in left_aligned else cell.rjust(widths[i]) for i, cell in enumerate(row)).rstrip())
         if index == 0:
             print("  ".join("-" * width for width in widths))
-    if unmatched:
-        print(f"\nWithout a counterpart: {', '.join(unmatched)}")
 
 
 if __name__ == "__main__":

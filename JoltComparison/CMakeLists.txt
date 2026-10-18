@@ -63,8 +63,13 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JoltPhysics)
 
-add_executable(jolt_primitives Primitives.cpp)
-target_link_libraries(jolt_primitives PRIVATE Jolt)
-target_compile_definitions(jolt_primitives PRIVATE JOLT_VERSION="${JOLT_VERSION}")
+# One harness per suite, each a single file that includes Harness.h, so the
+# code a suite measures compiles the same whatever the other suites hold.
+foreach(suite Primitives Core)
+    string(TOLOWER ${suite} name)
+    add_executable(jolt_${name} ${suite}.cpp)
+    target_link_libraries(jolt_${name} PRIVATE Jolt)
+    target_compile_definitions(jolt_${name} PRIVATE JOLT_VERSION="${JOLT_VERSION}")
+endforeach()
 # Moonbounce's copy of Jolt's convex_hulls.bin, which the Swift benchmarks read.
 target_compile_definitions(jolt_primitives PRIVATE MOONBOUNCE_ASSETS="${CMAKE_CURRENT_SOURCE_DIR}/../Assets")
