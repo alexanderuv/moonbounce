@@ -276,9 +276,9 @@ extension Vector3 {
     }
 
     /// Each component clamped to `lower`...`upper`, for `lower` no greater than
-    /// `upper`. A NaN component becomes `lower`'s on every target. A NaN limit, or
-    /// a component and limit that are zeros of opposite sign, give a result that
-    /// differs by target (docs/adr/0002).
+    /// `upper`. A NaN component becomes `lower`'s on every target. A NaN limit,
+    /// or a component and limit that are zeros of opposite sign, give a result
+    /// that differs by target (docs/adr/0002).
     @inline(always)
     public func clamped(min lower: Vector3, max upper: Vector3) -> Vector3 {
         Vector3.min(Vector3.max(self, lower), upper)
@@ -376,15 +376,15 @@ extension Vector3 {
 // MARK: - Reductions
 
 extension Vector3 {
-    /// The smallest component. With a NaN component, or zeros of both signs, the result
-    /// differs by target and can be NaN (docs/adr/0002);
-    /// ``lowestComponentIndex`` skips NaN.
+    /// The smallest component. The result differs by target with a NaN
+    /// component, when it can be NaN, or with zeros of both signs
+    /// (docs/adr/0002). ``lowestComponentIndex`` skips NaN.
     @inline(always)
     public func reduceMin() -> Float { horizontalMinimum3(storage) }
 
-    /// The largest component. With a NaN component, or zeros of both signs, the result
-    /// differs by target and can be NaN (docs/adr/0002);
-    /// ``highestComponentIndex`` skips NaN.
+    /// The largest component. The result differs by target with a NaN
+    /// component, when it can be NaN, or with zeros of both signs
+    /// (docs/adr/0002). ``highestComponentIndex`` skips NaN.
     @inline(always)
     public func reduceMax() -> Float { horizontalMaximum3(storage) }
 

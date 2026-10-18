@@ -6,7 +6,7 @@ Status: accepted
 
 Moonbounce's lane-wise minimum and maximum (`mb_min`, `mb_max`, their reductions and double forms, and the `min`, `max` and `clamped` built on them) are in the hot path of bounding boxes, ray tests, reductions and clamps. They were IEEE 754 minNum and maxNum on every target: a NaN operand yields the other operand.
 
-arm64 has those instructions (`fminnm`, `fmaxnm`). x86-64 doesn't: its `minps` and `maxps` return the second operand whenever either is NaN. Keeping minNum there costs a NaN test and a blend on every min and max, on the dependency chain. Measured on Windows x86-64 for #26, that made `AABB.encapsulate`, `AABB.rayDistance`, `AABB4.rayDistance` and `Vector4.reduceMin` 1.3 to 2.5 times slower than [Jolt](https://github.com/jrouwe/JoltPhysics).
+arm64 has those instructions (`fminnm`, `fmaxnm`). x86-64 doesn't: its `minps` and `maxps` return the second operand whenever either is NaN. Keeping minNum there costs a NaN test and a blend on every min and max, on the dependency chain. Measured on Windows x86-64 for #26, that made `AABB.encapsulate`, `AABB.rayDistance`, `AABB4.rayDistance` and `Vector4.reduceMin` 2.3 to 3.9 times slower than [Jolt](https://github.com/jrouwe/JoltPhysics).
 
 ## Decision
 

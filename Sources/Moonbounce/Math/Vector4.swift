@@ -210,14 +210,14 @@ extension Vector4 {
 // MARK: - Reductions
 
 extension Vector4 {
-    /// The smallest lane. With a NaN lane, or zeros of both signs, the result
-    /// differs by target and can be NaN (docs/adr/0002);
+    /// The smallest lane. The result differs by target with a NaN lane, when it
+    /// can be NaN, or with zeros of both signs (docs/adr/0002).
     /// ``lowestComponentIndex`` skips NaN.
     @inline(always)
     public func reduceMin() -> Float { mb_reduce_min(simd) }
 
-    /// The largest lane. With a NaN lane, or zeros of both signs, the result
-    /// differs by target and can be NaN (docs/adr/0002);
+    /// The largest lane. The result differs by target with a NaN lane, when it
+    /// can be NaN, or with zeros of both signs (docs/adr/0002).
     /// ``highestComponentIndex`` skips NaN.
     @inline(always)
     public func reduceMax() -> Float { mb_reduce_max(simd) }
@@ -276,8 +276,8 @@ extension Vector4 {
     public static func max(_ a: Vector4, _ b: Vector4) -> Vector4 { Vector4(mb_max(a.simd, b.simd)) }
 
     /// Each lane clamped to `lower`...`upper`, for `lower` no greater than
-    /// `upper`. A NaN lane becomes `lower`'s on every target. A NaN limit, or
-    /// a lane and limit that are zeros of opposite sign, give a result that
+    /// `upper`. A NaN lane becomes `lower`'s on every target. A NaN limit, or a
+    /// lane and limit that are zeros of opposite sign, give a result that
     /// differs by target (docs/adr/0002).
     @inline(always)
     public func clamped(min lower: Vector4, max upper: Vector4) -> Vector4 {
