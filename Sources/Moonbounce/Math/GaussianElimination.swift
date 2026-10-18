@@ -14,7 +14,7 @@ public enum GaussianElimination {
     /// below `tolerance`, or a remaining block that is all NaN, means `a` is
     /// singular, and `a` and `b` are left partly reduced.
     ///
-    /// Bookkeeping takes eight bytes per column of stack. Beyond 128
+    /// Bookkeeping takes five bytes per column of stack. Beyond 256
     /// columns it is a heap allocation instead.
     @inline(always)
     public static func solve<A: MatrixProtocol, B: MatrixProtocol>(
@@ -29,94 +29,96 @@ public enum GaussianElimination {
 
         return unsafe a.withUnsafeMutableElements { a, aRowStride, aColumnStride in
             unsafe b.withUnsafeMutableElements { b, bRowStride, bColumnStride in
-                withUnsafeTemporaryAllocation(of: Float.self, capacity: 2 &* n) { scratch in
-                    // Per row: whether it has been pivoted on (nonzero), and
-                    // its elimination factor in the current step.
-                    let pivoted = scratch.baseAddress!
-                    let factors = unsafe pivoted + n
-                    unsafe scratch.initialize(repeating: 0)
-                    @inline(always) func at(_ row: Int, _ column: Int) -> UnsafeMutablePointer<Float> {
-                        unsafe a + (row &* aRowStride &+ column &* aColumnStride)
-                    }
-                    @inline(always) func bAt(_ row: Int, _ column: Int) -> UnsafeMutablePointer<Float> {
-                        unsafe b + (row &* bRowStride &+ column &* bColumnStride)
-                    }
+                // Per row: whether it has been pivoted on, and its elimination
+                // factor in the current step. The flags are `Bool`, not
+                // `Float`: on x86-64 a float compare for equality also
+                // branches on the unordered case.
+                withUnsafeTemporaryAllocation(of: Bool.self, capacity: n) { pivoted in
+                    withUnsafeTemporaryAllocation(of: Float.self, capacity: n) { factors in
+                        unsafe pivoted.initialize(repeating: false)
+                        @inline(always) func at(_ row: Int, _ column: Int) -> UnsafeMutablePointer<Float> {
+                            unsafe a + (row &* aRowStride &+ column &* aColumnStride)
+                        }
+                        @inline(always) func bAt(_ row: Int, _ column: Int) -> UnsafeMutablePointer<Float> {
+                            unsafe b + (row &* bRowStride &+ column &* bColumnStride)
+                        }
 
-                    for _ in 0..<n {
-                        // The last of the largest remaining elements, row by
-                        // row. Rows and columns pivoted on are skipped
-                        // together, because each pivot is swapped onto the
-                        // diagonal. A NaN element is never picked.
-                        var pivotRow = -1, pivotColumn = -1
-                        var largest: Float = 0
-                        for row in 0..<n where unsafe pivoted[row] == 0 {
-                            for column in 0..<n where unsafe pivoted[column] == 0 {
-                                let element = unsafe abs(at(row, column).pointee)
-                                if element >= largest {
-                                    largest = element
-                                    pivotRow = row
-                                    pivotColumn = column
+                        for _ in 0..<n {
+                            // The last of the largest remaining elements, row by
+                            // row. Rows and columns pivoted on are skipped
+                            // together, because each pivot is swapped onto the
+                            // diagonal. A NaN element is never picked.
+                            var pivotRow = -1, pivotColumn = -1
+                            var largest: Float = 0
+                            for row in 0..<n where unsafe !pivoted[row] {
+                                for column in 0..<n where unsafe !pivoted[column] {
+                                    let element = unsafe abs(at(row, column).pointee)
+                                    if element >= largest {
+                                        largest = element
+                                        pivotRow = row
+                                        pivotColumn = column
+                                    }
                                 }
                             }
-                        }
-                        if pivotColumn < 0 {
-                            return false
-                        }
-                        unsafe pivoted[pivotColumn] = 1
+                            if pivotColumn < 0 {
+                                return false
+                            }
+                            unsafe pivoted[pivotColumn] = true
 
-                        // Move the pivot onto the diagonal.
-                        if pivotRow != pivotColumn {
+                            // Move the pivot onto the diagonal.
+                            if pivotRow != pivotColumn {
+                                for j in 0..<n {
+                                    unsafe swap(&at(pivotRow, j).pointee, &at(pivotColumn, j).pointee)
+                                }
+                                for j in 0..<m {
+                                    unsafe swap(&bAt(pivotRow, j).pointee, &bAt(pivotColumn, j).pointee)
+                                }
+                            }
+
+                            let diagonal = unsafe at(pivotColumn, pivotColumn).pointee
+                            if abs(diagonal) < tolerance {
+                                return false
+                            }
+
+                            // Scale the pivot row so the pivot is 1.
                             for j in 0..<n {
-                                unsafe swap(&at(pivotRow, j).pointee, &at(pivotColumn, j).pointee)
+                                unsafe at(pivotColumn, j).pointee /= diagonal
                             }
                             for j in 0..<m {
-                                unsafe swap(&bAt(pivotRow, j).pointee, &bAt(pivotColumn, j).pointee)
+                                unsafe bAt(pivotColumn, j).pointee /= diagonal
                             }
-                        }
+                            unsafe at(pivotColumn, pivotColumn).pointee = 1
 
-                        let diagonal = unsafe at(pivotColumn, pivotColumn).pointee
-                        if abs(diagonal) < tolerance {
-                            return false
-                        }
-
-                        // Scale the pivot row so the pivot is 1.
-                        for j in 0..<n {
-                            unsafe at(pivotColumn, j).pointee /= diagonal
-                        }
-                        for j in 0..<m {
-                            unsafe bAt(pivotColumn, j).pointee /= diagonal
-                        }
-                        unsafe at(pivotColumn, pivotColumn).pointee = 1
-
-                        // Clear the pivot column from every other row: each
-                        // row subtracts the pivot row times its element in
-                        // the pivot column, with one fused multiply-add per
-                        // element. Column by column, so the inner loop runs
-                        // down a column, which is contiguous in a ``Matrix``.
-                        // The pivot row takes part with a factor of 0 and
-                        // gets its value back after, to stay exact. In the
-                        // pivot column itself the pivot is 1, so each other
-                        // row's finite element `x` becomes `x + 1 · -x`, exactly 0.
-                        for row in 0..<n {
-                            unsafe factors[row] = -at(row, pivotColumn).pointee
-                        }
-                        unsafe factors[pivotColumn] = 0
-                        for column in 0..<n {
-                            let pivotElement = unsafe at(pivotColumn, column).pointee
+                            // Clear the pivot column from every other row: each
+                            // row subtracts the pivot row times its element in
+                            // the pivot column, with one fused multiply-add per
+                            // element. Column by column, so the inner loop runs
+                            // down a column, which is contiguous in a ``Matrix``.
+                            // The pivot row takes part with a factor of 0 and
+                            // gets its value back after, to stay exact. In the
+                            // pivot column itself the pivot is 1, so each other
+                            // row's finite element `x` becomes `x + 1 · -x`, exactly 0.
                             for row in 0..<n {
-                                unsafe at(row, column).pointee.addProduct(pivotElement, factors[row])
+                                unsafe factors[row] = -at(row, pivotColumn).pointee
                             }
-                            unsafe at(pivotColumn, column).pointee = pivotElement
-                        }
-                        for column in 0..<m {
-                            let pivotElement = unsafe bAt(pivotColumn, column).pointee
-                            for row in 0..<n {
-                                unsafe bAt(row, column).pointee.addProduct(pivotElement, factors[row])
+                            unsafe factors[pivotColumn] = 0
+                            for column in 0..<n {
+                                let pivotElement = unsafe at(pivotColumn, column).pointee
+                                for row in 0..<n {
+                                    unsafe at(row, column).pointee.addProduct(pivotElement, factors[row])
+                                }
+                                unsafe at(pivotColumn, column).pointee = pivotElement
                             }
-                            unsafe bAt(pivotColumn, column).pointee = pivotElement
+                            for column in 0..<m {
+                                let pivotElement = unsafe bAt(pivotColumn, column).pointee
+                                for row in 0..<n {
+                                    unsafe bAt(row, column).pointee.addProduct(pivotElement, factors[row])
+                                }
+                                unsafe bAt(pivotColumn, column).pointee = pivotElement
+                            }
                         }
+                        return true
                     }
-                    return true
                 }
             }
         }
