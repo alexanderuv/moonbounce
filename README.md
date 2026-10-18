@@ -29,7 +29,7 @@ The [roadmap](docs/roadmap.md) lays out the path to a complete engine.
 ## Requirements
 
 - Swift 6.4 toolchain, Swift 6 language mode.
-- On Apple platforms: OS 27 (`macOS 27`, `iOS 27`, …).
+- On Apple platforms: macOS 27 or iOS 27.
 
 ## Getting started
 
