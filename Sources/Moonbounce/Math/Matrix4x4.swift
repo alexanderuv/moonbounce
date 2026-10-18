@@ -476,7 +476,14 @@ extension Matrix4x4 {
     /// this is the inverse rotation.
     @inline(always)
     public func transposedMultiply3x3(_ v: Vector3) -> Vector3 {
-        transposed3x3().multiply3x3(v)
+        // The transposed block's columns with lane w copying lane z, so the
+        // product's lane w repeats lane z's multiply-adds and already holds
+        // z: `multiply3x3`'s shuffle would sit on the critical path of a
+        // transformed shape's support, between the direction and the box.
+        let t0 = mb_zip_low(c0, c1), t1 = mb_zip_low(c2, c2)
+        let t2 = mb_zip_high(c0, c1), t3 = mb_zip_high(c2, c2)
+        let transposed = Matrix4x4(mb_low_halves(t0, t1), mb_high_halves(t0, t1), mb_low_halves(t2, t3), .zero)
+        return Vector3(storage: transposed.linear(v.storage))
     }
 
     /// The product of the two 3 × 3 blocks, with the rest of the identity

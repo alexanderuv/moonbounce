@@ -70,6 +70,9 @@ import Testing
             Plane(point: a, normal: .axisX), Plane(point: b, normal: Vector3(1, 1, 0).normalized()),
             Plane(point: a, normal: Vector3(1, -2, 3).normalized())) ?? .zero),
         ("Ray.point(at:)", Ray(origin: a, direction: b).point(at: 0.5)),
+        ("Matrix4x4.transposedMultiply3x3", Matrix4x4(
+            columns: Vector4(1, -2, 3, 4), Vector4(0.5, 6, -7, 8), Vector4(9, 1, 2.5, -3), Vector4(4, 5, 6, 1)
+        ).transposedMultiply3x3(b)),
         ("init(Vector4)", Vector3(Vector4(1, 2, 3, 4))),
         ("init(bitPattern:)", Vector3(bitPattern: UInt32Vector4(1, 2, 3, 4))),
         ("select", Vector3.select(a, b, where: UInt32Vector4(0, 0, 0, 0xFFFF_FFFF))),
