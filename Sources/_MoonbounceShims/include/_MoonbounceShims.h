@@ -66,6 +66,23 @@ MB_INLINE mb_float4 mb_fms(mb_float4 a, mb_float4 b, mb_float4 c) { return __bui
 /// turns +0 into +0, and which LLVM cannot fold into a fused multiply-subtract.
 MB_INLINE mb_float4 mb_negate(mb_float4 v) { return -v; }
 
+// MARK: - Square roots
+
+/// The square root, as the hardware instruction: `fsqrt` / `sqrtss` and
+/// their vector and double forms. The result is the correctly rounded IEEE
+/// square root, NaN for a negative input.
+///
+/// Swift's `squareRoot()` is the C library's `sqrtf` or `sqrt`, and on every
+/// platform but Apple's (Windows and Linux) Swift's C importer compiles it
+/// with `-fmath-errno`. LLVM then keeps a call for negative inputs, so it
+/// can set `errno`: an inlined instruction for other inputs, and a function
+/// call into the C runtime for each negative one, as every ray that misses a
+/// sphere produces. The builtins here have no `errno` and never call.
+MB_INLINE float mb_sqrtf(float x) { return __builtin_elementwise_sqrt(x); }
+MB_INLINE double mb_sqrt(double x) { return __builtin_elementwise_sqrt(x); }
+MB_INLINE mb_float4 mb_sqrt_float4(mb_float4 v) { return __builtin_elementwise_sqrt(v); }
+MB_INLINE mb_double4 mb_sqrt_double4(mb_double4 v) { return __builtin_elementwise_sqrt(v); }
+
 // MARK: - Min, max and reductions
 
 /// Lane-wise IEEE 754 minNum: a NaN operand yields the other operand.

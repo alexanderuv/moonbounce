@@ -171,7 +171,7 @@ extension DoubleVector3 {
     }
 
     @inline(always) public var lengthSquared: Double { dot(self) }
-    @inline(always) public var length: Double { lengthSquared.squareRoot() }
+    @inline(always) public var length: Double { lengthSquared.hardwareSquareRoot() }
 
     /// This vector scaled to unit length. The result is not finite when the
     /// length is zero.
@@ -193,7 +193,7 @@ extension DoubleVector3 {
     public var reciprocal: DoubleVector3 { DoubleVector3(storage: 1 / storage) }
 
     @inline(always)
-    public var squareRoot: DoubleVector3 { DoubleVector3(storage: storage.squareRoot()) }
+    public var squareRoot: DoubleVector3 { DoubleVector3(storage: storage.hardwareSquareRoot()) }
 
     /// 1 where the sign bit is clear and -1 where it is set, so -0 maps to -1.
     @inline(always)

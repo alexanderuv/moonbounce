@@ -181,7 +181,7 @@ extension Quaternion {
     public var lengthSquared: Float { dot(self) }
 
     @inline(always)
-    public var length: Float { lengthSquared.squareRoot() }
+    public var length: Float { lengthSquared.hardwareSquareRoot() }
 
     @inline(always)
     public func normalized() -> Quaternion { Quaternion(simd / length) }
@@ -219,7 +219,7 @@ extension Quaternion {
     /// gives the identity.
     @inline(always)
     public init(from: Vector3, to: Vector3) {
-        let lengths = (from.lengthSquared * to.lengthSquared).squareRoot()
+        let lengths = (from.lengthSquared * to.lengthSquared).hardwareSquareRoot()
         let w = lengths + from.dot(to)
         if w == 0 {
             self = lengths == 0 ? .identity : Quaternion(xyz: from.normalizedPerpendicular(), w: 0)
@@ -266,7 +266,7 @@ extension Quaternion {
         let u2 = Float.random(in: 0..<1, using: &generator)
         let u3 = Float.random(in: 0..<1, using: &generator)
         let (s, c) = Vector4(2 * pi * u2, 2 * pi * u3, 0, 0).sinCos()
-        let r1 = (1 - u1).squareRoot(), r2 = u1.squareRoot()
+        let r1 = (1 - u1).hardwareSquareRoot(), r2 = u1.hardwareSquareRoot()
         return Quaternion(x: r1 * s.x, y: r1 * c.x, z: r2 * s.y, w: r2 * c.y)
     }
 }
@@ -305,7 +305,7 @@ extension Quaternion {
     public func twist(around axis: Vector3) -> Quaternion {
         let twist = Quaternion(xyz: axis * xyz.dot(axis), w: w)
         let lengthSquared = twist.lengthSquared
-        return lengthSquared == 0 ? .identity : twist / lengthSquared.squareRoot()
+        return lengthSquared == 0 ? .identity : twist / lengthSquared.hardwareSquareRoot()
     }
 
     /// The angle of this unit quaternion's rotation around the unit vector
@@ -332,7 +332,7 @@ extension Quaternion {
     /// GDC 2016.
     @inline(always)
     public var swingTwist: (swing: Quaternion, twist: Quaternion) {
-        let s = (w * w + x * x).squareRoot()
+        let s = (w * w + x * x).hardwareSquareRoot()
         guard s != 0 else { return (self, .identity) }
         let twist = Quaternion(x: x / s, y: 0, z: 0, w: w / s)
         let swing = Quaternion(x: 0, y: (w * y - x * z) / s, z: (w * z + x * y) / s, w: s)
@@ -418,7 +418,7 @@ extension Quaternion {
             q[i] = Quaternion.dequantize((value >> shift) & 0x3FF)
             shift += 10
         }
-        q[largest] = Swift.max(1 - (q * q).sum(), 0).squareRoot()
+        q[largest] = Swift.max(1 - (q * q).sum(), 0).hardwareSquareRoot()
         self.init(q)
     }
 

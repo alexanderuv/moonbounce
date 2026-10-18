@@ -112,7 +112,7 @@ extension EPA {
         if distanceSquared > 0 {
             // The cores are apart, and `axis` runs between their closest
             // points, as long as the distance between them.
-            let distance = distanceSquared.squareRoot()
+            let distance = distanceSquared.hardwareSquareRoot()
             return Penetration(
                 pointA: closest.pointA + axis * (convexRadiusA / distance),
                 pointB: closest.pointB - axis * (convexRadiusB / distance), axis: axis)

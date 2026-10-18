@@ -99,7 +99,7 @@ public struct SymmetricEigendecomposition<let size: Int>: Sendable, BitwiseCopya
                                     // theta is infinite for a tiny element,
                                     // which makes t 0, as it should be.
                                     let theta = unsafe 0.5 * difference / element.pointee
-                                    let magnitudeT = 1 / (abs(theta) + Float(1).addingProduct(theta, theta).squareRoot())
+                                    let magnitudeT = 1 / (abs(theta) + Float(1).addingProduct(theta, theta).hardwareSquareRoot())
                                     t = theta < 0 ? -magnitudeT : magnitudeT
                                 }
                                 // tau = s / (1 + c) = t / (1 + root), with
@@ -107,7 +107,7 @@ public struct SymmetricEigendecomposition<let size: Int>: Sendable, BitwiseCopya
                                 // its division runs beside c's rather than
                                 // after it, which shortens the chain of
                                 // dependent operations every rotation waits on.
-                                let root = Float(1).addingProduct(t, t).squareRoot()
+                                let root = Float(1).addingProduct(t, t).hardwareSquareRoot()
                                 let c = 1 / root
                                 let s = t * c
                                 let tau = t / (1 + root)

@@ -336,7 +336,7 @@ extension Vector4 {
         let nearOne = mb_greater(a, SIMD4(repeating: 0.5))
         let zOuter = 0.5 * (1 - a)
         let z = mb_select_float4(a * a, zOuter, nearOne)
-        let s = mb_select_float4(a, zOuter.squareRoot(), nearOne)
+        let s = mb_select_float4(a, zOuter.hardwareSquareRoot(), nearOne)
         return (asinKernel(s, z), nearOne)
     }
 }
@@ -388,7 +388,7 @@ public enum Trigonometry {
     @inline(always)
     public static func acosApproximate(_ x: Float) -> Float {
         let a = Swift.min(Swift.abs(x), 1)
-        let value = (1 - a).squareRoot() * halfPi.addingProduct(-0x1.6734fap-3, a)
+        let value = (1 - a).hardwareSquareRoot() * halfPi.addingProduct(-0x1.6734fap-3, a)
         return x < 0 ? pi - value : value
     }
 }

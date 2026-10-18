@@ -159,3 +159,33 @@ func hamiltonProduct(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> SIMD4<Float> {
     r = multiplyAdd(a.z, SIMD4(n.y, b.x, b.w, n.z), r)
     return r
 }
+
+extension Float {
+    /// The square root, as the hardware instruction; see `mb_sqrtf`. Use it
+    /// instead of `squareRoot()`, which on every platform but Apple's calls
+    /// the C library for a negative value. The value is the same: correctly
+    /// rounded, NaN for a negative value (whose payload may differ).
+    @inlinable @inline(always)
+    func hardwareSquareRoot() -> Float { mb_sqrtf(self) }
+}
+
+extension Double {
+    /// The square root, as the hardware instruction; see
+    /// ``Float/hardwareSquareRoot()``.
+    @inlinable @inline(always)
+    func hardwareSquareRoot() -> Double { mb_sqrt(self) }
+}
+
+extension SIMD4 where Scalar == Float {
+    /// Each lane's square root, as one vector instruction; see
+    /// ``Float/hardwareSquareRoot()``.
+    @inlinable @inline(always)
+    func hardwareSquareRoot() -> SIMD4<Float> { mb_sqrt_float4(self) }
+}
+
+extension SIMD4 where Scalar == Double {
+    /// Each lane's square root, as one vector instruction; see
+    /// ``Float/hardwareSquareRoot()``.
+    @inlinable @inline(always)
+    func hardwareSquareRoot() -> SIMD4<Double> { mb_sqrt_double4(self) }
+}

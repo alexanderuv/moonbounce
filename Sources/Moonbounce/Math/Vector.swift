@@ -93,7 +93,7 @@ extension Vector {
     }
 
     @inline(always) public var lengthSquared: Float { dot(self) }
-    @inline(always) public var length: Float { lengthSquared.squareRoot() }
+    @inline(always) public var length: Float { lengthSquared.hardwareSquareRoot() }
 
     /// The vector divided by its length. A zero vector gives NaNs.
     @inline(always)
