@@ -212,8 +212,9 @@ import Testing
     }
 
     @Test func minMaxNaNFollowsTheTarget() {
-        // docs/adr/0002: without NaN, the same everywhere. With a NaN lane,
-        // arm64 returns the other operand's lane and x86-64 returns b's.
+        // docs/adr/0002: the same everywhere except for NaN lanes and zeros
+        // of opposite sign. With a NaN lane, arm64 returns the other
+        // operand's lane and x86-64 returns b's.
         let a = Vector4(1, .nan, 3, -4), b = Vector4(2, 5, .nan, -8)
         #expect(Vector4.min(Vector4(1, 2, 3, 4), Vector4(4, 3, 2, 1)) == Vector4(1, 2, 2, 1))
         let low = Vector4.min(a, b), high = Vector4.max(a, b)
@@ -223,8 +224,19 @@ import Testing
         #else
         #expect(low.y == 5 && low.z == 3 && high.y == 5 && high.z == 3)
         #endif
+        // Two zeros: arm64 puts -0 below +0, and x86-64 returns b's lane.
+        let zeros = Vector4(0, -0.0, 0, 0), negatedZeros = Vector4(-0.0, 0, 0, 0)
+        let lowZero = Vector4.min(zeros, negatedZeros), highZero = Vector4.max(zeros, negatedZeros)
+        #if arch(x86_64)
+        #expect(lowZero.x.sign == .minus && lowZero.y.sign == .plus)
+        #expect(highZero.x.sign == .minus && highZero.y.sign == .plus)
+        #else
+        #expect(lowZero.x.sign == .minus && lowZero.y.sign == .minus)
+        #expect(highZero.x.sign == .plus && highZero.y.sign == .plus)
+        #endif
         // The component indices skip NaN on every target.
         #expect(Vector4(4, .nan, .nan, -1).highestComponentIndex == 0)
-        #expect(Vector4(4, .nan, .nan, -1).lowestComponentIndex == 3)
+        #expect(Vector4(-1, .nan, .nan, 4).lowestComponentIndex == 0)
+        #expect(Vector4(.nan, 2, 1, 1).lowestComponentIndex == 2)
     }
 }

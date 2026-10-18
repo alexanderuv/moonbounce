@@ -301,12 +301,14 @@ import Testing
     }
 
     @Test func nanLaneDoesNotHideALargeAngle() {
-        // A large lane takes the exact reduction even beside a NaN lane.
+        // A large lane takes the exact reduction even beside a NaN lane. On
+        // x86-64, a reduction with `maxps` would give 0 for the first vector
+        // and NaN for the second, and take the fast path.
         let alone = Vector4(1.0e30, 0, 0, 0).sinCos()
-        let mixed = Vector4(1.0e30, .nan, 0, 0).sinCos()
+        let mixed = Vector4(1.0e30, 0, .nan, 0).sinCos()
         #expect(mixed.sin.x == alone.sin.x && mixed.cos.x == alone.cos.x)
-        #expect(mixed.sin.y.isNaN)
-        let reversed = Vector4(.nan, 1.0e30, 0, 0).sinCos()
-        #expect(reversed.sin.y == alone.sin.x)
+        #expect(mixed.sin.z.isNaN)
+        let reversed = Vector4(0, 1.0e30, 0, .nan).sinCos()
+        #expect(reversed.sin.y == alone.sin.x && reversed.cos.y == alone.cos.x)
     }
 }

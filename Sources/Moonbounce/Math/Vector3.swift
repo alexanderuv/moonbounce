@@ -171,13 +171,13 @@ extension Vector3 {
     @inline(always)
     public var abs: Vector3 { Vector3(storage: absolute(storage)) }
 
-    /// Component-wise minimum. Where a component is NaN, the result is `b`'s
-    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
+    /// Component-wise minimum. Where a component is NaN, or the two are zeros
+    /// of opposite sign, the result differs by target (docs/adr/0002).
     @inline(always)
     public static func min(_ a: Vector3, _ b: Vector3) -> Vector3 { Vector3(storage: minimum(a.storage, b.storage)) }
 
-    /// Component-wise maximum. Where a component is NaN, the result is `b`'s
-    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
+    /// Component-wise maximum. Where a component is NaN, or the two are zeros
+    /// of opposite sign, the result differs by target (docs/adr/0002).
     @inline(always)
     public static func max(_ a: Vector3, _ b: Vector3) -> Vector3 { Vector3(storage: maximum(a.storage, b.storage)) }
 
@@ -265,6 +265,8 @@ extension Vector3 {
         return Vector3(storage: togglingSignBits(storage, flip))
     }
 
+    /// Each component limited to `lower`'s and `upper`'s, for `lower` no greater
+    /// than `upper`. A NaN component becomes `lower`'s on every target.
     @inline(always)
     public func clamped(min lower: Vector3, max upper: Vector3) -> Vector3 {
         Vector3.min(Vector3.max(self, lower), upper)
@@ -358,9 +360,13 @@ extension Vector3 {
 // MARK: - Reductions
 
 extension Vector3 {
+    /// The smallest component. With a NaN component, the result differs by target
+    /// and can be NaN (docs/adr/0002); ``lowestComponentIndex`` skips NaN.
     @inline(always)
     public func reduceMin() -> Float { horizontalMinimum3(storage) }
 
+    /// The largest component. With a NaN component, the result differs by target
+    /// and can be NaN (docs/adr/0002); ``highestComponentIndex`` skips NaN.
     @inline(always)
     public func reduceMax() -> Float { horizontalMaximum3(storage) }
 

@@ -210,9 +210,13 @@ extension Vector4 {
 // MARK: - Reductions
 
 extension Vector4 {
+    /// The smallest lane. With a NaN lane, the result differs by target
+    /// and can be NaN (docs/adr/0002); ``lowestComponentIndex`` skips NaN.
     @inline(always)
     public func reduceMin() -> Float { mb_reduce_min(simd) }
 
+    /// The largest lane. With a NaN lane, the result differs by target
+    /// and can be NaN (docs/adr/0002); ``highestComponentIndex`` skips NaN.
     @inline(always)
     public func reduceMax() -> Float { mb_reduce_max(simd) }
 
@@ -259,16 +263,18 @@ extension Vector4 {
 // MARK: - Comparisons, selection and bitwise operations
 
 extension Vector4 {
-    /// Component-wise minimum. Where a lane is NaN, the result is `b`'s lane
-    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
+    /// Component-wise minimum. Where a lane is NaN, or the two are zeros of
+    /// opposite sign, the result differs by target (docs/adr/0002).
     @inline(always)
     public static func min(_ a: Vector4, _ b: Vector4) -> Vector4 { Vector4(mb_min(a.simd, b.simd)) }
 
-    /// Component-wise maximum. Where a lane is NaN, the result is `b`'s lane
-    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
+    /// Component-wise maximum. Where a lane is NaN, or the two are zeros of
+    /// opposite sign, the result differs by target (docs/adr/0002).
     @inline(always)
     public static func max(_ a: Vector4, _ b: Vector4) -> Vector4 { Vector4(mb_max(a.simd, b.simd)) }
 
+    /// Each lane limited to `lower`'s and `upper`'s, for `lower` no greater
+    /// than `upper`. A NaN lane becomes `lower`'s on every target.
     @inline(always)
     public func clamped(min lower: Vector4, max upper: Vector4) -> Vector4 {
         Vector4.min(Vector4.max(self, lower), upper)

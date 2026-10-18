@@ -90,18 +90,18 @@ MB_INLINE mb_double4 mb_sqrt_double4(mb_double4 v) { return __builtin_elementwis
 // MARK: - Min, max and reductions
 
 // Lane-wise minimum and maximum, as each target's native instruction, so
-// they agree everywhere except when a lane is NaN (docs/adr/0002):
+// they agree everywhere except for NaN lanes and zeros of opposite sign
+// (docs/adr/0002):
 //
 // - arm64: IEEE 754 minNum / maxNum (`fminnm`, `fmaxnm`): a NaN lane yields
-//   the other operand's lane.
-// - x86-64: `minps` / `maxps`: a NaN in either lane yields `b`'s lane.
+//   the other operand's lane, and -0 is below +0.
+// - x86-64: `minps` / `maxps`: a NaN in either lane, or two zeros, yield
+//   `b`'s lane.
 //
-// x86 has no minNum instruction. Written portably, each would be `minps`
-// plus a NaN test and a blend on the dependency chain, which made bounding
-// box and ray code two to four times slower than Jolt's on x86-64. The
+// x86 has no minNum instruction; the ADR has the cost of emulating it. The
 // target intrinsics are opaque to LLVM, which would otherwise turn a
 // compare-and-select into a wider blend. Code that must skip NaN lanes
-// masks them first, as `Vector4.lowestLane` does.
+// masks them first, as `Vector4.lowestLane` does, or puts the NaN in `a`.
 #if defined(__x86_64__)
 MB_INLINE mb_float4 mb_min(mb_float4 a, mb_float4 b) { return (mb_float4)_mm_min_ps((__m128)a, (__m128)b); }
 MB_INLINE mb_float4 mb_max(mb_float4 a, mb_float4 b) { return (mb_float4)_mm_max_ps((__m128)a, (__m128)b); }
@@ -118,7 +118,8 @@ MB_INLINE mb_float4 mb_min_nan(mb_float4 a, mb_float4 b) { return __builtin_elem
 MB_INLINE mb_float4 mb_max_nan(mb_float4 a, mb_float4 b) { return __builtin_elementwise_maximum(a, b); }
 
 // The smallest and largest of the four lanes, with `mb_min` / `mb_max`'s
-// semantics: the same everywhere unless a lane is NaN.
+// semantics: the same everywhere unless a lane is NaN or the lanes hold
+// zeros of both signs.
 //
 // On arm64 both compile to one `fminnmv` / `fmaxnmv`. The generic reduction
 // would too, but LLVM's loop unroller prices it as its expanded shuffle
@@ -237,8 +238,9 @@ MB_INLINE mb_float4 mb_float4_from_bits(mb_uint4 v) { return (mb_float4)v; }
 MB_INLINE mb_uint4 mb_float4_to_int(mb_float4 v) { return (mb_uint4)vcvtq_s32_f32((float32x4_t)v); }
 #else
 MB_INLINE mb_uint4 mb_float4_to_int(mb_float4 v) {
-    // [-2^31, 0x1.fffffep30], the largest float below 2^31. maxNum sends NaN
-    // to the lower end; the final mask turns it into 0.
+    // [-2^31, 0x1.fffffep30], the largest float below 2^31. With NaN as the
+    // first operand, max sends it to the lower end on every target; the
+    // final mask turns it into 0.
     mb_float4 lowest = -0x1p31f, highest = 0x1.fffffep30f;
     mb_int4 converted = __builtin_convertvector(mb_min(mb_max(v, lowest), highest), mb_int4);
     mb_int4 too_large = v >= 0x1p31f;
