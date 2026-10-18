@@ -4,7 +4,7 @@ Moonbounce is heading toward a complete physics engine in Swift: rigid bodies fi
 
 The engine is built from the bottom up:
 
-1. **Foundations:** math, geometry, and the runtime underneath them: memory, containers and threads. The math and geometry are done, each benchmark even with Jolt or faster on both tier 1 platforms ([reference results](validation.md#reference-results)). The runtime is next.
+1. **Foundations:** math, geometry, and the runtime underneath them: memory, containers and threads. The math and geometry are done, and every benchmark is even with Jolt or faster on both tier 1 platforms except two on Windows, a GJK ray cast and a matrix inverse ([reference results](validation.md#reference-results)). The runtime is next.
 2. **Collision:** shapes and queries against them, then bodies, collision layers and the broad phase.
 3. **Simulation:** a full rigid-body step, first on one thread, then across many, with the same results at any thread count.
 4. **Engine features:** joints and ragdolls, character controllers, vehicles, and saved state with results that match across platforms.
