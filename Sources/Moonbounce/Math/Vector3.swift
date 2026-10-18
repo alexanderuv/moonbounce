@@ -401,18 +401,11 @@ extension Vector3 {
     /// one: (z, 0, -x) or (0, z, -y). Picking the larger of |x| and |y|
     /// keeps the result's length, √(max(x², y²) + z²), away from zero.
     ///
-    /// Computed in all four lanes: both candidates come from one shuffle
-    /// each, a splatted comparison picks one, and one XOR negates its z and
-    /// w lanes. Scalar selects would serialize on lane moves instead.
+    /// The shim computes it in the form each target compiles best; see
+    /// `mb_normalized_perpendicular`.
     @inline(always)
     public func normalizedPerpendicular() -> Vector3 {
-        let squares = storage * storage
-        let swapped = mb_yxwz(squares) // (y², x², z², z²)
-        let useX = mb_greater(mb_splat_x(squares), mb_splat_x(swapped))
-        let negatedXY = togglingSignBits(storage, SIMD4(0x8000_0000, 0x8000_0000, 0, 0)) // (-x, -y, z, z)
-        let perpendicular = mb_select_float4(mb_0zyy(negatedXY), mb_z0xx(negatedXY), useX)
-        let lengthSquared = mb_splat_x(mb_max(squares, swapped)) + mb_splat_z(squares)
-        return Vector3(storage: perpendicular / lengthSquared.hardwareSquareRoot())
+        Vector3(storage: mb_normalized_perpendicular(storage))
     }
 }
 

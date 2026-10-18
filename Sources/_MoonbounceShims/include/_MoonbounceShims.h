@@ -336,6 +336,48 @@ MB_INLINE mb_uint4 mb_usplat_y(mb_uint4 v) { return __builtin_shufflevector(v, v
 MB_INLINE mb_uint4 mb_usplat_z(mb_uint4 v) { return __builtin_shufflevector(v, v, 2, 2, 2, 2); }
 MB_INLINE mb_uint4 mb_usplat_w(mb_uint4 v) { return __builtin_shufflevector(v, v, 3, 3, 3, 3); }
 
+// MARK: - Perpendiculars
+
+/// A unit vector perpendicular to `v` (x, y, z, z), which must not be zero:
+/// (z, 0, -x) or (0, z, -y), whichever drops the smaller of x and y, divided
+/// by its length √(max(x², y²) + z²). The result's w lane repeats its z.
+///
+/// Each target gets the form that compiles best there, with the same
+/// operations and so the same bits. On x86-64, Jolt's SSE sequence: both
+/// candidates from an unpack and a shuffle each, then one blend. On arm64,
+/// scalar lanes: clang builds the candidates with lane inserts, where the
+/// same shuffles in vector form become table lookups about 6% slower.
+/// Negation is IEEE, so -0 stays -0 (Jolt's deterministic build subtracts
+/// from 0 instead).
+#if defined(__x86_64__)
+MB_INLINE mb_float4 mb_normalized_perpendicular(mb_float4 v) {
+    __m128 value = (__m128)v;
+    __m128 zero = _mm_setzero_ps();
+    __m128 negated = (__m128)mb_negate(v);
+    // (z, 0, -x, -x) and (0, z, -y, -y).
+    __m128 from_x = _mm_shuffle_ps(_mm_unpackhi_ps(value, zero), negated, _MM_SHUFFLE(0, 0, 1, 0));
+    __m128 from_y = _mm_shuffle_ps(_mm_unpackhi_ps(zero, value), negated, _MM_SHUFFLE(1, 1, 1, 0));
+    __m128 squares = _mm_mul_ps(value, value);
+    __m128 xx = _mm_shuffle_ps(squares, squares, _MM_SHUFFLE(0, 0, 0, 0));
+    __m128 yy = _mm_shuffle_ps(squares, squares, _MM_SHUFFLE(1, 1, 1, 1));
+    __m128 zz = _mm_shuffle_ps(squares, squares, _MM_SHUFFLE(2, 2, 2, 2));
+    __m128 use_x = _mm_cmpgt_ps(xx, yy);
+    __m128 perpendicular = (__m128)mb_select_float4((mb_float4)from_y, (mb_float4)from_x, (mb_uint4)use_x);
+    __m128 length = _mm_sqrt_ps(_mm_add_ps(_mm_max_ps(xx, yy), zz));
+    return (mb_float4)_mm_div_ps(perpendicular, length);
+}
+#else
+MB_INLINE mb_float4 mb_normalized_perpendicular(mb_float4 v) {
+    float x = v.x, y = v.y, z = v.z;
+    float xx = x * x, yy = y * y, zz = z * z;
+    mb_float4 from_x = {z, 0.0f, -x, -x};
+    mb_float4 from_y = {0.0f, z, -y, -y};
+    int use_x = xx > yy;
+    float length = __builtin_elementwise_sqrt((use_x ? xx : yy) + zz);
+    return (use_x ? from_x : from_y) / length;
+}
+#endif
+
 // MARK: - Rotations
 
 /// The cross product of lanes x, y and z; the result's w lane repeats its z.
