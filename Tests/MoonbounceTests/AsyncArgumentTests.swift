@@ -6,6 +6,8 @@ import Testing
 /// (swiftlang/swift#90813). Every type that stores SIMD values goes through it
 /// here, so a type that loses its `FloatLaneStorage`, `UInt32LaneStorage`,
 /// `DoubleLaneStorage` or `UInt64LaneStorage` carve-out fails on Windows.
+/// `GJK` goes through too: its simplex stores `SIMD4<Float>` on every target
+/// for alignment, which is safe only while it travels by address.
 @Suite struct AsyncArgumentTests {
     static let vector3 = Vector3(1, -2, 3.5)
     static let vector4 = Vector4(1, -2, 3.5, 4)
@@ -28,6 +30,20 @@ import Testing
     static let doubleVector3 = DoubleVector3(1.0e7, -2, 3.5)
     static let doubleMask = DoubleVector3(1, 2, 3) .< DoubleVector3(2, 2, 4)
     static let doubleMatrix = DoubleMatrix4x4(linear: matrix, translation: doubleVector3)
+    static let gjk: GJK = {
+        var gjk = GJK()
+        for (i, point) in [vector3, Vector3(0, 1, 0), Vector3(-4, 0.5, 2), Vector3(2, 2, -1)].enumerated() {
+            unsafe gjk.y[unchecked: i] = point
+            unsafe gjk.p[unchecked: i] = point * 2
+            unsafe gjk.q[unchecked: i] = -point
+        }
+        gjk.count = 4
+        return gjk
+    }()
+
+    static func simplex(_ gjk: GJK) -> [Vector3] {
+        (0..<4).flatMap { i in unsafe [gjk.y[unchecked: i], gjk.p[unchecked: i], gjk.q[unchecked: i]] }
+    }
 
     @Test(arguments: [("Vector3", vector3, vector3)])
     func vector3Arrives(_ label: String, _ a: Vector3, _ b: Vector3) {
@@ -142,6 +158,14 @@ import Testing
         for value in [a, b] {
             #expect(value.reciprocal == Self.inverseDirection.reciprocal)
             #expect(value.parallelGate == Self.inverseDirection.parallelGate)
+        }
+    }
+
+    @Test(arguments: [("GJK", gjk, gjk)])
+    func gjkArrives(_ label: String, _ a: GJK, _ b: GJK) {
+        for value in [a, b] {
+            #expect(value.count == 4)
+            #expect(Self.simplex(value) == Self.simplex(Self.gjk))
         }
     }
 
