@@ -216,8 +216,10 @@ extension DoubleVector3 {
         DoubleVector3(storage: mb_dmax(a.storage, b.storage))
     }
 
-    /// Each component limited to `lower`'s and `upper`'s, for `lower` no greater
-    /// than `upper`. A NaN component becomes `lower`'s on every target.
+    /// Each component clamped to `lower`...`upper`, for `lower` no greater than
+    /// `upper`. A NaN component becomes `lower`'s on every target. A NaN limit, or
+    /// a component and limit that are zeros of opposite sign, give a result that
+    /// differs by target (docs/adr/0002).
     @inline(always)
     public func clamped(min lower: DoubleVector3, max upper: DoubleVector3) -> DoubleVector3 {
         DoubleVector3.min(DoubleVector3.max(self, lower), upper)

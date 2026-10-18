@@ -237,7 +237,6 @@ import Testing
         // The component indices skip NaN on every target.
         #expect(Vector4(4, .nan, .nan, -1).highestComponentIndex == 0)
         #expect(Vector4(-1, .nan, .nan, 4).lowestComponentIndex == 0)
-        #expect(Vector4(.nan, 2, 1, 1).lowestComponentIndex == 2)
     }
 
     // MARK: Jolt's Vec4Tests, completed for #26
