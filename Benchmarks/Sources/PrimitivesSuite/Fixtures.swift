@@ -1,38 +1,10 @@
+import BenchmarkSupport
 import Foundation
 import Moonbounce
 
-/// SplitMix64: a tiny, fully specified generator, so every run (and any
-/// reimplementation of these benchmarks elsewhere) sees identical inputs.
-struct SplitMix64: RandomNumberGenerator {
-    private var state: UInt64
-
-    init(seed: UInt64) {
-        state = seed
-    }
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
-        return z ^ (z >> 31)
-    }
-
-    /// A float in `[low, high)` built from the top 24 bits, which a `Float`
-    /// represents exactly. Spelled out instead of `Float.random(in:)`, whose
-    /// algorithm is an implementation detail.
-    mutating func uniform(_ low: Float, _ high: Float) -> Float {
-        let unit = Float(next() >> 40) * 0x1p-24
-        return low + (high - low) * unit
-    }
-
-    /// A double in `[low, high)` built from the top 53 bits, which a
-    /// `Double` represents exactly.
-    mutating func uniformDouble(_ low: Double, _ high: Double) -> Double {
-        let unit = Double(next() >> 11) * 0x1p-53
-        return low + (high - low) * unit
-    }
-
+/// Draws of Moonbounce's types, each from its components in order, as the
+/// C++ harness draws Jolt's.
+extension SplitMix64 {
     mutating func doubleVector3(_ low: Double, _ high: Double) -> DoubleVector3 {
         let x = uniformDouble(low, high)
         let y = uniformDouble(low, high)
