@@ -115,11 +115,14 @@ extension Vector4 {
 /// Four IEEE 754 half-precision floats (binary16) packed in 8 bytes, for
 /// compact vertex and animation data.
 ///
-/// Conversions run in hardware where the target has it (F16C on x86-64-v3,
-/// NEON on arm64) and in integer operations everywhere else, with the same
-/// bits on every target for every input, NaN payloads included. Rounding to
-/// half precision can be to nearest (ties to even), down or up: down and up
-/// keep a value's bounds conservative.
+/// Conversions run in hardware where the target has it (F16C on x86-64-v3;
+/// NEON on arm64 for round to nearest and for the conversion back) and in
+/// integer operations everywhere else, with the same bits on every target for
+/// every input, NaN payloads included. That assumes the default
+/// floating-point environment, as the rest of Moonbounce does: NEON's
+/// conversion follows the current rounding mode. Rounding to half precision
+/// can be to nearest (ties to even), down or up: down and up keep a value's
+/// bounds conservative.
 @frozen
 public struct Float16Vector4: Hashable, Sendable, BitwiseCopyable {
     /// The four halves' bit patterns, lane x in the lowest 16 bits.
@@ -159,6 +162,8 @@ public struct Float16Vector4: Hashable, Sendable, BitwiseCopyable {
         self.init(lanes: mb_float4_to_half4(v.simd, rounding.shimMode))
     }
 
+    // The bit casts put lane x in the low 16 bits on little-endian targets,
+    // which every supported platform is.
     @inlinable @inline(always)
     init(lanes: SIMD4<UInt16>) {
         bitPattern = unsafe unsafeBitCast(lanes, to: UInt64.self)

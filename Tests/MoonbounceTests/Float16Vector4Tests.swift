@@ -112,6 +112,33 @@ import Testing
         }
         #expect(mismatches == 0)
     }
+
+    @Test func directedModesMatchAnExactReference() {
+        // From the standard library's nearest half, step one half toward the
+        // value where it overshot: the closest half on each side, an
+        // independent reference for the directed modes.
+        func reference(_ f: Float, down: Bool) -> UInt16 {
+            let n = Float16(f)
+            if n.isNaN { return Self.half(f, down ? .down : .up) }
+            if down {
+                if Float(n) > f { return (n.isInfinite ? Float16.greatestFiniteMagnitude : n.nextDown).bitPattern }
+            } else {
+                if Float(n) < f { return (n.isInfinite ? -Float16.greatestFiniteMagnitude : n.nextUp).bitPattern }
+            }
+            return n.bitPattern
+        }
+        var value: UInt32 = 0
+        var mismatches = 0
+        while value < 0x7F80_0000 {
+            for sign: UInt32 in [0, 0x8000_0000] {
+                let f = Float(bitPattern: value | sign)
+                if Self.half(f, .down) != reference(f, down: true) { mismatches += 1 }
+                if Self.half(f, .up) != reference(f, down: false) { mismatches += 1 }
+            }
+            value += 997
+        }
+        #expect(mismatches == 0)
+    }
     #endif
 
     @Test func directedRoundingBracketsTheValue() {
@@ -184,7 +211,8 @@ import Testing
         #expect(MemoryLayout<PackedVector3>.size == 12 && MemoryLayout<PackedVector3>.stride == 12)
         #expect(MemoryLayout<PackedVector4>.size == 16 && MemoryLayout<PackedVector4>.stride == 16)
         #expect(MemoryLayout<PackedVector4>.alignment == 4)
-        #expect(MemoryLayout<[PackedVector3]>.size == MemoryLayout<[Vector3]>.size)
+        // A third smaller than Vector3, whose stride is a SIMD register.
+        #expect(MemoryLayout<Vector3>.stride == 16)
     }
 
     @Test func roundTrips() {
