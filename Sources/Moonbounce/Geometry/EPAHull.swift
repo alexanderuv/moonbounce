@@ -327,7 +327,7 @@ struct EPAHull: ~Copyable, @unchecked Sendable {
     }
 
     /// Takes the nearest triangle off the queue.
-    @inlinable
+    @inlinable @inline(always)
     mutating func popClosest() -> Int32 {
         let closest = unsafe queue[0].triangle
         queueCount &-= 1
@@ -350,7 +350,7 @@ struct EPAHull: ~Copyable, @unchecked Sendable {
         return closest
     }
 
-    @inlinable
+    @inlinable @inline(always)
     mutating func push(_ t: Int32) {
         unsafe triangles[Int(t)].inQueue = true
         let entry = unsafe EPAQueueEntry(
@@ -378,7 +378,7 @@ struct EPAHull: ~Copyable, @unchecked Sendable {
 
     /// A new, unlinked triangle through points `i0`, `i1` and `i2`, or `nil`
     /// when the pool is full.
-    @inlinable
+    @inlinable @inline(always)
     mutating func createTriangle(_ i0: Int32, _ i1: Int32, _ i2: Int32) -> Int32? {
         let t: Int
         if freeCount > 0 {
@@ -500,7 +500,7 @@ struct EPAHull: ~Copyable, @unchecked Sendable {
     /// others, leaving islands; the horizon then isn't one loop, and this
     /// returns `false`. So it does with fewer than three edges, as two
     /// triangles back to back and a point in their plane can give.
-    @usableFromInline
+    @inline(always)
     mutating func findHorizon(_ facing: Int32, _ point: Vector3) -> Bool {
         unsafe triangles[Int(facing)].removed = true
         // The step under way stays in registers; the walk holds the ones
