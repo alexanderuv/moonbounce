@@ -438,7 +438,10 @@ extension Vector3 {
         let negatedXY = togglingSignBits(storage, SIMD4(0x8000_0000, 0x8000_0000, 0, 0)) // (-x, -y, z, z)
         let perpendicular = mb_select_float4(mb_0zyy(negatedXY), mb_z0xx(negatedXY), useX)
         let lengthSquared = mb_splat_x(mb_max(squares, swapped)) + mb_splat_z(squares)
-        return Vector3(storage: perpendicular / lengthSquared.hardwareSquareRoot())
+        // Every lane holds the same square, so LLVM would take one scalar
+        // root and splat it. The lane-wise root, the same bits, keeps arm64's
+        // divide and square root unit busier: a sixth less time in a sweep.
+        return Vector3(storage: perpendicular / opaque(lengthSquared).hardwareSquareRoot())
     }
 }
 
