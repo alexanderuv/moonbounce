@@ -313,10 +313,18 @@ MB_INLINE mb_float4 mb_select_float4(mb_float4 not_set, mb_float4 set, mb_uint4 
 }
 
 /// The highest bit of lane i in bit i of the result.
+///
+/// On x86-64 that is `movmskps`, one instruction. LLVM doesn't recognize
+/// the shifts and OR below as one, and leaves seven instructions on the path
+/// to the branch that reads the bits, as in the tetrahedron's face test.
+#if defined(__x86_64__)
+MB_INLINE int mb_mask_bits(mb_uint4 v) { return _mm_movemask_ps((__m128)v); }
+#else
 MB_INLINE int mb_mask_bits(mb_uint4 v) {
     mb_uint4 bit = (v >> 31) << (mb_uint4){0, 1, 2, 3};
     return (int)__builtin_reduce_or(bit);
 }
+#endif
 
 /// The number of lanes whose highest bit is set.
 MB_INLINE int mb_mask_count(mb_uint4 v) { return (int)__builtin_reduce_add(v >> 31); }
