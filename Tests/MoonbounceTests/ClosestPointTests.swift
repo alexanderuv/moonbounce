@@ -187,15 +187,15 @@ import Testing
     }
 
     @Test func faceExitKeepsItsBits() {
-        // A face exit whose centroid dot rounds differently in another
-        // grouping: arm64's pairwise sums and x86-64's scalar adds must give
-        // these exact bits.
-        let a = Vector3(17.18919, -16.324324, 26.108109), b = Vector3(-21.64865, 3.8108108, -23.405405)
-        let c = Vector3(14.135135, 23.405405, 26.64865)
+        // A face exit whose centroid dot rounds differently in every other
+        // grouping of its x, y and z products (lane w is 0 here): arm64's
+        // pairwise sums and x86-64's scalar adds must give these exact bits.
+        let a = Vector3(10.2972975, 8.216216, 20.324324), b = Vector3(23.108109, -13.189189, -22.945946)
+        let c = Vector3(-20.702703, 25.135136, -8.243243)
         let closest = ClosestPoint.onTriangle(a, b, c)
         #expect(closest.feature == [.a, .b, .c])
         #expect([closest.point.x.bitPattern, closest.point.y.bitPattern, closest.point.z.bitPattern]
-            == [3222962163, 3193386738, 1072131991])
+            == [1084498471, 1087410749, 3218757158])
     }
 
     // MARK: Tetrahedron
