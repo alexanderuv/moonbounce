@@ -398,6 +398,14 @@ extension DoubleVector3 {
     }
 }
 
+extension DoubleVector3 {
+    /// `packed`'s components, exactly.
+    @inline(always)
+    public init(_ packed: PackedVector3) {
+        self.init(Vector3(packed))
+    }
+}
+
 extension DoubleVector3: CustomStringConvertible {
     public var description: String { "DoubleVector3(\(x), \(y), \(z))" }
 }

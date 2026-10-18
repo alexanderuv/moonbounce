@@ -39,6 +39,7 @@
 #include <Jolt/Math/DMat44.h>
 #include <Jolt/Math/DVec3.h>
 #include <Jolt/Math/EigenValueSymmetric.h>
+#include <Jolt/Math/HalfFloat.h>
 #include <Jolt/Math/Mat44.h>
 #include <Jolt/Math/Matrix.h>
 #include <Jolt/Math/Quat.h>
@@ -213,6 +214,12 @@ struct Eigendecomposition3x3
 {
 	Vector<3> mEigenvalues;
 	Matrix<3, 3> mEigenvectors;
+};
+
+// Four half floats, laid out like Moonbounce's Float16Vector4: 8 bytes.
+struct HalfFloat4
+{
+	HalfFloat mX, mY, mZ, mW;
 };
 
 // Identical to SplitMix64 in Fixtures.swift.
@@ -941,6 +948,11 @@ int main()
 	});
 	Sweep<DVec3, DVec3, DVec3>("DoubleVector3.add", f.mDoubleVectorsA, f.mDoubleVectorsB, [](DVec3Arg a, DVec3Arg b) { return a + b; });
 	Sweep<DMat44, DVec3, DVec3>("DoubleMatrix4x4.transformPoint", f.mDoubleTransforms, f.mDoubleVectorsB, [](DMat44Arg m, DVec3Arg v) { return m * v; });
+	// Jolt converts one float at a time, so each lane is one conversion.
+	Sweep<Vec4, HalfFloat4>("Float16Vector4.fromVector4", f.mVectors4A, [](Vec4Arg v) {
+		using namespace HalfFloatConversion;
+		return HalfFloat4 { FromFloat<ROUND_TO_NEAREST>(v.GetX()), FromFloat<ROUND_TO_NEAREST>(v.GetY()), FromFloat<ROUND_TO_NEAREST>(v.GetZ()), FromFloat<ROUND_TO_NEAREST>(v.GetW()) };
+	});
 	Sweep<Quat, Quat, Quat>({ "Quaternion.slerp", 100 }, f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 	Sweep<RayInput, Sphere, float>("Sphere.rayDistance", f.mSphereRays, f.mSpheres, [](const RayInput &r, const Sphere &s) { return RaySphere(r.mOrigin, r.mDirection, s.GetCenter(), s.GetRadius()); });
 	Sweep<RayInput, AxialInput, float>("Capsule.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCapsule(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });

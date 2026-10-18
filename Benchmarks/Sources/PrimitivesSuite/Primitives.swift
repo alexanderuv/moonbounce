@@ -175,6 +175,13 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.doubleTransforms, fixtures.doubleVectorsB, operation)
             },
 
+            SuiteBenchmark(name: "Float16Vector4.fromVector4") { iteration in
+                // Four lanes in [-100, 100) to half precision, rounded to
+                // nearest.
+                @inline(always) func operation(_ v: Vector4) -> Float16Vector4 { Float16Vector4(v) }
+                sweep(iteration, fixtures.vectors4A, operation)
+            },
+
             SuiteBenchmark(name: "Quaternion.slerp", sweepsPerIteration: 100) { iteration in
                 @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a.slerp(to: b, 0.3) }
                 sweep(iteration, fixtures.rotationsA, fixtures.rotationsB, operation)
