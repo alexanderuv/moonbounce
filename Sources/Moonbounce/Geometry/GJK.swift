@@ -25,17 +25,39 @@
 public struct GJK: Sendable {
     /// The simplex: points of the difference, and the support points of `a`
     /// and `b` that make each. Only `count` are in use.
-    @usableFromInline var y: InlineArray<4, Vector3>
-    @usableFromInline var p: InlineArray<4, Vector3>
-    @usableFromInline var q: InlineArray<4, Vector3>
+    @usableFromInline var y: SimplexPoints
+    @usableFromInline var p: SimplexPoints
+    @usableFromInline var q: SimplexPoints
     @usableFromInline var count: Int
 
     @inline(always)
     public init() {
-        y = InlineArray(repeating: .zero)
-        p = InlineArray(repeating: .zero)
-        q = InlineArray(repeating: .zero)
+        y = SimplexPoints()
+        p = SimplexPoints()
+        q = SimplexPoints()
         count = 0
+    }
+}
+
+/// Four points of a simplex, stored as SIMD vectors so they are 16-byte
+/// aligned on every target. On x86-64 Windows, `Vector3` stores its lanes as
+/// two `UInt64`s, 8-byte aligned, and LLVM then copies the simplex with
+/// unaligned and merged 32-byte moves that defeat store-to-load forwarding:
+/// `GJK.intersects` ran a sixth slower there.
+@frozen @usableFromInline
+struct SimplexPoints: Sendable, BitwiseCopyable {
+    @usableFromInline var points: InlineArray<4, SIMD4<Float>>
+
+    @inlinable @inline(always)
+    init() {
+        points = InlineArray(repeating: .zero)
+    }
+
+    /// The point at `index`, which must be in 0..<4.
+    @unsafe @inlinable @inline(always)
+    subscript(unchecked index: Int) -> Vector3 {
+        get { Vector3(storage: unsafe points[unchecked: index]) }
+        set { unsafe points[unchecked: index] = newValue.storage }
     }
 }
 
@@ -290,7 +312,7 @@ extension GJK {
         let (u, v, w, x) = unsafe ClosestPoint.barycentricCoordinates(
             y[unchecked: 0], y[unchecked: 1], y[unchecked: 2], y[unchecked: 3])
         @inline(always)
-        func weighted(_ points: InlineArray<4, Vector3>) -> Vector3 {
+        func weighted(_ points: SimplexPoints) -> Vector3 {
             unsafe points[unchecked: 0] * u + points[unchecked: 1] * v + points[unchecked: 2] * w + points[unchecked: 3] * x
         }
         return (weighted(p), weighted(q))
