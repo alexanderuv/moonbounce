@@ -43,7 +43,12 @@ public struct GJK: Sendable {
 /// aligned on every target. On x86-64 Windows, `Vector3` stores its lanes as
 /// two `UInt64`s, 8-byte aligned, and LLVM then copies the simplex with
 /// unaligned and merged 32-byte moves that defeat store-to-load forwarding:
-/// `GJK.intersects` ran a sixth slower there.
+/// `GJK.intersects` ran a fifth slower there.
+///
+/// Passed by value to an async function, this would travel as four SIMD
+/// arguments, which swiftlang/swift#90813 corrupts on x86-64 Windows (see
+/// `FloatLaneStorage`). It must only travel inside a `GJK`, which is large
+/// enough to go by address; `AsyncArgumentTests.gjkArrives` checks that.
 @frozen @usableFromInline
 struct SimplexPoints: Sendable, BitwiseCopyable {
     @usableFromInline var points: InlineArray<4, SIMD4<Float>>
