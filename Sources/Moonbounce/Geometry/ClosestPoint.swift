@@ -252,8 +252,18 @@ extension ClosestPoint {
         // Inside the face: the origin's projection onto the plane. The
         // normal's lane w is 0, so its product's sums need no clearing.
         let centroidProducts = (first + vertexB + last) * normal
+        #if arch(arm64)
         let centroidDistance = mb_pairwise_add(mb_pairwise_add(centroidProducts, centroidProducts), centroidProducts).x
         return closest(mb_xyzz(normal * (centroidDistance / (3 * normalLengthSquared))), 0b111, swapped: 0b111)
+        #else
+        // Most triangles in a cast exit here, and the divide should end the
+        // chain: the normal's lanes are put in order before it, held there by
+        // `opaque`, where LLVM would otherwise reorder them after the divide.
+        // The sum is the pairwise rounds' (x + y) + (z + w): the same bits.
+        let orderedNormal = opaque(mb_xyzz(normal))
+        let centroidDistance = (centroidProducts.x + centroidProducts.y) + (centroidProducts.z + centroidProducts.w)
+        return closest(orderedNormal * (centroidDistance / (3 * normalLengthSquared)), 0b111, swapped: 0b111)
+        #endif
     }
 
     /// The nearest point of a degenerate triangle's vertices and edges: a
