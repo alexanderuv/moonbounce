@@ -169,15 +169,17 @@ extension ClosestPoint {
         // Swap a and c when bc is the shorter edge at b. Each squared length
         // is summed into every lane, so the comparison is already a full mask.
         let ba = a.storage - b.storage, bc = c.storage - b.storage
-        #if arch(x86_64)
-        // These lengths and the normal's are in series before the first
-        // branch, and two `haddps` per sum would double each one's latency.
-        // Lane adds sum the squares in the same order: the same bits.
-        let baLengths = SIMD4<Float>(repeating: dot3(ba, ba)), bcLengths = SIMD4<Float>(repeating: dot3(bc, bc))
-        #else
         let ba2 = ba * mb_xyz0(ba), bc2 = bc * mb_xyz0(bc)
+        #if arch(arm64)
         let baLengths = mb_pairwise_add(mb_pairwise_add(ba2, ba2), mb_pairwise_add(ba2, ba2))
         let bcLengths = mb_pairwise_add(mb_pairwise_add(bc2, bc2), mb_pairwise_add(bc2, bc2))
+        #else
+        // These lengths and the normal's are in series before the first
+        // branch, where two rounds of pairwise sums per length double its
+        // latency. Scalar adds of all four lanes, (x + y) + (z + w), are those
+        // rounds' sums: the same bits, NaN from an overflowing lane w included.
+        let baLengths = SIMD4<Float>(repeating: (ba2.x + ba2.y) + (ba2.z + ba2.w))
+        let bcLengths = SIMD4<Float>(repeating: (bc2.x + bc2.y) + (bc2.z + bc2.w))
         #endif
         let swap = mb_less(bcLengths, baLengths)
         let first = mb_select_float4(a.storage, c.storage, swap)
@@ -189,14 +191,15 @@ extension ClosestPoint {
         }
 
         let ab = vertexB - first, ac = last - first
-        // Lane w of the normal is 0, so two rounds of pairwise sums give its
-        // squared length.
+        // Lane w of the normal is 0, or NaN when `ab.z * ac.z` overflows, so
+        // summing all four lanes gives its squared length and keeps that NaN,
+        // which sends the triangle to the degenerate fallback.
         let normal = preciseCross3(ab, ac)
-        #if arch(x86_64)
-        let normalLengthSquared = dot3(normal, normal)
-        #else
         let normalSquares = normal * normal
+        #if arch(arm64)
         let normalLengthSquared = mb_pairwise_add(mb_pairwise_add(normalSquares, normalSquares), normalSquares).x
+        #else
+        let normalLengthSquared = (normalSquares.x + normalSquares.y) + (normalSquares.z + normalSquares.w)
         #endif
         guard normalLengthSquared >= 1.0e-10 else {
             return onDegenerateTriangle(a, b, c, includesC: includesC)

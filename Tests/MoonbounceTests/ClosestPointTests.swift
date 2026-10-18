@@ -178,6 +178,14 @@ import Testing
         #expect(included.point == b)
     }
 
+    @Test func overflowingNormalFallsBackToVerticesAndEdges() {
+        // Finite vertices whose edges' z products overflow: the normal's
+        // lane w is NaN, which must send the triangle to the fallback on
+        // every target rather than through the face regions.
+        let a = Vector3(-1, -1, -3e19), b = Vector3(2, -1, 3e19), c = Vector3(-1, 2, -2e19)
+        #expect(ClosestPoint.onTriangle(a, b, c) == ClosestPoint(point: c, feature: .c))
+    }
+
     // MARK: Tetrahedron
 
     /// The corner tetrahedron with legs 2 along each axis, moved by
