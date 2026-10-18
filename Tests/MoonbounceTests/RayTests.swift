@@ -63,6 +63,10 @@ import Testing
         // A flat box, min == max on an axis, is still valid.
         let flat = AABB(min: Vector3(1, 0, -1), max: Vector3(3, 0, 1))
         #expect(flat.rayDistance(ray) == 1)
+        // A NaN coordinate on one axis doesn't hide a swap on another.
+        let nanAndSwapped = AABB(min: Vector3(0.5, -1.5, .nan), max: Vector3(-1, 0.5, 2))
+        let diagonal = Ray(origin: Vector3(0.5, -0.5, 0), direction: Vector3(1, 1, 0))
+        #expect(nanAndSwapped.rayDistance(diagonal) == .infinity)
     }
 
     @Test func preparedDirectionMatchesConvenienceOverload() {

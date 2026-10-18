@@ -108,6 +108,24 @@ import Testing
         #expect(Self.coordinates(MortonCode.interleave(point, in: Self.box)) == (0, 1023, 0))
     }
 
+    @Test func infiniteCoordinatesClampToTheBox() {
+        let point = Vector3(.infinity, -.infinity, .nan)
+        #expect(Self.coordinates(MortonCode.interleave(point, in: Self.box)) == (1023, 0, 0))
+    }
+
+    @Test func unusableBoundsMapToZero() {
+        // Every lane reaches the conversion in range, so these give codes,
+        // not undefined conversions.
+        let point = Vector3(1, -2, 3)
+        let huge = AABB(min: Vector3(repeating: -.greatestFiniteMagnitude), max: Vector3(repeating: .greatestFiniteMagnitude))
+        let infinite = AABB(min: Vector3(repeating: -.infinity), max: Vector3(repeating: .infinity))
+        let nan = AABB(min: Vector3(repeating: .nan), max: Vector3(repeating: .nan))
+        let inverted = AABB(min: Vector3(repeating: 1), max: Vector3(repeating: -1))
+        for bounds in [AABB.empty, huge, infinite, nan, inverted] {
+            #expect(Self.coordinates(MortonCode.interleave(point, in: bounds)) == (0, 0, 0))
+        }
+    }
+
     @Test func codesGrowAlongEachAxis() {
         // With the other two coordinates fixed, moving along one axis never
         // lowers the code, and crossing the box raises it.

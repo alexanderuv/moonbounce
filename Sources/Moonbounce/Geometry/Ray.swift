@@ -1,4 +1,8 @@
+// Only the ray-box test's lane-mask form, for targets other than arm64,
+// calls the shims directly.
+#if !(arch(arm64) || arch(arm64_32))
 public import _MoonbounceShims
+#endif
 
 /// A half-line starting at `origin` and extending along `direction`.
 ///
@@ -107,7 +111,7 @@ extension AABB {
         // a reciprocal of 1, t1 = min - o and t2 = max - o, so the origin is
         // outside exactly when t1 > 0 or t2 < 0. The gate turns other axes
         // into -inf.
-        #if arch(arm64)
+        #if arch(arm64) || arch(arm64_32)
         // One instruction reduces each test to a scalar, and the scalar tests
         // select without branching.
         let near = horizontalMaximum3(minimum(minimum(t1, t2), negated(gate)))
@@ -123,7 +127,10 @@ extension AABB {
         #else
         // Reductions are shuffle trees here, which leave the result in every
         // lane, so each test is a lane mask and one select decides. Scalar
-        // tests would select four times in a row.
+        // tests would select four times in a row. The lanes agree only
+        // without NaN, and both reduced vectors are NaN-free: their last
+        // min or max takes the gate, never NaN, as its second operand, which
+        // wins over NaN on every target.
         let near = mb_splat_reduce_max(minimum(minimum(t1, t2), negated(gate)))
         let far = mb_splat_reduce_min(maximum(maximum(t1, t2), gate))
         let outsideParallelSlab = mb_greater(minimum(maximum(t1, negated(t2)), gate), .zero)

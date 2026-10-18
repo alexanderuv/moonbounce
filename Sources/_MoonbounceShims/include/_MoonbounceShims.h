@@ -117,11 +117,13 @@ MB_INLINE mb_float4 mb_min_nan(mb_float4 a, mb_float4 b) { return __builtin_elem
 /// Lane-wise IEEE 754-2019 maximum: a NaN operand yields NaN.
 MB_INLINE mb_float4 mb_max_nan(mb_float4 a, mb_float4 b) { return __builtin_elementwise_maximum(a, b); }
 
-/// Every lane set to the smallest or largest lane, with `mb_reduce_min` /
-/// `mb_reduce_max`'s semantics. The shuffle tree leaves the result in every
-/// lane, so a comparison against it needs no broadcast. arm64 reduces in one
-/// instruction instead, and has no use for these.
-#if !defined(__aarch64__)
+/// The smallest or largest of the four lanes, in every lane, through a tree
+/// of two shuffles: a comparison against it then needs no broadcast. arm64
+/// reduces to a scalar in one instruction instead, and has no use for these.
+///
+/// Without NaN, every lane holds the same value, up to the sign of a zero.
+/// With a NaN lane, the lanes can differ on x86-64, as `minps` and `maxps`
+/// return their second operand: `(NaN, 1, 2, 2)` reduces to `(2, 2, 2, NaN)`.
 MB_INLINE mb_float4 mb_splat_reduce_min(mb_float4 v) {
     mb_float4 m = mb_min(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
     return mb_min(m, __builtin_shufflevector(m, m, 1, 0, 3, 2));
@@ -130,7 +132,6 @@ MB_INLINE mb_float4 mb_splat_reduce_max(mb_float4 v) {
     mb_float4 m = mb_max(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
     return mb_max(m, __builtin_shufflevector(m, m, 1, 0, 3, 2));
 }
-#endif
 
 // The smallest and largest of the four lanes, with `mb_min` / `mb_max`'s
 // semantics: the same everywhere unless a lane is NaN or the lanes hold
@@ -317,6 +318,12 @@ MB_INLINE int mb_mask_bits(mb_uint4 v) {
 /// The number of lanes whose highest bit is set.
 MB_INLINE int mb_mask_count(mb_uint4 v) { return (int)__builtin_reduce_add(v >> 31); }
 
+/// Every lane set where any lane of the mask `m` is.
+MB_INLINE mb_uint4 mb_splat_any(mb_uint4 m) {
+    m |= __builtin_shufflevector(m, m, 2, 3, 0, 1);
+    return m | __builtin_shufflevector(m, m, 1, 0, 3, 2);
+}
+
 // MARK: - Shuffles
 
 /// `(y, z, x, x)`: one shuffle. Built lane by lane in Swift, LLVM splits the
@@ -334,12 +341,6 @@ MB_INLINE mb_float4 mb_yxwz(mb_float4 v) { return __builtin_shufflevector(v, v, 
 
 /// `(z, w, x, y)`: swaps the two halves.
 MB_INLINE mb_float4 mb_zwxy(mb_float4 v) { return __builtin_shufflevector(v, v, 2, 3, 0, 1); }
-
-/// Every lane set where any lane of the mask `m` is.
-MB_INLINE mb_uint4 mb_splat_any(mb_uint4 m) {
-    m |= __builtin_shufflevector(m, m, 2, 3, 0, 1);
-    return m | __builtin_shufflevector(m, m, 1, 0, 3, 2);
-}
 
 /// `(w, z, y, x)`: reverses the lanes.
 MB_INLINE mb_float4 mb_wzyx(mb_float4 v) { return __builtin_shufflevector(v, v, 3, 2, 1, 0); }
