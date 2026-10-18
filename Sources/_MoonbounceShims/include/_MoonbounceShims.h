@@ -117,6 +117,21 @@ MB_INLINE mb_float4 mb_min_nan(mb_float4 a, mb_float4 b) { return __builtin_elem
 /// Lane-wise IEEE 754-2019 maximum: a NaN operand yields NaN.
 MB_INLINE mb_float4 mb_max_nan(mb_float4 a, mb_float4 b) { return __builtin_elementwise_maximum(a, b); }
 
+/// Every lane set to the smallest or largest lane, with `mb_reduce_min` /
+/// `mb_reduce_max`'s semantics. The shuffle tree leaves the result in every
+/// lane, so a comparison against it needs no broadcast. arm64 reduces in one
+/// instruction instead, and has no use for these.
+#if !defined(__aarch64__)
+MB_INLINE mb_float4 mb_splat_reduce_min(mb_float4 v) {
+    mb_float4 m = mb_min(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
+    return mb_min(m, __builtin_shufflevector(m, m, 1, 0, 3, 2));
+}
+MB_INLINE mb_float4 mb_splat_reduce_max(mb_float4 v) {
+    mb_float4 m = mb_max(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
+    return mb_max(m, __builtin_shufflevector(m, m, 1, 0, 3, 2));
+}
+#endif
+
 // The smallest and largest of the four lanes, with `mb_min` / `mb_max`'s
 // semantics: the same everywhere unless a lane is NaN or the lanes hold
 // zeros of both signs.
@@ -131,14 +146,8 @@ MB_INLINE mb_float4 mb_max_nan(mb_float4 a, mb_float4 b) { return __builtin_elem
 MB_INLINE float mb_reduce_min(mb_float4 v) { return vminnmvq_f32((float32x4_t)v); }
 MB_INLINE float mb_reduce_max(mb_float4 v) { return vmaxnmvq_f32((float32x4_t)v); }
 #elif defined(__x86_64__)
-MB_INLINE float mb_reduce_min(mb_float4 v) {
-    mb_float4 m = mb_min(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
-    return mb_min(m, __builtin_shufflevector(m, m, 1, 0, 3, 2)).x;
-}
-MB_INLINE float mb_reduce_max(mb_float4 v) {
-    mb_float4 m = mb_max(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
-    return mb_max(m, __builtin_shufflevector(m, m, 1, 0, 3, 2)).x;
-}
+MB_INLINE float mb_reduce_min(mb_float4 v) { return mb_splat_reduce_min(v).x; }
+MB_INLINE float mb_reduce_max(mb_float4 v) { return mb_splat_reduce_max(v).x; }
 #else
 MB_INLINE float mb_reduce_min(mb_float4 v) { return __builtin_reduce_min(v); }
 MB_INLINE float mb_reduce_max(mb_float4 v) { return __builtin_reduce_max(v); }
@@ -263,6 +272,11 @@ MB_INLINE mb_uint4 mb_float4_to_int(mb_float4 v) {
 }
 #endif
 
+/// `mb_float4_to_int` for lanes the caller knows are in the signed 32-bit
+/// range and not NaN: one `fcvtzs` or `cvttps2dq`, without the saturation
+/// x86-64 otherwise needs.
+MB_INLINE mb_uint4 mb_float4_to_int_in_range(mb_float4 v) { return (mb_uint4)__builtin_convertvector(v, mb_int4); }
+
 /// Each lane, read as a signed 32-bit integer, converted to the nearest float.
 MB_INLINE mb_float4 mb_int_to_float4(mb_uint4 v) { return __builtin_convertvector((mb_int4)v, mb_float4); }
 
@@ -320,6 +334,12 @@ MB_INLINE mb_float4 mb_yxwz(mb_float4 v) { return __builtin_shufflevector(v, v, 
 
 /// `(z, w, x, y)`: swaps the two halves.
 MB_INLINE mb_float4 mb_zwxy(mb_float4 v) { return __builtin_shufflevector(v, v, 2, 3, 0, 1); }
+
+/// Every lane set where any lane of the mask `m` is.
+MB_INLINE mb_uint4 mb_splat_any(mb_uint4 m) {
+    m |= __builtin_shufflevector(m, m, 2, 3, 0, 1);
+    return m | __builtin_shufflevector(m, m, 1, 0, 3, 2);
+}
 
 /// `(w, z, y, x)`: reverses the lanes.
 MB_INLINE mb_float4 mb_wzyx(mb_float4 v) { return __builtin_shufflevector(v, v, 3, 2, 1, 0); }
