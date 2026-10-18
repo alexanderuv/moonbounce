@@ -160,6 +160,7 @@ import Testing
         #expect(Vector3.select(a, b, where: UInt32Vector4(0x8000_0000, 0, 0x8000_0000, 0)) == Vector3(4, 2, 6))
         #expect(Vector3.select(a, b, where: UInt32Vector4(0, 0x8000_0000, 0, 0x8000_0000)) == Vector3(1, 5, 3))
         #expect(Vector3.select(a, b, where: UInt32Vector4(0xFFFF_FFFF, 0x7FFF_FFFF, 0xFFFF_FFFF, 0x7FFF_FFFF)) == Vector3(4, 2, 6))
+        #expect(Vector3.select(a, b, where: UInt32Vector4(0x7FFF_FFFF, 0xFFFF_FFFF, 0x7FFF_FFFF, 0xFFFF_FFFF)) == Vector3(1, 5, 3))
     }
 
     @Test func bitwiseOperations() {
@@ -292,5 +293,73 @@ import Testing
         #else
         #expect(MemoryLayout<Vector3>.alignment == 16)
         #endif
+    }
+
+    // MARK: Jolt's Vec3Tests, completed for #26
+
+    @Test func replicate() {
+        #expect(Vector3(repeating: 2) == Vector3(2, 2, 2))
+    }
+
+    @Test func fusedMultiplyAddOfVectors() {
+        #expect(Vector3(7, 8, 9).addingProduct(Vector3(1, 2, 3), Vector3(4, 5, 6)) == Vector3(1 * 4 + 7, 2 * 5 + 8, 3 * 6 + 9))
+        #expect(Vector3(1, 1, 1).addingProduct(2, Vector3(1, 2, 3)) == Vector3(3, 5, 7))
+        // Rounded once: only a fused operation keeps the 2⁻²⁴ term.
+        let a = Vector3(repeating: 1 + 0x1p-12)
+        #expect((-Vector3(repeating: 1 + 0x1p-11)).addingProduct(a, a) == Vector3(repeating: 0x1p-24))
+    }
+
+    @Test func normalizedOrAtTheNormalThreshold() {
+        // A squared length below the smallest normal float counts as zero.
+        let threshold = Float.leastNormalMagnitude.squareRoot()
+        #expect(Vector3(0.999 * threshold, 0, 0).normalized(or: Vector3(1, 2, 3)) == Vector3(1, 2, 3))
+        #expect(Vector3(1.001 * threshold, 0, 0).normalized(or: Vector3(1, 2, 3)).isApproximatelyEqual(to: .axisX))
+        #expect(Vector3(3, 2, 1).normalized(or: Vector3(1, 2, 3)) == Vector3(3, 2, 1) / Float(14).squareRoot())
+    }
+
+    @Test func normalizedPerpendicularIsTight() {
+        var rng = SplitMix64(seed: 33)
+        for _ in 0..<100 {
+            let v = Vector3.random(using: &rng) * Float.random(in: 1..<10, using: &rng)
+            let p = v.normalizedPerpendicular()
+            #expect(p.isNormalized())
+            #expect(Swift.abs(v.dot(p)) < 1.0e-6)
+        }
+    }
+
+    @Test func normalizedPerpendicularOfSignedZeros() {
+        // Exact bits for inputs on the axes with signed zeros. Negation keeps
+        // -0 (IEEE), where Jolt's deterministic build computes 0 - x and
+        // gives +0: so (0, 0, 2) gives (0, 1, -0) here and (0, 1, 0) there.
+        func bits(_ v: Vector3) -> [UInt32] { [v.x.bitPattern, v.y.bitPattern, v.z.bitPattern] }
+        let cases: [(Vector3, Vector3)] = [
+            (Vector3(0, 0, 2), Vector3(0, 1, -0.0)), (Vector3(0, -0.0, 2), Vector3(0, 1, 0)),
+            (Vector3(-0.0, 0, 2), Vector3(0, 1, -0.0)), (Vector3(-0.0, -0.0, 2), Vector3(0, 1, 0)),
+            (Vector3(0, 2, 0), Vector3(0, 0, -1)), (Vector3(0, 2, -0.0), Vector3(0, -0.0, -1)),
+            (Vector3(-0.0, 2, 0), Vector3(0, 0, -1)), (Vector3(-0.0, 2, -0.0), Vector3(0, -0.0, -1)),
+            (Vector3(2, 0, 0), Vector3(0, 0, -1)), (Vector3(2, 0, -0.0), Vector3(-0.0, 0, -1)),
+            (Vector3(2, -0.0, 0), Vector3(0, 0, -1)), (Vector3(2, -0.0, -0.0), Vector3(-0.0, 0, -1)),
+        ]
+        for (input, expected) in cases {
+            #expect(bits(input.normalizedPerpendicular()) == bits(expected), "\(input)")
+        }
+    }
+
+    @Test func description() {
+        #expect(Vector3(1, 2, 3).description == "Vector3(1.0, 2.0, 3.0)")
+    }
+
+    @Test func componentWiseMultiplyInPlace() {
+        var v = Vector3(1, 2, 3)
+        v *= Vector3(4, 5, 6)
+        #expect(v == Vector3(4, 10, 18))
+    }
+
+    @Test func signedZeroSumsFollowIEEE() {
+        // reduceSum and dot add in order with IEEE signed zeros, so all
+        // negative zeros sum to -0. Jolt's deterministic build gives +0.
+        #expect(Vector3(-0.0, -0.0, -0.0).reduceSum().sign == .minus)
+        #expect(Vector3(-0.0, 0, -0.0).reduceSum().sign == .plus)
+        #expect(Vector3(-0.0, -0.0, -0.0).dot(Vector3(1, 1, 1)).sign == .minus)
     }
 }

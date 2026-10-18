@@ -119,6 +119,10 @@ extension Vector3 {
     @inline(always)
     public static func *= (lhs: inout Vector3, rhs: Float) { lhs.storage *= rhs }
 
+    /// Component-wise product, in place.
+    @inline(always)
+    public static func *= (lhs: inout Vector3, rhs: Vector3) { lhs.storage *= rhs.storage }
+
     @inline(always)
     public static func /= (lhs: inout Vector3, rhs: Float) { lhs.storage /= rhs }
 
@@ -126,6 +130,12 @@ extension Vector3 {
     @inline(always)
     public func addingProduct(_ a: Float, _ b: Vector3) -> Vector3 {
         Vector3(storage: multiplyAdd(a, b.storage, storage))
+    }
+
+    /// `self + a * b` component-wise, rounded once (a fused multiply-add).
+    @inline(always)
+    public func addingProduct(_ a: Vector3, _ b: Vector3) -> Vector3 {
+        Vector3(storage: multiplyAdd(a.storage, b.storage, storage))
     }
 }
 
