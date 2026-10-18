@@ -107,7 +107,7 @@ extension GJK {
             for i in 0..<count {
                 unsafe y[unchecked: i] = x - p[unchecked: i]
             }
-            guard let (closest, newLengthSquared, feature) = closestToOrigin(below: lengthSquared, lastPointIncluded: false, inlinesDegenerate: true)
+            guard let (closest, newLengthSquared, feature) = closestToOrigin(below: lengthSquared, lastPointIncluded: false)
             else {
                 // The point made no progress: the simplex before it stands.
                 count &-= 1
@@ -200,7 +200,7 @@ extension GJK {
             unsafe q[unchecked: count] = pointB
             count &+= 1
             differenceAlongCast(x)
-            guard let (closest, newLengthSquared, feature) = closestToOrigin(below: lengthSquared, lastPointIncluded: false, inlinesDegenerate: true)
+            guard let (closest, newLengthSquared, feature) = closestToOrigin(below: lengthSquared, lastPointIncluded: false)
             else {
                 // The point made no progress: the simplex before it stands,
                 // and holds four points only when it encloses the origin.
