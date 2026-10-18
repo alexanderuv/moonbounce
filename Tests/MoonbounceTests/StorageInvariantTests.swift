@@ -104,20 +104,24 @@ import Testing
 
     @Test func transposedProductMatchesTransposingFirst() {
         // Bit for bit in all four lanes, for any bits: random, signed zeros,
-        // infinities and NaN. The reference ends in a lane copy, so this
-        // also checks that lane w repeats lane z, NaN payloads included.
+        // infinities and NaN, with lane w repeating lane z. A NaN only has to
+        // stay a NaN: which payload wins among NaN operands depends on their
+        // order, which the optimizer may swap, as it does on x86-64 without
+        // FMA, where each lane is a separate scalar chain.
         let specials: [Float] = [0, -0.0, 1, -1, .infinity, -.infinity, .nan, .greatestFiniteMagnitude, .leastNonzeroMagnitude]
         var rng = SplitMix64()
         func value() -> Float {
             rng.next() % 4 == 0 ? specials[Int(rng.next() % UInt64(specials.count))] : Float(bitPattern: UInt32(truncatingIfNeeded: rng.next()))
         }
-        func bits(_ v: Vector3) -> SIMD4<UInt32> { unsafe unsafeBitCast(v.storage, to: SIMD4<UInt32>.self) }
+        func same(_ a: Float, _ b: Float) -> Bool { a.bitPattern == b.bitPattern || (a.isNaN && b.isNaN) }
         for _ in 0..<20_000 {
             let m = Matrix4x4(
                 columns: Vector4(value(), value(), value(), value()), Vector4(value(), value(), value(), value()),
                 Vector4(value(), value(), value(), value()), Vector4(value(), value(), value(), value()))
             let v = Vector3(value(), value(), value())
-            #expect(bits(m.transposedMultiply3x3(v)) == bits(m.transposed3x3().multiply3x3(v)))
+            let product = m.transposedMultiply3x3(v).storage, reference = m.transposed3x3().multiply3x3(v).storage
+            #expect(same(product.x, reference.x) && same(product.y, reference.y) && same(product.z, reference.z))
+            #expect(same(product.w, product.z))
         }
     }
 
