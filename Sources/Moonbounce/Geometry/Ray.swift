@@ -1,6 +1,6 @@
 // Only the ray-box test's lane-mask form, for targets other than arm64,
 // calls the shims directly.
-#if !(arch(arm64) || arch(arm64_32))
+#if !arch(arm64)
 public import _MoonbounceShims
 #endif
 
@@ -111,7 +111,7 @@ extension AABB {
         // a reciprocal of 1, t1 = min - o and t2 = max - o, so the origin is
         // outside exactly when t1 > 0 or t2 < 0. The gate turns other axes
         // into -inf.
-        #if arch(arm64) || arch(arm64_32)
+        #if arch(arm64)
         // One instruction reduces each test to a scalar, and the scalar tests
         // select without branching.
         let near = horizontalMaximum3(minimum(minimum(t1, t2), negated(gate)))
