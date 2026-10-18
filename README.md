@@ -6,7 +6,7 @@ Moonbounce runs on macOS, Windows and Linux. It depends only on the Swift standa
 
 ## Status
 
-Early: there are no bodies or simulation yet. What exists is the math and geometry they will be built on:
+Early: there are no bodies or simulation yet. What exists is the math and geometry they will be built on, each benchmarked against [Jolt Physics](https://github.com/jrouwe/JoltPhysics) on macOS and Windows ([reference results](docs/validation.md#reference-results)):
 
 | Area | Types | What they do |
 |---|---|---|
