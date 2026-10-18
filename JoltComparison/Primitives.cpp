@@ -37,6 +37,7 @@
 #include <Jolt/Geometry/RayTriangle.h>
 #include <Jolt/Geometry/Sphere.h>
 #include <Jolt/Math/Mat44.h>
+#include <Jolt/Math/Matrix.h>
 #include <Jolt/Math/Quat.h>
 
 #ifdef _WIN32
@@ -196,6 +197,12 @@ struct EPAPenetrationOutput
 	Vec3 mPointA, mPointB, mAxis;
 };
 
+// A 6 × 6 system and its right-hand side, laid out like Moonbounce's
+// Matrix<6, 6> and Vector<6>: 144 and 24 bytes. Named here because
+// SplitMix64::Matrix() hides Jolt's Matrix inside SplitMix64.
+using Matrix6x6 = Matrix<6, 6>;
+using Matrix6x1 = Matrix<6, 1>;
+
 // Identical to SplitMix64 in Fixtures.swift.
 struct SplitMix64
 {
@@ -269,6 +276,26 @@ struct SplitMix64
 		Vec4 c2 = Vector4(-1, 1);
 		Vec4 c3 = Vector4(-1, 1);
 		return Mat44(c0, c1, c2, c3);
+	}
+
+	// Same as matrix6x6() in Fixtures.swift: 36 elements in [-1, 1), column by column.
+	Matrix6x6 LinearSystem()
+	{
+		Matrix6x6 m;
+		for (uint c = 0; c < 6; ++c)
+			for (uint r = 0; r < 6; ++r)
+				m(r, c) = Uniform(-1, 1);
+		return m;
+	}
+
+	// Same as vector6() in Fixtures.swift, as the one column of a matrix,
+	// which GaussianElimination takes for its right-hand side.
+	Matrix6x1 RightHandSide()
+	{
+		Matrix6x1 v;
+		for (uint r = 0; r < 6; ++r)
+			v(r, 0) = Uniform(-1, 1);
+		return v;
 	}
 
 	// Same as mask() in Fixtures.swift: lane i is all ones when bit i is set.
@@ -443,6 +470,9 @@ struct Fixtures
 	Array<Vec3> mHullPoints;
 	// Same as hullPoints3D and gameClouds in Fixtures.swift.
 	Array<Vec3> mHullPoints3D;
+	// Same as linearSystems and rightHandSides in Fixtures.swift.
+	std::vector<Matrix6x6> mLinearSystems;
+	std::vector<Matrix6x1> mRightHandSides;
 	std::vector<Array<Vec3>> mGameClouds;
 
 	Fixtures()
@@ -544,6 +574,8 @@ struct Fixtures
 			mHullPoints.push_back(Vec3(x, y, 0));
 		}
 		for (int i = 0; i < cCount; ++i) mHullPoints3D.push_back(rng.Vector(-10, 10));
+		for (int i = 0; i < cCount; ++i) mLinearSystems.push_back(rng.LinearSystem());
+		for (int i = 0; i < cCount; ++i) mRightHandSides.push_back(rng.RightHandSide());
 
 		// Same as convexHullClouds() and gameClouds in Fixtures.swift: the
 		// clouds in the format Assets/README.md gives, and every 6.755th one.
@@ -835,6 +867,13 @@ int main()
 	Sweep<Mat44, Mat44>("Matrix4x4.inversed", f.mMatricesA, [](Mat44Arg m) { return m.Inversed(); });
 	Sweep<Mat44, Vec3, Vec3>("Matrix4x4.transformPoint", f.mRigidTransforms, f.mVectorsB, [](Mat44Arg m, Vec3Arg v) { return m * v; });
 	Sweep<Mat44, Mat44>("Matrix4x4.inversedRotationTranslation", f.mRigidTransforms, [](Mat44Arg m) { return m.InversedRotationTranslation(); });
+	// Solves a copy of each system, as in the Swift benchmark; the result is the solution.
+	Sweep<Matrix6x6, Matrix6x1, Matrix6x1>({ "GaussianElimination.solve6x6", 10 }, f.mLinearSystems, f.mRightHandSides, [](const Matrix6x6 &inA, const Matrix6x1 &inB) {
+		Matrix6x6 a = inA;
+		Matrix6x1 x = inB;
+		GaussianElimination(a, x);
+		return x;
+	});
 	Sweep<Quat, Quat, Quat>({ "Quaternion.slerp", 100 }, f.mRotationsA, f.mRotationsB, [](QuatArg a, QuatArg b) { return a.SLERP(b, 0.3f); });
 	Sweep<RayInput, Sphere, float>("Sphere.rayDistance", f.mSphereRays, f.mSpheres, [](const RayInput &r, const Sphere &s) { return RaySphere(r.mOrigin, r.mDirection, s.GetCenter(), s.GetRadius()); });
 	Sweep<RayInput, AxialInput, float>("Capsule.rayDistance", f.mAxialRays, f.mAxialShapes, [](const RayInput &r, const AxialInput &c) { return RayCapsule(r.mOrigin, r.mDirection, c.mHalfHeight, c.mRadius); });

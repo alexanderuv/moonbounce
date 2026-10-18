@@ -142,6 +142,17 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.rigidTransforms, operation)
             },
 
+            SuiteBenchmark(name: "GaussianElimination.solve6x6", sweepsPerIteration: 10) { iteration in
+                // Solves a copy of each system, as a constraint solver
+                // solves the system it built; the result is the solution.
+                @inline(always) func operation(_ a: Matrix<6, 6>, _ b: Vector<6>) -> Vector<6> {
+                    var a = a, x = b
+                    _ = GaussianElimination.solve(&a, &x)
+                    return x
+                }
+                sweep(iteration, fixtures.linearSystems, fixtures.rightHandSides, operation)
+            },
+
             SuiteBenchmark(name: "Quaternion.slerp", sweepsPerIteration: 100) { iteration in
                 @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a.slerp(to: b, 0.3) }
                 sweep(iteration, fixtures.rotationsA, fixtures.rotationsB, operation)
