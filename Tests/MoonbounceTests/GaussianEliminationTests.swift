@@ -46,13 +46,21 @@ import Testing
     }
 
     @Test func nearlySingularSystemNeedsATolerance() {
-        // The third row is the sum of the first two, but rounding leaves a
-        // last pivot near 1e-7, above the default tolerance, which only
-        // catches pivots that are 0 in all but name.
-        let dependent: Matrix<3, 3> = Self.matrix([[1, 2, 3], [4, 5, 6], [5, 7, 9]])
-        var a = dependent
+        // The third row is nearly the sum of the first two, so the last
+        // pivot is near 1e-3: above the default tolerance, which only
+        // catches pivots that are 0 in all but name, and below 1e-2.
+        let nearlyDependent: Matrix<3, 3> = Self.matrix([[1, 2, 3], [4, 5, 6], [5, 7, 9.001]])
+        var a = nearlyDependent
         var b = Vector<3>([1, 2, 3])
-        #expect(!GaussianElimination.solve(&a, &b, tolerance: 1.0e-5))
+        #expect(GaussianElimination.solve(&a, &b))
+        a = nearlyDependent
+        b = Vector([1, 2, 3])
+        #expect(!GaussianElimination.solve(&a, &b, tolerance: 1.0e-2))
+
+        // Exactly dependent rows reduce to a 0 pivot.
+        var dependent: Matrix<3, 3> = Self.matrix([[1, 2, 3], [4, 5, 6], [5, 7, 9]])
+        b = Vector([1, 2, 3])
+        #expect(!GaussianElimination.solve(&dependent, &b))
     }
 
     @Test func toleranceRejectsSmallPivots() {
@@ -90,7 +98,7 @@ import Testing
     }
 
     @Test func randomSystems() {
-        // A diagonally dominant 6 × 6, as the benchmark solves.
+        // Diagonally dominant 6 × 6 systems with a known solution.
         var rng = SplitMix64(seed: 7)
         for _ in 0..<100 {
             let a = Matrix<6, 6> { row, column in Float.random(in: -1..<1, using: &rng) + (row == column ? 6 : 0) }
@@ -139,6 +147,47 @@ import Testing
         for row in 0..<5 {
             #expect(dynamicB[row: row, column: 0] == fixedB[row])
         }
+    }
+
+    @Test func mixedStorageLayouts() {
+        // A column-major Matrix with a row-major DynamicMatrix, both ways
+        // round, gives the same bits as two Matrix values.
+        var rng = SplitMix64(seed: 13)
+        let fixed = Matrix<4, 4> { row, column in Float.random(in: -1..<1, using: &rng) + (row == column ? 4 : 0) }
+        let rightHandSides = Matrix<4, 2> { _, _ in Float.random(in: -1..<1, using: &rng) }
+        func dynamic<let r: Int, let c: Int>(_ m: Matrix<r, c>) -> DynamicMatrix {
+            var d = DynamicMatrix(rowCount: r, columnCount: c)
+            for row in 0..<r {
+                for column in 0..<c {
+                    d[row: row, column: column] = m[row: row, column: column]
+                }
+            }
+            return d
+        }
+
+        var fixedA = fixed, fixedB = rightHandSides
+        #expect(GaussianElimination.solve(&fixedA, &fixedB))
+
+        var a1 = fixed, b1 = dynamic(rightHandSides)
+        #expect(GaussianElimination.solve(&a1, &b1))
+        var a2 = dynamic(fixed), b2 = rightHandSides
+        #expect(GaussianElimination.solve(&a2, &b2))
+        #expect(b2 == fixedB)
+        for row in 0..<4 {
+            for column in 0..<2 {
+                #expect(b1[row: row, column: column] == fixedB[row: row, column: column])
+            }
+        }
+    }
+
+    @Test func noRightHandSides() {
+        // With b of no columns, solve still reduces a and reports singularity.
+        var a: Matrix<2, 2> = Self.matrix([[2, 1], [1, 3]])
+        var none = DynamicMatrix(rowCount: 2, columnCount: 0)
+        #expect(GaussianElimination.solve(&a, &none))
+        #expect(a.isClose(to: .identity))
+        var singular = Matrix<2, 2>.zero
+        #expect(!GaussianElimination.solve(&singular, &none))
     }
 
     @Test func singularDynamicSystem() {

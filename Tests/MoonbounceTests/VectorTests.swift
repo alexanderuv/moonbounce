@@ -15,7 +15,7 @@ import Testing
     }
 
     @Test func description() {
-        #expect(Vector<3>([1, 2, 3]).description == "[1.0, 2.0, 3.0]")
+        #expect(Vector<3>([1, 2, 3]).description == "Vector<3>(1.0, 2.0, 3.0)")
     }
 
     @Test func multiplyFloat() {

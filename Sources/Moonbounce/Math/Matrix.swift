@@ -129,7 +129,7 @@ extension Matrix {
     @inline(always) public static func *= (lhs: inout Matrix, rhs: Float) { lhs = lhs * rhs }
 
     /// The product `lhs · rhs`. Each element is a dot product accumulated in
-    /// order.
+    /// order with one fused multiply-add per term.
     @inline(always)
     public static func * <let otherColumns: Int>(
         lhs: Matrix, rhs: Matrix<columns, otherColumns>
@@ -138,13 +138,13 @@ extension Matrix {
     }
 
     /// The product `m · v`. Each element is a dot product accumulated in
-    /// order.
+    /// order with one fused multiply-add per term.
     @inline(always)
     public static func * (m: Matrix, v: Vector<columns>) -> Vector<rows> {
         Vector { row in
             var sum: Float = 0
             for column in 0..<columns {
-                sum += m.columnVectors[column].elements[row] * v.elements[column]
+                sum.addProduct(m.columnVectors[column].elements[row], v.elements[column])
             }
             return sum
         }

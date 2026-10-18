@@ -81,12 +81,13 @@ extension Vector {
     @inline(always) public static func *= (lhs: inout Vector, rhs: Float) { lhs = lhs * rhs }
     @inline(always) public static func /= (lhs: inout Vector, rhs: Float) { lhs = lhs / rhs }
 
-    /// The sum of the elementwise products, accumulated in order.
+    /// The sum of the elementwise products, accumulated in order with one
+    /// fused multiply-add each.
     @inline(always)
     public func dot(_ other: Vector) -> Float {
         var sum: Float = 0
         for i in 0..<count {
-            sum += elements[i] * other.elements[i]
+            sum.addProduct(elements[i], other.elements[i])
         }
         return sum
     }
@@ -159,8 +160,8 @@ extension Vector: Equatable {
 }
 
 extension Vector: CustomStringConvertible {
-    /// The elements in brackets.
+    /// The elements in order.
     public var description: String {
-        "[\((0..<count).map { "\(elements[$0])" }.joined(separator: ", "))]"
+        "Vector<\(count)>(\((0..<count).map { "\(elements[$0])" }.joined(separator: ", ")))"
     }
 }

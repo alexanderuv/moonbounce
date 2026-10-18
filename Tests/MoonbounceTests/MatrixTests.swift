@@ -154,9 +154,9 @@ import Testing
     }
 
     @Test func singularMatrixHasNoInverse() {
-        // A zero column stays exactly zero through elimination. Rows that
-        // are equal only after rounding need a tolerance, which
-        // GaussianEliminationTests covers.
+        // A zero column stays exactly zero through elimination. A nearly
+        // singular matrix needs a tolerance, which GaussianEliminationTests
+        // covers.
         let m = Matrix<3, 3> { row, column in column == 1 ? 0 : Float(row + column + 1) }
         #expect(m.inversed() == nil)
         #expect(Matrix<6, 6>.zero.inversed() == nil)
