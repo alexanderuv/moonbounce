@@ -90,6 +90,20 @@ struct SplitMix64: RandomNumberGenerator {
         return v
     }
 
+    /// A symmetric 3 × 3 matrix: its upper triangle in [-1, 1), drawn row
+    /// by row (00, 01, 02, 11, 12, 22), mirrored below the diagonal.
+    mutating func symmetric3x3() -> Matrix<3, 3> {
+        var m = Matrix<3, 3>.zero
+        for row in 0..<3 {
+            for column in row..<3 {
+                let element = uniform(-1, 1)
+                m[row: row, column: column] = element
+                m[row: column, column: row] = element
+            }
+        }
+        return m
+    }
+
     /// A comparison mask whose lanes are each all ones or all zeros, from the
     /// low four bits of one draw.
     mutating func mask() -> UInt32Vector4 {
@@ -320,6 +334,8 @@ struct Fixtures: Sendable {
     /// singular, and each needs pivoting.
     let linearSystems: [Matrix<6, 6>]
     let rightHandSides: [Vector<6>]
+    /// General symmetric 3 × 3 matrices, for the eigendecomposition.
+    let symmetricMatrices: [Matrix<3, 3>]
     /// 1,000 of the point clouds in `Assets/convex_hulls.bin`, game models
     /// of 4 to 100 points, spread evenly through the file: their points back
     /// to back, and each cloud's range of them.
@@ -400,6 +416,7 @@ struct Fixtures: Sendable {
         hullPoints3D = (0..<Self.count).map { _ in rng.vector3(-10, 10) }
         linearSystems = (0..<Self.count).map { _ in rng.matrix6x6() }
         rightHandSides = (0..<Self.count).map { _ in rng.vector6() }
+        symmetricMatrices = (0..<Self.count).map { _ in rng.symmetric3x3() }
 
         let clouds = Self.convexHullClouds()
         var points: [Vector3] = []

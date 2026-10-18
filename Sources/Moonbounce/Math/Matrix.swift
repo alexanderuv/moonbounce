@@ -205,6 +205,15 @@ extension Matrix where rows == columns {
     }
 }
 
+extension Matrix where rows == 3, columns == 3 {
+    /// The upper-left 3 × 3 block of `matrix`, such as the linear part of
+    /// a transform or an inertia tensor.
+    @inlinable
+    public init(upperLeftOf matrix: Matrix4x4) {
+        self.init { row, column in matrix[row: row, column: column] }
+    }
+}
+
 extension Matrix: Equatable {
     /// Whether every element equals the other's, as `Float`s compare: a NaN
     /// element makes two matrices unequal.

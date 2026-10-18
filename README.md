@@ -11,7 +11,7 @@ Early: there are no bodies or simulation yet. What exists is the math and geomet
 | Area | Types | What they do |
 |---|---|---|
 | Vector math | `Vector3`, `Vector4`, `UInt32Vector4`, `Quaternion`, `Matrix4x4` | 3D vectors, rotations and transforms, computed with SIMD instructions. `UInt32Vector4` holds the masks that comparisons return. |
-| Linear algebra | `Vector`, `Matrix`, `DynamicMatrix`, `GaussianElimination` | Vectors and matrices of any size, fixed in the type or chosen at run time, and linear systems solved with pivoting. |
+| Linear algebra | `Vector`, `Matrix`, `DynamicMatrix`, `GaussianElimination`, `SymmetricEigendecomposition` | Vectors and matrices of any size, fixed in the type or chosen at run time, linear systems solved with pivoting, and the eigenvalues and eigenvectors of a symmetric matrix, such as the principal axes of an inertia tensor. |
 | Trigonometry | `Trigonometry`, and `Vector4` for four values at once | Sine, cosine, tangent and their inverses, with the same bits on every platform. |
 | Bounding volumes | `AABB`, `AABB4`, `OrientedBox`, `Sphere` | Overlap and containment tests. `AABB4` tests four boxes in one call. |
 | Planes | `Plane` | Signed distances, projections, and the point where three planes meet. |

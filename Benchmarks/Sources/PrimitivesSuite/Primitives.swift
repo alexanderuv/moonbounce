@@ -153,6 +153,18 @@ extension SuiteBenchmark {
                 sweep(iteration, fixtures.linearSystems, fixtures.rightHandSides, operation)
             },
 
+            SuiteBenchmark(name: "SymmetricEigendecomposition.solve3x3", sweepsPerIteration: 10) { iteration in
+                // The eigenvalues and eigenvectors of each matrix; one that
+                // doesn't converge gives zeros, as in the C++ harness.
+                @inline(always) func operation(_ m: Matrix<3, 3>) -> Eigendecomposition3x3 {
+                    guard let decomposition = SymmetricEigendecomposition(m) else {
+                        return Eigendecomposition3x3(eigenvalues: .zero, eigenvectors: .zero)
+                    }
+                    return Eigendecomposition3x3(eigenvalues: decomposition.eigenvalues, eigenvectors: decomposition.eigenvectors)
+                }
+                sweep(iteration, fixtures.symmetricMatrices, operation)
+            },
+
             SuiteBenchmark(name: "Quaternion.slerp", sweepsPerIteration: 100) { iteration in
                 @inline(always) func operation(_ a: Quaternion, _ b: Quaternion) -> Quaternion { a.slerp(to: b, 0.3) }
                 sweep(iteration, fixtures.rotationsA, fixtures.rotationsB, operation)
@@ -407,6 +419,13 @@ extension OrientedBox {
     var convex: TransformedConvex<AABB> {
         TransformedConvex(AABB(min: -halfExtents, max: halfExtents), transform: orientation)
     }
+}
+
+/// A 3 × 3 eigendecomposition, laid out like the C++ harness's
+/// `Eigendecomposition3x3`: 48 bytes.
+struct Eigendecomposition3x3: BitwiseCopyable {
+    var eigenvalues: Vector<3>
+    var eigenvectors: Matrix<3, 3>
 }
 
 /// A 3D hull builder and the outputs it reuses, kept across a benchmark's
