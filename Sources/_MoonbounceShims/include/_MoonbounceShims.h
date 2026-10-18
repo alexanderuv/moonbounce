@@ -125,6 +125,20 @@ MB_INLINE float mb_dot3(mb_float4 a, mb_float4 b) {
     float32x4_t product = vmulq_f32((float32x4_t)a, (float32x4_t)b);
     return vaddvq_f32(vsetq_lane_f32(-0.0f, product, 3));
 }
+
+/// `mb_dot3`, but lane w of the product keeps only its sign bit, through an
+/// `and` with a constant mask. For a `Vector3`, whose w lane repeats z, lane
+/// w is then a zero of z's sign, and the sum is `mb_dot3`'s bit for bit.
+///
+/// Code with many dot products keeps the mask in one register, where
+/// `mb_dot3` often rebuilds its -0 before each lane insert. And since lane w
+/// is still read, LLVM can't pack other values into it, which costs lane
+/// moves elsewhere. With few dot products, the mask's load costs more.
+MB_INLINE float mb_masked_dot3(mb_float4 a, mb_float4 b) {
+    float32x4_t product = vmulq_f32((float32x4_t)a, (float32x4_t)b);
+    uint32x4_t mask = {0xFFFFFFFFu, 0xFFFFFFFFu, 0xFFFFFFFFu, 0x80000000u};
+    return vaddvq_f32(vreinterpretq_f32_u32(vandq_u32(vreinterpretq_u32_f32(product), mask)));
+}
 #endif
 
 /// Lane-wise unsigned minimum.
@@ -282,6 +296,18 @@ MB_INLINE mb_float4 mb_wzyx(mb_float4 v) { return __builtin_shufflevector(v, v, 
 /// mod 4: one `ext` each on arm64.
 MB_INLINE mb_float4 mb_yzwx(mb_float4 v) { return __builtin_shufflevector(v, v, 1, 2, 3, 0); }
 MB_INLINE mb_float4 mb_wxyz(mb_float4 v) { return __builtin_shufflevector(v, v, 3, 0, 1, 2); }
+
+/// `v` unchanged, but opaque to the optimizer: an empty assembly statement
+/// that costs no instruction. LLVM can't move a shuffle or a negation
+/// through it, or pack other values into lanes it thinks are unused, as it
+/// otherwise does in EPA's triangle setup at the cost of lane moves.
+#if defined(__aarch64__)
+MB_INLINE mb_float4 mb_opaque(mb_float4 v) { __asm__("" : "+w"(v)); return v; }
+#elif defined(__x86_64__)
+MB_INLINE mb_float4 mb_opaque(mb_float4 v) { __asm__("" : "+x"(v)); return v; }
+#else
+MB_INLINE mb_float4 mb_opaque(mb_float4 v) { return v; }
+#endif
 
 /// `(a.x + a.y, a.z + a.w, b.x + b.y, b.z + b.w)`: one `faddp` on arm64, and
 /// the same sums in the same order everywhere, which `__builtin_reduce_add`

@@ -95,6 +95,13 @@ func horizontalMaximum3(_ v: SIMD4<Float>) -> Float {
     mb_reduce_max(v)
 }
 
+/// `v` unchanged, hidden from the optimizer so it can't rewrite the
+/// operations around it.
+@inlinable @inline(always)
+func opaque(_ v: SIMD4<Float>) -> SIMD4<Float> {
+    mb_opaque(v)
+}
+
 /// The dot product of lanes x, y and z.
 @inlinable @inline(always)
 func dot3(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> Float {
@@ -103,6 +110,18 @@ func dot3(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> Float {
     #else
     let p = a * b
     return p.x + p.y + p.z
+    #endif
+}
+
+/// `dot3` for vectors whose w lane repeats z, through `mb_masked_dot3` on
+/// arm64: the same bits, in fewer instructions where dot products are dense,
+/// as in EPA's hull.
+@inlinable @inline(always)
+func maskedDot3(_ a: SIMD4<Float>, _ b: SIMD4<Float>) -> Float {
+    #if arch(arm64)
+    mb_masked_dot3(a, b)
+    #else
+    dot3(a, b)
     #endif
 }
 
