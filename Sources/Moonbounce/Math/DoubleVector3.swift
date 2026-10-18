@@ -202,15 +202,15 @@ extension DoubleVector3 {
         return DoubleVector3(storage: mb_double4_from_bits(mb_double4_bits(SIMD4(repeating: 1)) | signs))
     }
 
-    /// Component-wise minimum. A NaN component in either operand yields the
-    /// other's.
+    /// Component-wise minimum. Where a component is NaN, the result is `b`'s
+    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
     @inline(always)
     public static func min(_ a: DoubleVector3, _ b: DoubleVector3) -> DoubleVector3 {
         DoubleVector3(storage: mb_dmin(a.storage, b.storage))
     }
 
-    /// Component-wise maximum. A NaN component in either operand yields the
-    /// other's.
+    /// Component-wise maximum. Where a component is NaN, the result is `b`'s
+    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
     @inline(always)
     public static func max(_ a: DoubleVector3, _ b: DoubleVector3) -> DoubleVector3 {
         DoubleVector3(storage: mb_dmax(a.storage, b.storage))

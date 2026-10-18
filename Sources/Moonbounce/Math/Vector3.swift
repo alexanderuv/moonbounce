@@ -171,11 +171,13 @@ extension Vector3 {
     @inline(always)
     public var abs: Vector3 { Vector3(storage: absolute(storage)) }
 
-    /// Component-wise minimum. A NaN component in either operand yields `a`'s.
+    /// Component-wise minimum. Where a component is NaN, the result is `b`'s
+    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
     @inline(always)
     public static func min(_ a: Vector3, _ b: Vector3) -> Vector3 { Vector3(storage: minimum(a.storage, b.storage)) }
 
-    /// Component-wise maximum. A NaN component in either operand yields `a`'s.
+    /// Component-wise maximum. Where a component is NaN, the result is `b`'s
+    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
     @inline(always)
     public static func max(_ a: Vector3, _ b: Vector3) -> Vector3 { Vector3(storage: maximum(a.storage, b.storage)) }
 

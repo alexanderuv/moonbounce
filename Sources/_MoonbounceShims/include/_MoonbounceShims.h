@@ -30,7 +30,11 @@ typedef long long mb_long4 __attribute__((ext_vector_type(4)));
 #include <arm_neon.h>
 #endif
 
-#if defined(__F16C__)
+#if defined(__x86_64__)
+#include <emmintrin.h>
+#endif
+
+#if defined(__F16C__) || defined(__AVX__)
 #include <immintrin.h>
 typedef unsigned short mb_ushort8 __attribute__((ext_vector_type(8)));
 #endif
@@ -85,11 +89,26 @@ MB_INLINE mb_double4 mb_sqrt_double4(mb_double4 v) { return __builtin_elementwis
 
 // MARK: - Min, max and reductions
 
-/// Lane-wise IEEE 754 minNum: a NaN operand yields the other operand.
+// Lane-wise minimum and maximum, as each target's native instruction, so
+// they agree everywhere except when a lane is NaN (docs/adr/0002):
+//
+// - arm64: IEEE 754 minNum / maxNum (`fminnm`, `fmaxnm`): a NaN lane yields
+//   the other operand's lane.
+// - x86-64: `minps` / `maxps`: a NaN in either lane yields `b`'s lane.
+//
+// x86 has no minNum instruction. Written portably, each would be `minps`
+// plus a NaN test and a blend on the dependency chain, which made bounding
+// box and ray code two to four times slower than Jolt's on x86-64. The
+// target intrinsics are opaque to LLVM, which would otherwise turn a
+// compare-and-select into a wider blend. Code that must skip NaN lanes
+// masks them first, as `Vector4.lowestLane` does.
+#if defined(__x86_64__)
+MB_INLINE mb_float4 mb_min(mb_float4 a, mb_float4 b) { return (mb_float4)_mm_min_ps((__m128)a, (__m128)b); }
+MB_INLINE mb_float4 mb_max(mb_float4 a, mb_float4 b) { return (mb_float4)_mm_max_ps((__m128)a, (__m128)b); }
+#else
 MB_INLINE mb_float4 mb_min(mb_float4 a, mb_float4 b) { return __builtin_elementwise_min(a, b); }
-
-/// Lane-wise IEEE 754 maxNum: a NaN operand yields the other operand.
 MB_INLINE mb_float4 mb_max(mb_float4 a, mb_float4 b) { return __builtin_elementwise_max(a, b); }
+#endif
 
 /// Lane-wise IEEE 754-2019 minimum: a NaN operand yields NaN. One `fmin` on
 /// arm64; for clamps that must not turn a NaN input into a plausible value.
@@ -98,15 +117,27 @@ MB_INLINE mb_float4 mb_min_nan(mb_float4 a, mb_float4 b) { return __builtin_elem
 /// Lane-wise IEEE 754-2019 maximum: a NaN operand yields NaN.
 MB_INLINE mb_float4 mb_max_nan(mb_float4 a, mb_float4 b) { return __builtin_elementwise_maximum(a, b); }
 
-// The smallest and largest of the four lanes, with minNum / maxNum semantics.
+// The smallest and largest of the four lanes, with `mb_min` / `mb_max`'s
+// semantics: the same everywhere unless a lane is NaN.
 //
-// On arm64 both forms compile to one `fminnmv` / `fmaxnmv`, but LLVM's loop
-// unroller prices the generic reduction as its expanded shuffle tree, so a
-// loop around it unrolled 2× where the NEON intrinsic unrolls 8×, as clang
-// does for Jolt's `vminvq_f32`. The results are bit for bit the same.
+// On arm64 both compile to one `fminnmv` / `fmaxnmv`. The generic reduction
+// would too, but LLVM's loop unroller prices it as its expanded shuffle
+// tree, so a loop around it unrolled 2× where the NEON intrinsic unrolls 8×,
+// as clang does for Jolt's `vminvq_f32`. On x86-64, two shuffles and two
+// native min/max, where the generic reduction is a serial chain of three
+// minNum steps.
 #if defined(__aarch64__)
 MB_INLINE float mb_reduce_min(mb_float4 v) { return vminnmvq_f32((float32x4_t)v); }
 MB_INLINE float mb_reduce_max(mb_float4 v) { return vmaxnmvq_f32((float32x4_t)v); }
+#elif defined(__x86_64__)
+MB_INLINE float mb_reduce_min(mb_float4 v) {
+    mb_float4 m = mb_min(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
+    return mb_min(m, __builtin_shufflevector(m, m, 1, 0, 3, 2)).x;
+}
+MB_INLINE float mb_reduce_max(mb_float4 v) {
+    mb_float4 m = mb_max(v, __builtin_shufflevector(v, v, 2, 3, 0, 1));
+    return mb_max(m, __builtin_shufflevector(m, m, 1, 0, 3, 2)).x;
+}
 #else
 MB_INLINE float mb_reduce_min(mb_float4 v) { return __builtin_reduce_min(v); }
 MB_INLINE float mb_reduce_max(mb_float4 v) { return __builtin_reduce_max(v); }
@@ -375,9 +406,26 @@ MB_INLINE mb_double4 mb_dfma(mb_double4 a, mb_double4 b, mb_double4 c) { return 
 /// Each lane with its sign flipped, as IEEE 754 negation requires.
 MB_INLINE mb_double4 mb_dnegate(mb_double4 v) { return -v; }
 
-/// Lane-wise IEEE 754 minNum and maxNum: a NaN operand yields the other.
+/// Lane-wise minimum and maximum with `mb_min` / `mb_max`'s semantics.
+#if defined(__AVX__)
+MB_INLINE mb_double4 mb_dmin(mb_double4 a, mb_double4 b) { return (mb_double4)_mm256_min_pd((__m256d)a, (__m256d)b); }
+MB_INLINE mb_double4 mb_dmax(mb_double4 a, mb_double4 b) { return (mb_double4)_mm256_max_pd((__m256d)a, (__m256d)b); }
+#elif defined(__x86_64__)
+typedef double mb_double2 __attribute__((ext_vector_type(2)));
+MB_INLINE mb_double4 mb_dmin(mb_double4 a, mb_double4 b) {
+    mb_double2 low = (mb_double2)_mm_min_pd((__m128d)a.xy, (__m128d)b.xy);
+    mb_double2 high = (mb_double2)_mm_min_pd((__m128d)a.zw, (__m128d)b.zw);
+    return __builtin_shufflevector(low, high, 0, 1, 2, 3);
+}
+MB_INLINE mb_double4 mb_dmax(mb_double4 a, mb_double4 b) {
+    mb_double2 low = (mb_double2)_mm_max_pd((__m128d)a.xy, (__m128d)b.xy);
+    mb_double2 high = (mb_double2)_mm_max_pd((__m128d)a.zw, (__m128d)b.zw);
+    return __builtin_shufflevector(low, high, 0, 1, 2, 3);
+}
+#else
 MB_INLINE mb_double4 mb_dmin(mb_double4 a, mb_double4 b) { return __builtin_elementwise_min(a, b); }
 MB_INLINE mb_double4 mb_dmax(mb_double4 a, mb_double4 b) { return __builtin_elementwise_max(a, b); }
+#endif
 
 /// The bits of `v`, unchanged, and the doubles whose bits are `v`.
 MB_INLINE mb_ulong4 mb_double4_bits(mb_double4 v) { return (mb_ulong4)v; }

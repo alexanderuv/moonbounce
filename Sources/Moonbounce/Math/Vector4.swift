@@ -238,7 +238,9 @@ extension Vector4 {
     /// mask bit keeps the index valid there, so callers can subscript with it.
     @inlinable @inline(always)
     func lowestLane(ifAllNaN fallback: Int) -> Int {
-        var smallest = mb_min(simd, mb_yxwz(simd))
+        // NaN lanes become +∞ first: min's NaN handling differs by target.
+        let lanes = mb_select_float4(simd, SIMD4(repeating: .infinity), mb_is_nan(simd))
+        var smallest = mb_min(lanes, mb_yxwz(lanes))
         smallest = mb_min(smallest, mb_zwxy(smallest))
         return (mb_mask_bits(mb_equal(simd, smallest)) | Int32(1) << fallback).trailingZeroBitCount
     }
@@ -246,7 +248,9 @@ extension Vector4 {
     /// ``highestComponentIndex``, with `fallback` when every lane is NaN.
     @inlinable @inline(always)
     func highestLane(ifAllNaN fallback: Int) -> Int {
-        var largest = mb_max(simd, mb_yxwz(simd))
+        // NaN lanes become -∞ first, as in `lowestLane`.
+        let lanes = mb_select_float4(simd, SIMD4(repeating: -.infinity), mb_is_nan(simd))
+        var largest = mb_max(lanes, mb_yxwz(lanes))
         largest = mb_max(largest, mb_zwxy(largest))
         return (mb_mask_bits(mb_equal(simd, largest)) | Int32(1) << fallback).trailingZeroBitCount
     }
@@ -255,11 +259,13 @@ extension Vector4 {
 // MARK: - Comparisons, selection and bitwise operations
 
 extension Vector4 {
-    /// Component-wise minimum. A NaN lane yields the other operand's lane.
+    /// Component-wise minimum. Where a lane is NaN, the result is `b`'s lane
+    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
     @inline(always)
     public static func min(_ a: Vector4, _ b: Vector4) -> Vector4 { Vector4(mb_min(a.simd, b.simd)) }
 
-    /// Component-wise maximum. A NaN lane yields the other operand's lane.
+    /// Component-wise maximum. Where a lane is NaN, the result is `b`'s lane
+    /// on x86-64 and the other operand's on arm64 (docs/adr/0002).
     @inline(always)
     public static func max(_ a: Vector4, _ b: Vector4) -> Vector4 { Vector4(mb_max(a.simd, b.simd)) }
 

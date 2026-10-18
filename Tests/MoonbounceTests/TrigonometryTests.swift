@@ -299,4 +299,14 @@ import Testing
         }
         #expect(hash == 0x0F74_8106_EA60_560A)
     }
+
+    @Test func nanLaneDoesNotHideALargeAngle() {
+        // A large lane takes the exact reduction even beside a NaN lane.
+        let alone = Vector4(1.0e30, 0, 0, 0).sinCos()
+        let mixed = Vector4(1.0e30, .nan, 0, 0).sinCos()
+        #expect(mixed.sin.x == alone.sin.x && mixed.cos.x == alone.cos.x)
+        #expect(mixed.sin.y.isNaN)
+        let reversed = Vector4(.nan, 1.0e30, 0, 0).sinCos()
+        #expect(reversed.sin.y == alone.sin.x)
+    }
 }

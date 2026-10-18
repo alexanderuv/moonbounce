@@ -134,12 +134,25 @@ func reduceQuarterTurns(_ x: SIMD4<Float>) -> (r: SIMD4<Float>, quadrant: SIMD4<
     r = multiplySubtract(halfPiLow, k, r)
     r = multiplySubtract(halfPiTail, k, r)
     let reduced = (r: r, quadrant: mb_float4_to_int(k))
-    // One across-lane maximum and a scalar compare. It skips NaN lanes, which
-    // need no exact reduction: their r is NaN already.
-    if _slowPath(mb_reduce_max(absolute(x)) > codyWaiteLimit) {
+    if _slowPath(anyLaneAbove(absolute(x), codyWaiteLimit)) {
         return reducingLargeArguments(x, reduced)
     }
     return reduced
+}
+
+/// Whether any lane of `v` is above `limit`, skipping NaN lanes, which need
+/// no exact reduction: their r is NaN already.
+///
+/// arm64's across-lane maximum skips NaN in one instruction. On x86-64, max
+/// doesn't (docs/adr/0002), so it compares each lane and tests the mask: a
+/// NaN lane compares false.
+@inlinable @inline(always)
+func anyLaneAbove(_ v: SIMD4<Float>, _ limit: Float) -> Bool {
+    #if arch(arm64)
+    mb_reduce_max(v) > limit
+    #else
+    mb_mask_bits(mb_greater(v, SIMD4(repeating: limit))) != 0
+    #endif
 }
 
 /// The largest |x| that the Cody-Waite reduction in ``reduceQuarterTurns(_:)``
