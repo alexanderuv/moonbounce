@@ -17,16 +17,16 @@ public struct SymmetricEigendecomposition<let size: Int>: Sendable, BitwiseCopya
     /// converged after 50 sweeps, or when an eigenvalue is not finite, as
     /// for a matrix with an infinite or NaN element.
     ///
-    /// Each sweep applies a Jacobi rotation, which zeroes it, to each
-    /// element above the diagonal that is above the sweep's threshold,
-    /// until the sum of their magnitudes divided by `size * size` is below
-    /// `Float.leastNormalMagnitude`. The rotations are Jolt's (from
-    /// Numerical Recipes, paragraph 11.1), with a higher threshold for the
-    /// first four sweeps and, from the sixth, elements too small to change
-    /// the diagonal set to 0 rather than rotated away. Repeated eigenvalues and
-    /// diagonal input need no special case: a diagonal matrix converges at
-    /// once, with the identity as its eigenvectors. The method suits small
-    /// sizes; its cost grows with the cube of `size` per sweep.
+    /// Each sweep zeroes each element above the diagonal that is above the
+    /// sweep's threshold with a Jacobi rotation, until the sum of their
+    /// magnitudes divided by `size * size` is below
+    /// `Float.leastNormalMagnitude`. The sweeps are Jolt's (from Numerical
+    /// Recipes, paragraph 11.1): a higher threshold for the first four, and
+    /// from the sixth, elements too small to change the diagonal set to 0
+    /// rather than rotated away. Repeated eigenvalues and diagonal input need
+    /// no special case: a diagonal matrix converges at once, with the
+    /// identity as its eigenvectors. The method suits small sizes; its cost
+    /// grows with the cube of `size` per sweep.
     // Setup code, but `@inline(always)` rather than `@inlinable`: left to
     // the optimizer it isn't inlined, which costs 10% more instructions in
     // `SymmetricEigendecomposition.solve3x3`.
@@ -102,9 +102,15 @@ public struct SymmetricEigendecomposition<let size: Int>: Sendable, BitwiseCopya
                                     let magnitudeT = 1 / (abs(theta) + Float(1).addingProduct(theta, theta).squareRoot())
                                     t = theta < 0 ? -magnitudeT : magnitudeT
                                 }
-                                let c = 1 / Float(1).addingProduct(t, t).squareRoot()
+                                // tau = s / (1 + c) = t / (1 + root), with
+                                // root = 1 / c:
+                                // its division runs beside c's rather than
+                                // after it, which shortens the chain of
+                                // dependent operations every rotation waits on.
+                                let root = Float(1).addingProduct(t, t).squareRoot()
+                                let c = 1 / root
                                 let s = t * c
-                                let tau = s / (1 + c)
+                                let tau = t / (1 + root)
                                 let h = unsafe t * element.pointee
                                 unsafe element.pointee = 0
 
