@@ -89,11 +89,17 @@ public struct TempAllocator: ~Copyable, @unchecked Sendable {
         let newTop = top &- ((byteCount &+ (Self.alignment &- 1)) & ~(Self.alignment &- 1))
         // One unsigned comparison rejects a negative count, which would move
         // the top up, and one larger than what is allocated.
-        let isLast = unsafe base + newTop == block
-        precondition(
-            UInt(bitPattern: newTop) <= UInt(bitPattern: top) && isLast,
-            "TempAllocator frees blocks in the reverse order of their allocation"
-        )
+        let fits = UInt(bitPattern: newTop) <= UInt(bitPattern: top)
+        #if arch(x86_64)
+        // x86-64 would branch on each comparison, and in a loop of frees the
+        // second branch costs more than a select. A count that doesn't fit
+        // selects an offset no block starts at: user-space addresses have bit
+        // 63 clear, and `base` plus `Int.min` has it set.
+        let isLast = unsafe base + (fits ? newTop : Int.min) == block
+        #else
+        let isLast = unsafe fits && base + newTop == block
+        #endif
+        precondition(isLast, "TempAllocator frees blocks in the reverse order of their allocation")
         top = newTop
     }
 }
