@@ -8,8 +8,8 @@
 /// is uninitialized: bind it to a type before using it, as for any raw
 /// allocation.
 ///
-/// Running out of room traps, and so does a free of anything but the last
-/// block still allocated, with its count: both are bugs in the caller, which
+/// Running out of room traps, and so does a free out of order, as
+/// ``free(_:byteCount:)`` details: both are bugs in the caller, which
 /// sizes the arena for its worst step. ``canAllocate(byteCount:)`` asks
 /// first, for a caller that has somewhere else to go.
 ///
@@ -78,9 +78,10 @@ public struct TempAllocator: ~Copyable, @unchecked Sendable {
     /// yet freed, with the count it was allocated with.
     ///
     /// It traps unless `block` starts that count, rounded up to
-    /// ``alignment``, below the top of what is allocated, and the count is
-    /// at least 0 and no more than is allocated. A count that rounds to the
-    /// same size, or that covers several of the last blocks, passes.
+    /// ``alignment``, below the top of what is allocated, within what is
+    /// allocated. A count that rounds to the same size, or that covers several
+    /// of the last blocks, passes, and so does a negative count that rounds
+    /// to 0, which frees nothing.
     ///
     /// - Precondition: `block` is the last block still allocated.
     @unsafe @inline(always)
