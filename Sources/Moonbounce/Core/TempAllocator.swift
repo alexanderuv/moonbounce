@@ -82,7 +82,10 @@ public struct TempAllocator: ~Copyable, @unchecked Sendable {
     /// to the same size, or that covers several of the last blocks, passes.
     /// A debug build also traps on a count larger than what is allocated, and
     /// on a negative count that doesn't round to 0: either would move the top
-    /// outside what is allocated.
+    /// outside what is allocated. A release build checks only the order, so
+    /// such a count passes only with a block that isn't the last: one above
+    /// the top, or outside the arena. A block from outside the arena can then
+    /// put later blocks outside it too.
     ///
     /// - Precondition: `block` is the last block still allocated, and
     ///   `byteCount` the count it was allocated with.
@@ -91,8 +94,8 @@ public struct TempAllocator: ~Copyable, @unchecked Sendable {
         let newTop = top &- ((byteCount &+ (Self.alignment &- 1)) & ~(Self.alignment &- 1))
         // One unsigned comparison rejects a negative count, which would move
         // the top up, and one larger than what is allocated. Release builds
-        // leave it out, as Jolt's do: in every form measured, it made a loop
-        // of frees about 10% slower on x86-64.
+        // leave it out, as Jolt's do: in every form measured, it left
+        // TempAllocator.allocateFree 8–10% behind Jolt on Windows x86-64.
         assert(UInt(bitPattern: newTop) <= UInt(bitPattern: top), "TempAllocator frees no more than is allocated")
         // Compared as integers, since a count that doesn't fit would put a
         // pointer outside the arena, which is undefined.

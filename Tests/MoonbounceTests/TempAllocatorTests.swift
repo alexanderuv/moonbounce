@@ -147,6 +147,25 @@ import Testing
             let b = unsafe allocator.allocate(byteCount: 16)
             unsafe allocator.free(b, byteCount: 32)
         }
+        await #expect(processExitsWith: .failure) {
+            // The last block, with more than is allocated: the order check
+            // traps on it in every build. Without it, the allocation after
+            // it would bring the top back to 0.
+            var allocator = TempAllocator(capacity: 64)
+            let a = unsafe allocator.allocate(byteCount: 16)
+            unsafe allocator.free(a, byteCount: 32)
+            _ = unsafe allocator.allocate(byteCount: 16)
+        }
+        await #expect(processExitsWith: .failure) {
+            // The last block, with a negative count: the order check traps
+            // on it in every build. Without it, the two frees after it would
+            // bring the top back to 0.
+            var allocator = TempAllocator(capacity: 64)
+            let a = unsafe allocator.allocate(byteCount: 16)
+            unsafe allocator.free(a, byteCount: -16)
+            unsafe allocator.free(a + 16, byteCount: 16)
+            unsafe allocator.free(a, byteCount: 16)
+        }
     }
 
     // Release builds leave the count check out, so only a debug build traps.
@@ -165,7 +184,8 @@ import Testing
             // after it would bring the top back to 0.
             var allocator = TempAllocator(capacity: 64)
             let a = unsafe allocator.allocate(byteCount: 16)
-            unsafe allocator.free(a - 16, byteCount: 32)
+            let belowArena = unsafe UnsafeMutableRawPointer(bitPattern: Self.address(a) - 16)!
+            unsafe allocator.free(belowArena, byteCount: 32)
             _ = unsafe allocator.allocate(byteCount: 16)
         }
     }
