@@ -7,7 +7,7 @@ How a feature is accepted, which platforms Moonbounce supports, and how its spee
 A feature is done when:
 
 1. **Behavior:** tests cover what it does, including its edge cases and accuracy bounds.
-2. **Speed:** its benchmark is within 5% of the [speed reference](#speed-reference) or faster, on both tier 1 platforms. Wall time must hold everywhere. Instruction counts must hold where the platform can count them.
+2. **Speed:** its benchmark is within 5% of the [speed reference](#speed-reference) or faster, on both tier 1 platforms. Wall time must hold everywhere. Retired instructions must hold on macOS, and thread cycles on Windows, which can't count instructions.
 3. **Allocations:** it allocates nothing in steady state: 0 mallocs per measured iteration.
 4. **Portability:** it builds and passes its tests on every tier 1 and tier 2 platform, using only the Swift standard library and `_MoonbounceShims`.
 
