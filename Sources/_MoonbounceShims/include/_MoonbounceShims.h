@@ -713,4 +713,11 @@ MB_INLINE mb_float4 mb_half4_to_float4(mb_ushort4 h) {
 #endif
 }
 
+// MARK: - Prefetch
+
+/// A hint to load the cache line holding `address` into L1 for reading:
+/// `prfm pldl1keep` / `prefetcht0`. It never faults, whatever the address,
+/// and Swift has no way to emit it.
+MB_INLINE void mb_prefetch(const void *address) { __builtin_prefetch(address, 0, 3); }
+
 #endif

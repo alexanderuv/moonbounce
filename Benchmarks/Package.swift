@@ -30,6 +30,14 @@ let package = Package(
                 .product(name: "Moonbounce", package: "moonbounce"),
             ]
         ),
+        // The `Core` bodies and their fixtures.
+        .target(
+            name: "CoreSuite",
+            dependencies: [
+                "BenchmarkSupport",
+                .product(name: "Moonbounce", package: "moonbounce"),
+            ]
+        ),
         // Which instruction-set level the build targets, so the runner can
         // refuse to measure below the level Moonbounce is measured at.
         .target(name: "BuildLevel"),
@@ -41,6 +49,7 @@ let package = Package(
                 "BenchmarkSupport",
                 "BuildLevel",
                 "PrimitivesSuite",
+                "CoreSuite",
                 // Dynamic on macOS, where the allocation counter's interposing
                 // works only from a dynamic library; static elsewhere.
                 .product(name: "CounterShimsDynamic", package: "CounterShims", condition: .when(platforms: [.macOS])),

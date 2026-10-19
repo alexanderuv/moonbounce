@@ -30,6 +30,8 @@ Options:
 
 Jolt is fetched at the requested tag and built into `JoltComparison/.build/`, so each run measures the code it fetched on the machine it runs on. The build directory is safe to delete; the next run recreates it.
 
+The harness has an executable per Swift suite: `Primitives.cpp` mirrors `PrimitivesSuite` and `Core.cpp` mirrors `CoreSuite`. Each is a single file that includes `Harness.h`, the measurement they share, so adding a benchmark to one suite leaves the other's compiled code unchanged. Each round runs every suite's harness, then BenchmarkRunner.
+
 The Swift side is BenchmarkRunner, built at x86-64-v3 (`-Xcc -march=x86-64-v3`) on x86-64. On Windows, Jolt is built twice, with MSVC and with clang-cl, and each benchmark is compared against the faster build.
 
 The output is in nanoseconds and instructions per 1,000 operations, plus the maximum malloc count per measured iteration:
@@ -56,7 +58,7 @@ Cycles confirm a time ratio rather than measure work: unlike instructions, they 
 
 ## How it stays fair
 
-- **Same inputs:** `Primitives.cpp` uses the same SplitMix64 generator as `Benchmarks/Sources/PrimitivesSuite/Fixtures.swift`, with the same seed, consumed in the same order.
+- **Same inputs:** each suite's file uses the same SplitMix64 generator as the `Fixtures.swift` of its Swift suite under `Benchmarks/Sources/`, with the same seed, consumed in the same order.
 - **Same loop shape:** 1,000 operations per sweep, results written to an output array, and one opaque black-hole call per sweep. Each benchmark runs the sweeps per measured iteration its Swift benchmark sets, and `compare.py` stops if the two sides report different counts.
 - **Same measurement as BenchmarkRunner on the same platform,** with the iteration rules in `MeasurementRules` and the same clocks, counters and thread settings ([Measuring](../docs/validation.md#measuring)).
   - macOS: `CLOCK_UPTIME_RAW` wall time, retired instructions from `proc_pid_rusage`, and user-interactive QoS, so the scheduler favors performance cores.
@@ -68,7 +70,7 @@ Cycles confirm a time ratio rather than measure work: unlike instructions, they 
 
 ## Adding a benchmark
 
-1. Add it to `Benchmarks/Sources/PrimitivesSuite/Primitives.swift` first, as a normal Moonbounce benchmark. BenchmarkRunner registers every benchmark in the suite, so nothing else changes on the Swift side.
-2. Mirror it in `Primitives.cpp` under the same name.
+1. Add it to its suite under `Benchmarks/Sources/` first, as a normal Moonbounce benchmark: `PrimitivesSuite/Primitives.swift` or `CoreSuite/Core.swift`. BenchmarkRunner registers every benchmark in each suite, so nothing else changes on the Swift side for an existing suite.
+2. Mirror it under the same name in that suite's file here, `Primitives.cpp` or `Core.cpp`.
 
-`compare.py` matches the two by name and lists any benchmark that has no counterpart.
+`compare.py` matches the two by name and stops if a benchmark has no counterpart. A new suite also needs, on the Swift side, its library in `Benchmarks/Package.swift` and its benchmarks added to the list `Benchmarks/Sources/BenchmarkRunner/main.swift` registers; and here, a file with its own `main()`, added to the `foreach` in `CMakeLists.txt` and to `SUITES` in `compare.py`. Benchmark names must be unique across suites.

@@ -8,6 +8,7 @@
 
 import BenchmarkSupport
 import BuildLevel
+import CoreSuite
 import CounterShims
 import PrimitivesSuite
 
@@ -216,8 +217,9 @@ if allocations_are_counted() {
 
 // MARK: - Measurement
 
-/// Every registered benchmark. A new suite adds its benchmarks here.
-let benchmarks = SuiteBenchmark.primitives().filter { benchmark in
+/// Every registered benchmark, suite by suite. A new suite adds its
+/// benchmarks here.
+let benchmarks = (SuiteBenchmark.primitives() + SuiteBenchmark.core()).filter { benchmark in
     filters.isEmpty || filters.contains { benchmark.name.wholeMatch(of: $0) != nil }
 }
 if benchmarks.isEmpty {
