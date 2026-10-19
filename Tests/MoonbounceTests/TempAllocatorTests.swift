@@ -149,6 +149,25 @@ import Testing
         }
     }
 
+    @Test func trapsOnAFreeOfAnImpossibleCount() async {
+        await #expect(processExitsWith: .failure) {
+            // A negative count would move the top up, past what is
+            // allocated. Without the check, the second free would undo it.
+            var allocator = TempAllocator(capacity: 16)
+            let a = unsafe allocator.allocate(byteCount: 0)
+            unsafe allocator.free(a + 16, byteCount: -16)
+            unsafe allocator.free(a, byteCount: 16)
+        }
+        await #expect(processExitsWith: .failure) {
+            // More than is allocated. Without the check, the allocation
+            // after it would bring the top back to 0.
+            var allocator = TempAllocator(capacity: 64)
+            let a = unsafe allocator.allocate(byteCount: 16)
+            unsafe allocator.free(a - 16, byteCount: 32)
+            _ = unsafe allocator.allocate(byteCount: 16)
+        }
+    }
+
     // MARK: Reuse
 
     @Test func isReusedOnceEverythingIsFreed() {

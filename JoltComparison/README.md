@@ -70,7 +70,7 @@ Cycles confirm a time ratio rather than measure work: unlike instructions, they 
 
 ## Adding a benchmark
 
-1. Add it to its suite under `Benchmarks/Sources/` first, as a normal Moonbounce benchmark: `PrimitivesSuite/Primitives.swift` or `CoreSuite/Core.swift`. BenchmarkRunner registers every benchmark in each suite, so nothing else changes on the Swift side.
+1. Add it to its suite under `Benchmarks/Sources/` first, as a normal Moonbounce benchmark: `PrimitivesSuite/Primitives.swift` or `CoreSuite/Core.swift`. BenchmarkRunner registers every benchmark in each suite, so nothing else changes on the Swift side for an existing suite.
 2. Mirror it under the same name in that suite's file here, `Primitives.cpp` or `Core.cpp`.
 
-`compare.py` matches the two by name and stops if a benchmark has no counterpart. A new suite also needs a file here with its own `main()`, added to the `foreach` in `CMakeLists.txt` and to `SUITES` in `compare.py`.
+`compare.py` matches the two by name and stops if a benchmark has no counterpart. A new suite also needs, on the Swift side, its library in `Benchmarks/Package.swift` and its benchmarks added to the list `Benchmarks/Sources/BenchmarkRunner/main.swift` registers; and here, a file with its own `main()`, added to the `foreach` in `CMakeLists.txt` and to `SUITES` in `compare.py`. Benchmark names must be unique across suites.

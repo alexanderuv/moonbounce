@@ -145,6 +145,8 @@ def jolt_round(executables):
     for executable in executables:
         report = json.loads(run([executable], HERE))
         for name, metrics in report["benchmarks"].items():
+            if name in results:
+                sys.exit(f"compare.py: {name} is in more than one suite's Jolt harness")
             scale = 1000 / (report["operationsPerSweep"] * metrics["sweepsPerIteration"])
             results[name] = {
                 "sweeps": metrics["sweepsPerIteration"],

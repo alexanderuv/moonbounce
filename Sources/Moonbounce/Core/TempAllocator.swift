@@ -20,6 +20,7 @@
 public struct TempAllocator: ~Copyable, @unchecked Sendable {
     /// The alignment of every block: 16 bytes, the alignment of every
     /// Moonbounce vector and matrix, in single and double precision.
+    @inline(always)
     public static var alignment: Int { 16 }
 
     @usableFromInline let base: UnsafeMutableRawPointer
@@ -76,11 +77,22 @@ public struct TempAllocator: ~Copyable, @unchecked Sendable {
     /// Frees `block`, of `byteCount` bytes: the last block allocated and not
     /// yet freed, with the count it was allocated with.
     ///
+    /// It traps unless `block` starts that count, rounded up to
+    /// ``alignment``, below the top of what is allocated, and the count is
+    /// at least 0 and no more than is allocated. A count that rounds to the
+    /// same size, or that covers several of the last blocks, passes.
+    ///
     /// - Precondition: `block` is the last block still allocated.
     @unsafe @inline(always)
     public mutating func free(_ block: UnsafeMutableRawPointer, byteCount: Int) {
         let newTop = top &- ((byteCount &+ (Self.alignment &- 1)) & ~(Self.alignment &- 1))
-        precondition(unsafe base + newTop == block, "TempAllocator frees blocks in the reverse order of their allocation")
+        // One unsigned comparison rejects a negative count, which would move
+        // the top up, and one larger than what is allocated.
+        let isLast = unsafe base + newTop == block
+        precondition(
+            UInt(bitPattern: newTop) <= UInt(bitPattern: top) && isLast,
+            "TempAllocator frees blocks in the reverse order of their allocation"
+        )
         top = newTop
     }
 }
