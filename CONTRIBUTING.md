@@ -37,6 +37,7 @@ Closes #<issue>
 - **Body:** optional. One to three bullets on what changed and why, not a replay of the diff.
 - **Footer:** `Closes #<n>` for the ticket the commit completes, `Refs #<n>` for related ones. The phase lives in the ticket, so subjects carry no `[Phase N]` prefix.
 - **Breaking changes:** add `!` after the type or scope and a `BREAKING CHANGE:` footer that says what callers must change. This applies before 1.0 too.
+- **No AI attribution:** commits, pull requests, issues and comments carry no `Co-Authored-By` trailer for an assistant, no "Generated with" line and no mention of AI authorship.
 
 | Type | Use for |
 |---|---|

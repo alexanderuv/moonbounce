@@ -37,7 +37,7 @@ Moonbounce stands on its own: describe it by what it does and how it is built.
 | How BenchmarkRunner and the suites measure, and why | Comments in `Benchmarks/` |
 | Third-party data: its source, license and checksum | `Assets/README.md` |
 | Domain terms | `CONTEXT.md` |
-| How agents work in this repository | `docs/agents/` |
+| How agents work in this repository | `docs/agents/`; procedures an agent loads when it needs them, in `.claude/skills/` |
 | Analysis of one result: profiles, causes, attempts | The issue that tracks it |
 | Decisions and the reasons for them | `docs/adr/` |
 | Toolchain bugs Moonbounce works around | `KNOWN_ISSUES.md` |
