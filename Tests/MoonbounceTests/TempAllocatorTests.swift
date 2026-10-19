@@ -167,8 +167,8 @@ import Testing
             _ = unsafe allocator.allocate(byteCount: 16)
         }
         await #expect(processExitsWith: .failure) {
-            // More than is allocated, freed at the arena's start, which
-            // a check that compared against a real address could accept.
+            // More than is allocated, freed at the arena's start, which a
+            // sentinel offset of 0, `a`'s own, would accept.
             var allocator = TempAllocator(capacity: 64)
             let a = unsafe allocator.allocate(byteCount: 16)
             unsafe allocator.free(a, byteCount: 32)

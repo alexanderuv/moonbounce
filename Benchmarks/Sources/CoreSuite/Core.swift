@@ -55,6 +55,9 @@ private struct TempArena: ~Copyable {
         }
         blackHole(blocks)
         let allocated = blocks.span
+        // Equal counts, checked once, let the compiler drop the per-free
+        // bounds check on `allocated`, which the C++ loop doesn't have.
+        precondition(allocated.count == counts.count)
         for i in counts.indices.reversed() {
             unsafe allocator.free(allocated[i], byteCount: Int(counts[i]))
         }
