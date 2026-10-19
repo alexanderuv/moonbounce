@@ -78,31 +78,28 @@ public struct TempAllocator: ~Copyable, @unchecked Sendable {
     /// yet freed, with the count it was allocated with.
     ///
     /// It traps unless `block` starts that count, rounded up to
-    /// ``alignment``, below the top of what is allocated, within what is
-    /// allocated. A count that rounds to the same size, or that covers several
-    /// of the last blocks, passes, and so does a negative count that rounds
-    /// to 0, which frees nothing.
+    /// ``alignment``, below the top of what is allocated. A count that rounds
+    /// to the same size, or that covers several of the last blocks, passes.
+    /// A debug build also traps on a count larger than what is allocated, and
+    /// on a negative count that doesn't round to 0: either would move the top
+    /// outside what is allocated.
     ///
-    /// - Precondition: `block` is the last block still allocated.
+    /// - Precondition: `block` is the last block still allocated, and
+    ///   `byteCount` the count it was allocated with.
     @unsafe @inline(always)
     public mutating func free(_ block: UnsafeMutableRawPointer, byteCount: Int) {
         let newTop = top &- ((byteCount &+ (Self.alignment &- 1)) & ~(Self.alignment &- 1))
         // One unsigned comparison rejects a negative count, which would move
-        // the top up, and one larger than what is allocated.
-        let fits = UInt(bitPattern: newTop) <= UInt(bitPattern: top)
-        #if arch(x86_64)
-        // x86-64 would branch on each comparison, and in a loop of frees the
-        // second branch costs more than a select. A count that doesn't fit
-        // selects an offset no block starts at: user-space addresses have bit
-        // 63 clear, and `base` plus `Int.min` has it set, so only a pointer
-        // made from that bit pattern passes. The sum is an integer's, since a
-        // pointer that far outside the arena is undefined.
-        let lastOffset = UInt(bitPattern: fits ? newTop : Int.min)
-        let isLast = unsafe UInt(bitPattern: base) &+ lastOffset == UInt(bitPattern: block)
-        #else
-        let isLast = unsafe fits && base + newTop == block
-        #endif
-        precondition(isLast, "TempAllocator frees blocks in the reverse order of their allocation")
+        // the top up, and one larger than what is allocated. Release builds
+        // leave it out, as Jolt's do: in every form measured, it made a loop
+        // of frees about 10% slower on x86-64.
+        assert(UInt(bitPattern: newTop) <= UInt(bitPattern: top), "TempAllocator frees no more than is allocated")
+        // Compared as integers, since a count that doesn't fit would put a
+        // pointer outside the arena, which is undefined.
+        precondition(
+            unsafe UInt(bitPattern: base) &+ UInt(bitPattern: newTop) == UInt(bitPattern: block),
+            "TempAllocator frees blocks in the reverse order of their allocation"
+        )
         top = newTop
     }
 }
