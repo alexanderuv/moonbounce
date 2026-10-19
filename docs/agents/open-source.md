@@ -33,14 +33,18 @@ Moonbounce stands on its own: describe it by what it does and how it is built.
 | Where Moonbounce is heading, in a few paragraphs | `docs/roadmap.md` |
 | Features, specifications, acceptance criteria | GitHub issues: one per phase, with tickets as sub-issues |
 | The rules a result must meet: definition of done, platform tiers and CI gaps, measurement rules, the speed reference, scene targets and quality gates, and recorded results with one line per exception | `docs/validation.md` |
-| How the harness measures and keeps the two sides comparable | `JoltComparison/README.md`, comments in `Benchmarks/` |
+| How to run the Jolt comparison and add a benchmark to it, how the Jolt harness measures, and how the two sides stay comparable | `JoltComparison/README.md` |
+| How BenchmarkRunner and the suites measure, and why | Comments in `Benchmarks/` |
+| Third-party data: its source, license and checksum | `Assets/README.md` |
+| Domain terms | `CONTEXT.md` |
+| How agents work in this repository | `docs/agents/` |
 | Analysis of one result: profiles, causes, attempts | The issue that tracks it |
 | Decisions and the reasons for them | `docs/adr/` |
 | Toolchain bugs Moonbounce works around | `KNOWN_ISSUES.md` |
 | Coding rules, commit and pull request format | `CONTRIBUTING.md` |
 | Why a piece of code is the way it is | A comment beside the code; rules elsewhere cite it |
 
-Each file holds only what its row names. When content fits another row, move it there instead of adding it.
+Each home in this table holds only what its row names. When content fits another row, move it there instead of adding it.
 
 When you move or rename a section, update every reference to it. Search the repository and the open issues.
 

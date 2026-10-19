@@ -27,7 +27,10 @@
 public enum MeasurementRules {
     /// Iterations run, unmeasured, before the first measured one.
     public static let warmupIterations = 5
-    /// Sweeps per measured iteration, unless a benchmark sets its own.
+    /// Sweeps per measured iteration, unless a benchmark sets its own. A
+    /// benchmark sets fewer when its iterations would take longer than about
+    /// 10 ms: half the 20 ms at which `minIterations` fill `maxDuration`, so a
+    /// slower machine still measures them in time.
     public static let defaultSweepsPerIteration = 1000
     /// A benchmark stops after this many measured iterations…
     public static let maxIterations = 1000

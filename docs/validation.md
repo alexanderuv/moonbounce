@@ -31,7 +31,7 @@ CI (`.github/workflows/ci.yml`) builds and tests every platform in the table in 
 
 ### x86-64 instruction set
 
-Moonbounce is measured at x86-64-v3 (AVX2, FMA, F16C, BMI, LZCNT). x86-64 benchmark figures count only from a build at that level: BenchmarkRunner refuses to measure any other, and `JoltComparison/compare.py` builds at it. A build below x86-64-v3 is supported for correctness only; without FMA, each fused multiply-add becomes calls to the C library, with the same bits but far slower. The [README](../README.md#requirements) shows how an application selects the level.
+Moonbounce is measured at x86-64-v3 ([README](../README.md#requirements)). x86-64 benchmark figures count only from a build at that level: BenchmarkRunner refuses a build below it, and `JoltComparison/compare.py` builds at it. A build below x86-64-v3 is supported for correctness only.
 
 ### Measuring
 
@@ -49,14 +49,14 @@ Only the clocks and counters differ by platform:
 | Linux | `CLOCK_MONOTONIC_RAW` | The measuring thread's retired user-space instructions, from `perf_event_open`, where the kernel exposes them | Default scheduling | Counted with glibc |
 | Windows | `QueryPerformanceCounter` | Thread cycles, from `QueryThreadCycleTime` | Highest priority, power throttling off, so Windows prefers performance cores | Not counted |
 
-The Jolt harness counts the same way on each platform. Windows has no retired-instruction counter without a kernel driver, so it counts cycles, which vary with the core's clock speed: they confirm a time ratio rather than measure work. The allocation rule is checked on macOS and on Linux with glibc, and not yet on Windows.
+The Jolt harness counts the same way on macOS and Windows. Windows has no retired-instruction counter without a kernel driver, so the runner counts thread cycles there, which vary with the core's clock speed. The allocation rule is checked on macOS and on Linux with glibc, and not yet on Windows ([#108](https://github.com/alexanderuv/moonbounce/issues/108)).
 
 ## Benchmarks
 
 Benchmarks live in the separate `Benchmarks/` package.
 
 - Names are `Type.operation`.
-- A sweep runs 1,000 operations over seeded SplitMix64 fixtures, and a measured iteration runs 1,000 sweeps. A benchmark whose iterations would take longer than about 10 ms runs the largest power of ten of sweeps that stays under it, or one sweep if a single sweep already takes longer, the same on both sides of the comparison.
+- A sweep runs 1,000 operations over seeded SplitMix64 fixtures, and a measured iteration runs 1,000 sweeps. A benchmark whose iterations would take longer than about 10 ms on either tier 1 platform, on either side of the comparison, runs the largest power of ten of sweeps that stays under it there, or one sweep if a single sweep already takes longer.
 - Storage an operation reuses, such as a builder's, is made once before the warm-up and kept across iterations, on each side as far as its API allows.
 - Each benchmark's Jolt counterpart runs the same sweeps per iteration, and `JoltComparison/compare.py` stops if they differ or if either side lacks the other.
 - Metrics are wall time, retired instructions (thread cycles on Windows) and allocations per iteration.
@@ -170,7 +170,7 @@ Apple M4, macOS 27.0.1. Moonbounce at f292350, built with Swift 6.4; Jolt built 
 | `Vector4.sinCos` | 1,845 | 2,654 | 44% faster | 42.1 | 45.0 |
 | `VertexWelder.weld` | 73,988 | 81,842 | 11% faster | 1,325 | 1,891 |
 
-Three rows retire more than 5% more instructions than Jolt, with wall time even or faster: `Matrix4x4.multiply`, `transformPoint` and `inversedRotationTranslation`. The extra one to three per operation are in the benchmark loop, not in the operations ([comparison README](../JoltComparison/README.md#how-it-stays-fair)).
+Three rows retire more than 5% more instructions than Jolt, with wall time even or faster: `Matrix4x4.multiply`, `transformPoint` and `inversedRotationTranslation`. The extra one to three per operation are in the benchmark loop, not in the operations ([#26](https://github.com/alexanderuv/moonbounce/issues/26), [comparison README](../JoltComparison/README.md#how-it-stays-fair)).
 
 ### Phase 1, Windows x86-64
 
@@ -227,4 +227,4 @@ Intel Core i9-12900KF, Windows 11 25H2 (build 26200.9711). Moonbounce at f292350
 | `Vector4.sinCos` | 3,487 | 3,744 | 7% faster | 11.1 | 11.9 | MSVC |
 | `VertexWelder.weld` | 182,150 | 225,030 | 24% faster | 579.0 | 716.1 | MSVC |
 
-`GJK.castRay` (9% slower) and `Matrix4x4.inversedRotationTranslation` (6% slower) trail Jolt, and [#105](https://github.com/alexanderuv/moonbounce/issues/105) tracks them. `DoubleVector3.add` measured even in an earlier build with the same code; small kernels swing between builds, as [#47](https://github.com/alexanderuv/moonbounce/issues/47) tracks.
+`GJK.castRay` (9% slower) and `Matrix4x4.inversedRotationTranslation` (6% slower) trail Jolt, and [#105](https://github.com/alexanderuv/moonbounce/issues/105) tracks them. `DoubleVector3.add` (29% slower) measured even at 6ef70ec with the same code, 559 against 551 ns; small kernels swing between builds, as [#47](https://github.com/alexanderuv/moonbounce/issues/47) tracks.
