@@ -94,8 +94,11 @@ public struct TempAllocator: ~Copyable, @unchecked Sendable {
         // x86-64 would branch on each comparison, and in a loop of frees the
         // second branch costs more than a select. A count that doesn't fit
         // selects an offset no block starts at: user-space addresses have bit
-        // 63 clear, and `base` plus `Int.min` has it set.
-        let isLast = unsafe base + (fits ? newTop : Int.min) == block
+        // 63 clear, and `base` plus `Int.min` has it set, so only a pointer
+        // made from that bit pattern passes. The sum is an integer's, since a
+        // pointer that far outside the arena is undefined.
+        let lastOffset = UInt(bitPattern: fits ? newTop : Int.min)
+        let isLast = unsafe UInt(bitPattern: base) &+ lastOffset == UInt(bitPattern: block)
         #else
         let isLast = unsafe fits && base + newTop == block
         #endif
