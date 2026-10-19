@@ -66,6 +66,8 @@ Cycles confirm a time ratio rather than measure work: unlike instructions, they 
 - **Jolt as it ships:** the Distribution configuration (no profiler, asserts or debug renderer) with Jolt's release flags, plus LTO. Jolt's math is header-only and inlines into the harness, so the harness is compiled with the same flags.
   - ARM: `-O3 -ffp-contract=on -fno-rtti -fno-exceptions`.
   - Windows: `/O2 /Oi /Ot /GS- /Gy` without RTTI or exceptions, plus `/fp:fast` for MSVC, under the Visual Studio generator Jolt's own build scripts use. Jolt's default x86-64 build selects AVX2, FMA, F16C, BMI and LZCNT there, the x86-64-v3 features its code uses.
+- **Same reuse as far as each API allows:** a benchmark keeps what its operation reuses across iterations. Jolt lets a caller keep the outputs, `GJKClosestPoint`, `EPAPenetrationDepth` and `TempAllocatorImpl`; its hull builders and `Indexify` allocate on every call, which the malloc column shows.
+- **Loop overhead differs by compiler:** on arm64, Swift biases each array's pointer so its loads use negative offsets, which rules out post-indexed loads, and increments each pointer separately; clang folds the same increments into Jolt's loads. A kernel of a few instructions, such as `Matrix4x4.multiply`, can retire one to three more per operation on the Swift side with the operation itself no longer than Jolt's.
 - **Allocation counting:** on the Jolt side, it counts through Jolt's allocation hooks and a global `operator new`. On the Swift side, BenchmarkRunner counts calls into the C allocator on macOS. Windows' C runtime allocator can't be replaced, so there it counts nothing.
 
 ## Adding a benchmark

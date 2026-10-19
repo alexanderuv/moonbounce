@@ -32,11 +32,15 @@ Moonbounce stands on its own: describe it by what it does and how it is built.
 | What Moonbounce is; how to build, test and benchmark it | `README.md` |
 | Where Moonbounce is heading, in a few paragraphs | `docs/roadmap.md` |
 | Features, specifications, acceptance criteria | GitHub issues: one per phase, with tickets as sub-issues |
-| Definition of done, platforms, measurement, recorded results | `docs/validation.md` |
+| The rules a result must meet: definition of done, platform tiers and CI gaps, measurement rules, the speed reference, scene targets and quality gates, and recorded results with one line per exception | `docs/validation.md` |
+| How the harness measures and keeps the two sides comparable | `JoltComparison/README.md`, comments in `Benchmarks/` |
+| Analysis of one result: profiles, causes, attempts | The issue that tracks it |
 | Decisions and the reasons for them | `docs/adr/` |
 | Toolchain bugs Moonbounce works around | `KNOWN_ISSUES.md` |
 | Coding rules, commit and pull request format | `CONTRIBUTING.md` |
 | Why a piece of code is the way it is | A comment beside the code; rules elsewhere cite it |
+
+Each file holds only what its row names. When content fits another row, move it there instead of adding it.
 
 When you move or rename a section, update every reference to it. Search the repository and the open issues.
 
