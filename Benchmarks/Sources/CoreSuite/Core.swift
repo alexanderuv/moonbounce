@@ -27,6 +27,26 @@ extension SuiteBenchmark {
                 }
                 iteration.stopMeasurement()
             },
+
+            SuiteBenchmark(name: "DeterministicHash.bytes", sweepsPerIteration: 100) { iteration in
+                // Each position's 12 bytes, seeded with the hash of the
+                // positions before it, as a state hash folds in every body;
+                // an operation is one position.
+                var hashes = [UInt64](repeating: 0, count: fixtures.positions.count)
+                let sweeps = iteration.sweeps
+                iteration.startMeasurement()
+                for _ in 0..<sweeps {
+                    let positions = fixtures.positions.span
+                    var output = hashes.mutableSpan
+                    var hash = DeterministicHash.seed
+                    for i in positions.indices {
+                        hash = DeterministicHash.bytes(of: positions[i], seed: hash)
+                        output[i] = hash
+                    }
+                    blackHole(hashes)
+                }
+                iteration.stopMeasurement()
+            },
         ]
     }
 }
