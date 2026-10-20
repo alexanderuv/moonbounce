@@ -19,7 +19,7 @@ A hot path is anything a simulation step can call per body or per constraint. Ea
 - **`InlineArray` storage is read in place only from a variable** (`Polygon`; [known issue](KNOWN_ISSUES.md#swift-indexing-a-borrowed-inlinearray-copies-the-whole-value)). To read a parameter or other borrowed value by index, Swift first copies the whole value to the stack. So an operation over a list of values takes it as a span, a loop over a borrowed one takes a single span up front, and an element getter uses the storage's own subscript, which reads a variable in place, rather than a span, which copies even then.
 - **Scratch that starts empty is a temporary allocation** (`Polygon.clip`). A new `InlineArray` fills every slot, which costs more than the work for a few vertices; `withUnsafeTemporaryAllocation` gives uninitialized stack memory instead, but only up to 1,024 bytes ([known issue](KNOWN_ISSUES.md#swift-temporary-allocations-over-1-kib-go-to-the-heap)). Larger scratch is allocated once by a noncopyable value that the caller keeps and reuses (`EPA`).
 
-Benchmarks have their own conventions, in [validation](docs/validation.md#benchmarks).
+Benchmarks have their own rules, in [validation](docs/validation.md#benchmarks). How to add one is in the [comparison README](JoltComparison/README.md#adding-a-benchmark) and the comments in `Benchmarks/Sources/PrimitivesSuite/Primitives.swift`.
 
 ## Commits
 
@@ -37,6 +37,7 @@ Closes #<issue>
 - **Body:** optional. One to three bullets on what changed and why, not a replay of the diff.
 - **Footer:** `Closes #<n>` for the ticket the commit completes, `Refs #<n>` for related ones. The phase lives in the ticket, so subjects carry no `[Phase N]` prefix.
 - **Breaking changes:** add `!` after the type or scope and a `BREAKING CHANGE:` footer that says what callers must change. This applies before 1.0 too.
+- **No AI attribution:** commits, pull requests, issues and comments carry no `Co-Authored-By` trailer for an assistant, no "Generated with" line and no mention of AI authorship.
 
 | Type | Use for |
 |---|---|

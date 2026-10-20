@@ -30,6 +30,17 @@ The [roadmap](docs/roadmap.md) lays out the path to a complete engine.
 
 - Swift 6.4 toolchain, Swift 6 language mode.
 - On Apple platforms: macOS 27 or iOS 27.
+- On x86-64: a CPU with x86-64-v3 (AVX2, FMA, F16C, BMI, LZCNT), Intel since Haswell (2013) or AMD since Excavator (2015), for full speed.
+
+`Package.swift` sets no instruction-set flags, so a default x86-64 build is baseline x86-64: correct, but each fused multiply-add becomes calls to the C library. Select x86-64-v3 for the application's whole build:
+
+```bash
+swift build -c release -Xcc -march=x86-64-v3
+```
+
+- **One flag covers both languages.** The Swift compiler takes its instruction-set features from its C importer, so `-Xcc -march` sets the level for Swift code and C alike. Swift's `-target-cpu` takes only CPU names such as `haswell`.
+- **It must apply to the whole build.** The hot-path API is inlinable and compiles into the application's own modules, so flags on Moonbounce's targets alone would miss it.
+- **It stays out of the manifest.** A manifest can't condition a setting on the architecture, so a fixed level would break arm64 builds and require x86-64-v3 of every application's users.
 
 ## Getting started
 
