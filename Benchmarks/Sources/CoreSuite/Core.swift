@@ -28,7 +28,7 @@ extension SuiteBenchmark {
                 iteration.stopMeasurement()
             },
 
-            SuiteBenchmark(name: "DeterministicHash.bytes") { iteration in
+            SuiteBenchmark(name: "DeterministicHash.bytes", sweepsPerIteration: 100) { iteration in
                 // Each position's 12 bytes, seeded with the hash of the
                 // positions before it, as a state hash folds in every body;
                 // an operation is one position.

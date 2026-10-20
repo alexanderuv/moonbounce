@@ -18,7 +18,6 @@ import Testing
         let bytes = Array(string.utf8)
         #expect(DeterministicHash.string(string) == 0x069C_0369_78B4_80F3)
         #expect(DeterministicHash.bytes(bytes.span.bytes) == 0x069C_0369_78B4_80F3)
-        #expect(string.deterministicHash == 0x069C_0369_78B4_80F3)
     }
 
     @Test func combiningDependsOnOrderAndAlwaysChangesTheSeed() {
@@ -111,7 +110,7 @@ import Testing
         #expect(zeroThenZero == 0x13CE_1B1B_2055_A95A)
 
         #expect(DeterministicHash.of(Int32(1), Int32(2), Int32(3)) == 0xDFDD_62C5_4702_0F05)
-        #expect(DeterministicHash.of(Float(1.5), UInt64(7), "moonbounce") == 0x22A9_1583_5BE7_472E)
+        #expect(DeterministicHash.of(Float(1.5), UInt64(7), Double(-2.5)) == 0x15FD_5CFD_F0B0_5EF6)
         #expect(DeterministicHash.of(Int32(1)) == Int32(1).deterministicHash)
     }
 }

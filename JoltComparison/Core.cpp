@@ -70,7 +70,7 @@ int main()
 	// it, as PerformanceTest's state hash folds in every body.
 	{
 		std::vector<uint64> hashes(cCount);
-		Measure("DeterministicHash.bytes", [&](int inSweeps) {
+		Measure({ "DeterministicHash.bytes", 100 }, [&](int inSweeps) {
 			for (int sweep = 0; sweep < inSweeps; ++sweep)
 			{
 				uint64 hash = HashBytes(nullptr, 0);

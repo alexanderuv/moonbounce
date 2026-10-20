@@ -26,34 +26,35 @@
 /// for the simulation's state hash and its deterministic containers. Swift's
 /// `Hasher` is seeded per process, so it can serve neither.
 ///
-/// Bytes hash with rapidhash V3, which reads 8 bytes per step where Jolt's
-/// FNV-1a reads one. Integers and combining use rapidhash's mixing step, one
-/// 64-by-64-bit multiply that folds the product's halves together. A hash of
-/// a value's bytes reads them in memory order, and every platform Moonbounce
-/// supports is little-endian. The values never change between releases: a
-/// state hash recorded once must match later.
+/// Bytes hash with rapidhash V3 (docs/adr/0003). Integers and combining use
+/// rapidhash's mixing step, one 64-by-64-bit multiply that folds the
+/// product's halves together. A hash of a value's bytes reads them in memory
+/// order, and every platform Moonbounce supports is little-endian. The values
+/// never change between releases: a state hash recorded once must match
+/// later.
 @frozen
 public enum DeterministicHash {
     /// The seed a hash of bytes starts from unless given another.
-    @inline(always)
-    public static var seed: UInt64 { 0 }
+    public static let seed: UInt64 = 0
 
     /// The rapidhash of `bytes` with `seed`. Pass the result of an earlier
     /// call as the seed to chain several runs of bytes into one hash; the
     /// chain differs from the hash of the runs joined.
     @inline(always)
     public static func bytes(_ bytes: RawSpan, seed: UInt64 = seed) -> UInt64 {
-        unsafe bytes.withUnsafeBytes { buffer in unsafe rapidhash(buffer, seed: seed) }
+        bytes.withUnsafeBytes { buffer in unsafe rapidhash(buffer, seed: seed) }
     }
 
     /// The rapidhash of `value`'s bytes with `seed`. The type must have no
     /// padding, whose bytes are undefined.
     @inline(always)
     public static func bytes<T: BitwiseCopyable>(of value: T, seed: UInt64 = seed) -> UInt64 {
-        unsafe withUnsafeBytes(of: value) { buffer in unsafe rapidhash(buffer, seed: seed) }
+        withUnsafeBytes(of: value) { buffer in unsafe rapidhash(buffer, seed: seed) }
     }
 
-    /// The rapidhash of `string`'s UTF-8 bytes with `seed`.
+    /// The rapidhash of `string`'s UTF-8 bytes with `seed`. Strings that
+    /// compare equal but differ in their bytes, such as "é" composed and
+    /// decomposed, hash differently.
     @inlinable
     public static func string(_ string: String, seed: UInt64 = seed) -> UInt64 {
         var string = string
@@ -87,14 +88,14 @@ public enum DeterministicHash {
     // MARK: rapidhash
 
     // rapidhash's default secrets.
-    @usableFromInline static var secret0: UInt64 { 0x2D35_8DCC_AA6C_78A5 }
-    @usableFromInline static var secret1: UInt64 { 0x8BB8_4B93_962E_ACC9 }
-    @usableFromInline static var secret2: UInt64 { 0x4B33_A62E_D433_D4A3 }
-    @usableFromInline static var secret3: UInt64 { 0x4D5A_2DA5_1DE1_AA47 }
-    @usableFromInline static var secret4: UInt64 { 0xA076_1D64_78BD_642F }
-    @usableFromInline static var secret5: UInt64 { 0xE703_7ED1_A0B4_28DB }
-    @usableFromInline static var secret6: UInt64 { 0x90ED_1765_281C_388C }
-    @usableFromInline static var secret7: UInt64 { 0xAAAA_AAAA_AAAA_AAAA }
+    @usableFromInline static let secret0: UInt64 = 0x2D35_8DCC_AA6C_78A5
+    @usableFromInline static let secret1: UInt64 = 0x8BB8_4B93_962E_ACC9
+    @usableFromInline static let secret2: UInt64 = 0x4B33_A62E_D433_D4A3
+    @usableFromInline static let secret3: UInt64 = 0x4D5A_2DA5_1DE1_AA47
+    @usableFromInline static let secret4: UInt64 = 0xA076_1D64_78BD_642F
+    @usableFromInline static let secret5: UInt64 = 0xE703_7ED1_A0B4_28DB
+    @usableFromInline static let secret6: UInt64 = 0x90ED_1765_281C_388C
+    @usableFromInline static let secret7: UInt64 = 0xAAAA_AAAA_AAAA_AAAA
 
     /// The 128-bit product of `a` and `b`, as rapidhash's `rapid_mum`.
     @inlinable @inline(always)
@@ -250,10 +251,4 @@ extension Double: DeterministicHashable {
     /// since the two are equal.
     @inline(always)
     public var deterministicHash: UInt64 { DeterministicHash.mix((self == 0 ? 0 : self).bitPattern) }
-}
-
-extension String: DeterministicHashable {
-    /// ``DeterministicHash/string(_:seed:)`` of the string.
-    @inlinable
-    public var deterministicHash: UInt64 { DeterministicHash.string(self) }
 }
