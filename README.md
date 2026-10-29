@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/logo/logo-dark.svg">
+    <img src=".github/logo/logo-light.svg" alt="" width="128">
+  </picture>
+</p>
+
 # Moonbounce
 
 A fast physics engine for Swift. Its hot paths are built on Swift's ownership and SIMD features, they allocate nothing, and every one of them is benchmarked.

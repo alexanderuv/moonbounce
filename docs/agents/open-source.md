@@ -42,6 +42,7 @@ Moonbounce stands on its own: describe it by what it does and how it is built.
 | Decisions and the reasons for them | `docs/adr/` |
 | Toolchain bugs Moonbounce works around | `KNOWN_ISSUES.md` |
 | Coding rules, commit and pull request format | `CONTRIBUTING.md` |
+| The logo, in light and dark versions | `.github/logo/` |
 | Why a piece of code is the way it is | A comment beside the code; rules elsewhere cite it |
 
 Each home in this table holds only what its row names. When content fits another row, move it there instead of adding it.
